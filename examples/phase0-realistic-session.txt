@@ -1,0 +1,11 @@
+Decision: Keep Project Brain local-first and markdown-first instead of introducing a database in the MVP.
+We want repo knowledge to stay reviewable in Git, easy to edit by hand, and easy to move across machines. This applies to the whole MVP and is the reason the store layer writes Markdown plus frontmatter into .brain/.
+
+Gotcha: Do not treat full chat transcripts as memory.
+Most session chatter is temporary and creates noisy recall later. Only extract knowledge that will still help in a future coding session, such as a real project decision, a repeated pitfall, or a repo-specific convention.
+
+Convention: Use node:fs/promises for all filesystem work in the CLI and storage modules.
+This keeps the implementation aligned with the Phase 0 constraint and avoids mixing callback-based helpers with promise-based code. Apply this to init, save, load, and index update flows.
+
+Decision: Delay embeddings, semantic search, and dashboards until after the MVP loop is stable.
+The first release is only responsible for extract, store, recall, and inject. If a feature does not make that loop more reliable, it should stay out of Phase 0.
