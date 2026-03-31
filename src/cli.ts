@@ -35,7 +35,7 @@ program
 
     const config = await loadConfig(projectRoot);
     const stdinText = await readStdin();
-    const memories = await extractMemories(stdinText, config);
+    const memories = await extractMemories(stdinText, config, projectRoot);
     const savedPaths: string[] = [];
 
     for (const memory of memories) {
@@ -105,6 +105,23 @@ program
     output.write(`By importance: ${formatCountMap(byImportance)}\n`);
   });
 
+program
+  .command("status")
+  .description("Show recent Project Brain activity for the current project.")
+  .action(async () => {
+    const projectRoot = process.cwd();
+    const memories = await loadAllMemories(projectRoot);
+    const recentMemories = memories.slice(0, 5);
+
+    output.write(`Project root: ${projectRoot}\n`);
+    output.write(`Total memories: ${memories.length}\n`);
+    output.write(`Last updated: ${memories[0]?.date ?? "N/A"}\n`);
+    output.write("Recent loaded memories:\n");
+    output.write(`${formatMemoryList(recentMemories)}\n`);
+    output.write("Recent captured memories:\n");
+    output.write(`${formatMemoryList(recentMemories)}\n`);
+  });
+
 program.parseAsync(process.argv).catch((error: unknown) => {
   const message = error instanceof Error ? error.message : String(error);
   process.stderr.write(`${message}\n`);
@@ -126,4 +143,14 @@ function formatCountMap(map: Map<string, number>): string {
     .sort(([left], [right]) => left.localeCompare(right))
     .map(([key, value]) => `${key}=${value}`)
     .join(", ");
+}
+
+function formatMemoryList(memories: Memory[]): string {
+  if (memories.length === 0) {
+    return "- None.";
+  }
+
+  return memories
+    .map((memory) => `- ${memory.type} | ${memory.importance} | ${memory.title} (${memory.date})`)
+    .join("\n");
 }

@@ -1,7 +1,7 @@
 import { defineConfig } from "tsup";
 
 export default defineConfig({
-  entry: ["src/cli.ts"],
+  entry: ["src/cli.ts", "src/hooks/session-start.ts", "src/hooks/session-end.ts"],
   format: ["esm"],
   dts: true,
   clean: true,

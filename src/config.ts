@@ -27,6 +27,23 @@ export async function hasBrain(projectRoot: string): Promise<boolean> {
   }
 }
 
+export async function findProjectRoot(startDir: string): Promise<string | null> {
+  let currentDir = path.resolve(startDir);
+
+  while (true) {
+    if (await hasBrain(currentDir)) {
+      return currentDir;
+    }
+
+    const parentDir = path.dirname(currentDir);
+    if (parentDir === currentDir) {
+      return null;
+    }
+
+    currentDir = parentDir;
+  }
+}
+
 export async function loadConfig(projectRoot: string): Promise<BrainConfig> {
   const configPath = getConfigPath(projectRoot);
 

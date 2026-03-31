@@ -38,6 +38,7 @@ If there is nothing worth saving, return {"memories": []}. Do not output anythin
 export async function extractMemories(
   conversationText: string,
   config: BrainConfig,
+  projectRoot: string = process.cwd(),
 ): Promise<Memory[]> {
   const trimmed = conversationText.trim();
   if (!trimmed) {
@@ -55,14 +56,14 @@ export async function extractMemories(
     const rawOutput = await runExtractorCommand(extractorCommand, prompt);
     const parsed = safeParsePayload(rawOutput);
     if (!parsed) {
-      await appendErrorLog(process.cwd(), "Failed to parse extractor JSON output.");
+      await appendErrorLog(projectRoot, "Failed to parse extractor JSON output.");
       return [];
     }
 
     return parsed.memories;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    await appendErrorLog(process.cwd(), `Extractor command failed: ${message}`);
+    await appendErrorLog(projectRoot, `Extractor command failed: ${message}`);
     return heuristicExtract(trimmed, config);
   }
 }
