@@ -47,12 +47,26 @@ export async function saveMemory(memory: Memory, projectRoot: string): Promise<s
 
   const directory = DIRECTORY_BY_TYPE[memory.type];
   const fileName = `${memory.date.slice(0, 10)}-${slugify(memory.title)}.md`;
-  const relativePath = path.join(directory, ensureUniqueFileNameSuffix(memory, fileName));
-  const filePath = path.join(getBrainDir(projectRoot), relativePath);
+  const brainDir = getBrainDir(projectRoot);
+  const content = serializeMemory(memory);
 
-  await writeFile(filePath, serializeMemory(memory), "utf8");
+  for (let attempt = 0; attempt < 1000; attempt += 1) {
+    const relativePath = path.join(directory, ensureUniqueFileNameSuffix(memory, fileName, attempt));
+    const filePath = path.join(brainDir, relativePath);
 
-  return filePath;
+    try {
+      await writeFile(filePath, content, { encoding: "utf8", flag: "wx" });
+      return filePath;
+    } catch (error) {
+      if (isFileAlreadyExistsError(error)) {
+        continue;
+      }
+
+      throw error;
+    }
+  }
+
+  throw new Error(`Failed to allocate a unique memory file name for "${memory.title}".`);
 }
 
 export async function loadAllMemories(projectRoot: string): Promise<Memory[]> {
@@ -341,21 +355,33 @@ function slugify(value: string): string {
   return normalized || "memory";
 }
 
-function ensureUniqueFileNameSuffix(memory: Memory, fileName: string): string {
+function ensureUniqueFileNameSuffix(memory: Memory, fileName: string, attempt: number = 0): string {
   const stamp = memory.date
-    .replace(/[:]/g, "")
-    .replace(/\.\d+Z$/, "Z")
-    .replace(/[^\dTZ-]/g, "")
-    .slice(11, 16)
-    .replace("T", "");
-
-  if (!stamp) {
-    return fileName;
-  }
+    .replace(/[^\d]/g, "")
+    .slice(8, 17);
 
   const extension = path.extname(fileName);
   const baseName = fileName.slice(0, -extension.length);
-  return `${baseName}-${stamp}${extension}`;
+  const parts = [baseName];
+
+  if (stamp) {
+    parts.push(stamp);
+  }
+
+  if (attempt > 0) {
+    parts.push(String(attempt + 1));
+  }
+
+  return `${parts.join("-")}${extension}`;
+}
+
+function isFileAlreadyExistsError(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    "code" in error &&
+    typeof error.code === "string" &&
+    error.code === "EEXIST"
+  );
 }
 
 async function touchFile(filePath: string): Promise<void> {
