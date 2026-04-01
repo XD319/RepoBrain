@@ -199,7 +199,9 @@ function blockToMemory(block: string, config: BrainConfig): Memory | null {
     return null;
   }
 
-  const prefixMatch = firstLine.match(/^(?:[-*]\s*)?(decision|gotcha|convention)\s*[:\-]\s*(.+)$/i);
+  const prefixMatch = firstLine.match(
+    /^(?:[-*]\s*)?(decision|gotcha|convention|pattern)\s*[:\-]\s*(.+)$/i,
+  );
   if (!prefixMatch) {
     return null;
   }
@@ -230,7 +232,7 @@ function blockToMemory(block: string, config: BrainConfig): Memory | null {
 function summarizeBlock(lines: string[], language: string): string {
   const headline = lines
     .at(0)
-    ?.replace(/^(?:[-*]\s*)?(decision|gotcha|convention)\s*[:\-]\s*/i, "")
+    ?.replace(/^(?:[-*]\s*)?(decision|gotcha|convention|pattern)\s*[:\-]\s*/i, "")
     .trim();
   if (headline) {
     return headline.slice(0, 120);

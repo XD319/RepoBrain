@@ -1,7 +1,7 @@
 import { loadAllMemories } from "./store.js";
 import type { BrainConfig, Memory, MemoryType } from "./types.js";
 
-const TYPE_ORDER: MemoryType[] = ["decision", "gotcha", "convention"];
+const TYPE_ORDER: MemoryType[] = ["decision", "gotcha", "convention", "pattern"];
 const IMPORTANCE_SCORE: Record<Memory["importance"], number> = {
   high: 3,
   medium: 2,
@@ -33,6 +33,9 @@ export async function buildInjection(projectRoot: string, config: BrainConfig): 
     "## Repo conventions",
     renderGroup(grouped.get("convention") ?? []),
     "",
+    "## Reusable patterns",
+    renderGroup(grouped.get("pattern") ?? []),
+    "",
     "---",
     `Source: .brain/ (${allMemories.length} records, last updated: ${lastUpdated})`,
     "Requirements:",
@@ -59,6 +62,7 @@ function selectWithinTokenBudget(memories: Memory[], maxTokens: number): Memory[
       "## High-priority decisions",
       "## Known gotchas and limits",
       "## Repo conventions",
+      "## Reusable patterns",
       "---",
     ].join("\n"),
   );

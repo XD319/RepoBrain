@@ -1,4 +1,4 @@
-export const MEMORY_TYPES = ["decision", "gotcha", "convention"] as const;
+export const MEMORY_TYPES = ["decision", "gotcha", "convention", "pattern"] as const;
 export const IMPORTANCE_LEVELS = ["high", "medium", "low"] as const;
 export const MEMORY_SOURCES = ["session", "git-commit", "manual", "pr"] as const;
 export const MEMORY_STATUSES = ["active", "stale", "superseded"] as const;

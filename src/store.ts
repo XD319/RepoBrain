@@ -9,6 +9,7 @@ const DIRECTORY_BY_TYPE: Record<MemoryType, string> = {
   decision: "decisions",
   gotcha: "gotchas",
   convention: "conventions",
+  pattern: "patterns",
 };
 
 export async function initBrain(projectRoot: string): Promise<void> {
@@ -325,6 +326,8 @@ function titleForType(type: MemoryType): string {
       return "Gotchas";
     case "convention":
       return "Conventions";
+    case "pattern":
+      return "Patterns";
   }
 }
 

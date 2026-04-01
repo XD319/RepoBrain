@@ -4,7 +4,7 @@
 
 > Git-friendly repo memory for coding agents.
 
-RepoBrain helps AI coding agents remember the parts of your repository that actually matter later: architecture decisions, known gotchas, and repo-specific conventions.
+RepoBrain helps AI coding agents remember the parts of your repository that actually matter later: architecture decisions, known gotchas, repo-specific conventions, and reusable patterns.
 
 It is not a generic chat memory platform. It does not try to save every conversation forever. The point is much simpler: stop re-explaining the same repo context every time Claude Code or Codex starts a new session.
 
@@ -66,11 +66,12 @@ That means less repeated setup, fewer old mistakes, and fewer suggestions that i
 
 ## Memory Types
 
-RepoBrain focuses on three memory types in the current MVP:
+RepoBrain focuses on four memory types in the current MVP:
 
 - `decision`: architecture or implementation choices, plus why they were made
 - `gotcha`: pitfalls, constraints, and "do not do X because Y"
 - `convention`: repo-specific naming, structure, style, and workflow rules
+- `pattern`: reusable implementation or workflow patterns that should be repeated in future sessions
 
 This is the heart of the project. RepoBrain is built to preserve high-value repo knowledge, not general conversation history.
 

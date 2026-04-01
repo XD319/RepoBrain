@@ -4,7 +4,7 @@
 
 > 面向 coding agent 的 Git-friendly repo memory。
 
-RepoBrain 的目标很直接：帮 Claude Code、Codex 这类 coding agent 记住这个仓库真正重要的上下文，比如架构决策、已知坑点、项目约定，而不是把所有聊天记录都攒下来。
+RepoBrain 的目标很直接：帮 Claude Code、Codex 这类 coding agent 记住这个仓库真正重要的上下文，比如架构决策、已知坑点、项目约定，以及可复用的实现模式，而不是把所有聊天记录都攒下来。
 
 它不是一个通用聊天记忆平台。它不追求“永久保存所有对话”。它解决的是更实际的问题：每次新 session 开始时，AI agent 总会忘记这个仓库最关键的 decision、gotcha 和 convention。
 
@@ -66,11 +66,12 @@ RepoBrain 刻意把闭环做得很小：
 
 ## Memory Types
 
-当前 MVP 重点沉淀三类记忆：
+当前 MVP 重点沉淀四类记忆：
 
 - `decision`：架构或实现选择，以及为什么这样做
 - `gotcha`：已知坑点、限制、以及“不要做 X，因为 Y”
 - `convention`：项目特有的命名、目录结构、代码风格、协作约定
+- `pattern`：未来 session 里应该复用的实现模式或工作流模式
 
 这也是 RepoBrain 的核心定位。它保存的是高价值 repo knowledge，不是通用聊天历史。
 
