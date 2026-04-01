@@ -155,7 +155,7 @@ autoExtract: false
 language: zh-CN
 ```
 
-- `maxInjectTokens`：生成注入上下文时的 token 预算
+- `maxInjectTokens`：生成注入上下文时使用的近似 token 预算，针对中英混合内容做了更稳的估算
 - `autoExtract`：给自动化工作流预留的开关
 - `language`：提取提示词偏好的输出语言
 

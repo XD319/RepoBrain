@@ -110,5 +110,17 @@ function extractScope(detail: string): string {
 }
 
 function approximateTokens(text: string): number {
-  return Math.ceil(text.length / 4);
+  let asciiChars = 0;
+  let nonAsciiTokens = 0;
+
+  for (const char of text) {
+    if (char.charCodeAt(0) <= 0x7f) {
+      asciiChars += 1;
+      continue;
+    }
+
+    nonAsciiTokens += 1;
+  }
+
+  return Math.ceil(asciiChars / 4) + nonAsciiTokens;
 }

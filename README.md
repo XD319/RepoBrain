@@ -155,7 +155,7 @@ autoExtract: false
 language: zh-CN
 ```
 
-- `maxInjectTokens`: token budget used when building injected context
+- `maxInjectTokens`: approximate token budget used when building injected context, with Unicode-aware estimation for mixed English/CJK content
 - `autoExtract`: reserved flag for automation-friendly workflows
 - `language`: preferred output language for extraction prompts
 
