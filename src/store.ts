@@ -6,12 +6,21 @@ import type {
   BrainActivityState,
   Memory,
   MemoryActivityEntry,
+  InvocationMode,
   MemorySource,
   MemoryStatus,
+  RiskLevel,
   StoredMemoryRecord,
   MemoryType,
 } from "./types.js";
-import { IMPORTANCE_LEVELS, MEMORY_STATUSES, MEMORY_TYPES, MEMORY_SOURCES } from "./types.js";
+import {
+  IMPORTANCE_LEVELS,
+  INVOCATION_MODES,
+  MEMORY_STATUSES,
+  MEMORY_TYPES,
+  MEMORY_SOURCES,
+  RISK_LEVELS,
+} from "./types.js";
 
 const DIRECTORY_BY_TYPE: Record<MemoryType, string> = {
   decision: "decisions",
@@ -19,6 +28,20 @@ const DIRECTORY_BY_TYPE: Record<MemoryType, string> = {
   convention: "conventions",
   pattern: "patterns",
 };
+
+const ARRAY_FRONTMATTER_FIELDS = [
+  "tags",
+  "recommended_skills",
+  "required_skills",
+  "suppressed_skills",
+  "skill_trigger_paths",
+  "skill_trigger_tasks",
+] as const;
+
+type ArrayFrontmatterField = (typeof ARRAY_FRONTMATTER_FIELDS)[number];
+
+const DEFAULT_INVOCATION_MODE: InvocationMode = "optional";
+const DEFAULT_RISK_LEVEL: RiskLevel = "low";
 
 export async function initBrain(projectRoot: string): Promise<void> {
   const brainDir = getBrainDir(projectRoot);
@@ -49,18 +72,24 @@ export async function initBrain(projectRoot: string): Promise<void> {
 }
 
 export async function saveMemory(memory: Memory, projectRoot: string): Promise<string> {
-  validateMemory(memory);
+  const normalizedMemory = normalizeMemory(memory);
+  validateMemory(normalizedMemory);
 
   await initBrain(projectRoot);
-  await supersedeOverlappingMemories(memory, projectRoot);
+  if (getMemoryStatus(normalizedMemory) === "active") {
+    await supersedeMatchingActiveMemories(normalizedMemory, projectRoot);
+  }
 
-  const directory = DIRECTORY_BY_TYPE[memory.type];
-  const fileName = `${memory.date.slice(0, 10)}-${slugify(memory.title)}.md`;
+  const directory = DIRECTORY_BY_TYPE[normalizedMemory.type];
+  const fileName = `${normalizedMemory.date.slice(0, 10)}-${slugify(normalizedMemory.title)}.md`;
   const brainDir = getBrainDir(projectRoot);
-  const content = serializeMemory(memory);
+  const content = serializeMemory(normalizedMemory);
 
   for (let attempt = 0; attempt < 1000; attempt += 1) {
-    const relativePath = path.join(directory, ensureUniqueFileNameSuffix(memory, fileName, attempt));
+    const relativePath = path.join(
+      directory,
+      ensureUniqueFileNameSuffix(normalizedMemory, fileName, attempt),
+    );
     const filePath = path.join(brainDir, relativePath);
 
     try {
@@ -75,7 +104,7 @@ export async function saveMemory(memory: Memory, projectRoot: string): Promise<s
     }
   }
 
-  throw new Error(`Failed to allocate a unique memory file name for "${memory.title}".`);
+  throw new Error(`Failed to allocate a unique memory file name for "${normalizedMemory.title}".`);
 }
 
 export async function loadAllMemories(projectRoot: string): Promise<Memory[]> {
@@ -144,20 +173,22 @@ async function loadStoredMemories(projectRoot: string): Promise<StoredMemoryReco
           markdownFiles.map(async (entry) => {
             const filePath = path.join(directory, entry.name);
             const content = await readFile(filePath, "utf8");
-            const memory = parseMemory(content);
-            return memory
-              ? {
-                  filePath,
-                  relativePath: path.relative(projectRoot, filePath),
-                  memory,
-                }
-              : null;
+            const memory = parseMemory(content, filePath);
+            return {
+              filePath,
+              relativePath: path.relative(projectRoot, filePath),
+              memory,
+            };
           }),
         );
 
-        return loaded.filter((entry): entry is StoredMemoryRecord => entry !== null);
-      } catch {
-        return [];
+        return loaded;
+      } catch (error) {
+        if (isMissingDirectoryError(error)) {
+          return [];
+        }
+
+        throw error;
       }
     }),
   );
@@ -165,6 +196,15 @@ async function loadStoredMemories(projectRoot: string): Promise<StoredMemoryReco
   return memoriesByType
     .flat()
     .sort((left, right) => right.memory.date.localeCompare(left.memory.date));
+}
+
+function isMissingDirectoryError(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    "code" in error &&
+    typeof error.code === "string" &&
+    error.code === "ENOENT"
+  );
 }
 
 export async function appendErrorLog(projectRoot: string, message: string): Promise<void> {
@@ -203,63 +243,135 @@ export async function loadActivityState(projectRoot: string): Promise<BrainActiv
   }
 }
 
-function validateMemory(memory: Memory): void {
+export function getMemoryStatus(memory: Memory): MemoryStatus {
+  return memory.status ?? "active";
+}
+
+export async function overwriteStoredMemory(record: StoredMemoryRecord): Promise<void> {
+  const normalizedMemory = normalizeMemory(record.memory);
+  validateMemory(normalizedMemory);
+  await writeFile(record.filePath, serializeMemory(normalizedMemory), "utf8");
+}
+
+export async function approveCandidateMemory(
+  record: StoredMemoryRecord,
+  projectRoot: string,
+): Promise<void> {
+  const promotedMemory: Memory = {
+    ...record.memory,
+    status: "active",
+  };
+
+  await supersedeMatchingActiveMemories(promotedMemory, projectRoot, record.filePath);
+  await overwriteStoredMemory({
+    ...record,
+    memory: promotedMemory,
+  });
+}
+
+export async function updateStoredMemoryStatus(
+  record: StoredMemoryRecord,
+  status: MemoryStatus,
+): Promise<void> {
+  await overwriteStoredMemory({
+    ...record,
+    memory: {
+      ...record.memory,
+      status,
+    },
+  });
+}
+
+function validateMemory(memory: Memory, context = "Memory"): void {
   if (!MEMORY_TYPES.includes(memory.type)) {
-    throw new Error(`Unsupported memory type: ${memory.type}`);
+    throw new Error(`${context} has unsupported type "${memory.type}". Expected one of: ${MEMORY_TYPES.join(", ")}.`);
   }
 
   if (!IMPORTANCE_LEVELS.includes(memory.importance)) {
-    throw new Error(`Unsupported importance: ${memory.importance}`);
+    throw new Error(
+      `${context} has unsupported importance "${memory.importance}". Expected one of: ${IMPORTANCE_LEVELS.join(", ")}.`,
+    );
   }
 
   if (memory.source && !MEMORY_SOURCES.includes(memory.source)) {
-    throw new Error(`Unsupported source: ${memory.source}`);
+    throw new Error(
+      `${context} has unsupported source "${memory.source}". Expected one of: ${MEMORY_SOURCES.join(", ")}.`,
+    );
   }
 
   if (memory.status && !MEMORY_STATUSES.includes(memory.status)) {
-    throw new Error(`Unsupported status: ${memory.status}`);
+    throw new Error(
+      `${context} has unsupported status "${memory.status}". Expected one of: ${MEMORY_STATUSES.join(", ")}.`,
+    );
+  }
+
+  if (!INVOCATION_MODES.includes(memory.invocation_mode ?? DEFAULT_INVOCATION_MODE)) {
+    throw new Error(
+      `${context} has unsupported invocation_mode "${memory.invocation_mode}". Expected one of: ${INVOCATION_MODES.join(", ")}.`,
+    );
+  }
+
+  if (!RISK_LEVELS.includes(memory.risk_level ?? DEFAULT_RISK_LEVEL)) {
+    throw new Error(
+      `${context} has unsupported risk_level "${memory.risk_level}". Expected one of: ${RISK_LEVELS.join(", ")}.`,
+    );
   }
 
   if (!memory.title.trim() || !memory.summary.trim() || !memory.detail.trim()) {
-    throw new Error("Memory title, summary, and detail are required.");
+    throw new Error(`${context} requires non-empty title, summary, and detail.`);
   }
+
+  validateStringArray(memory.tags, "tags", context);
+  validateStringArray(memory.recommended_skills ?? [], "recommended_skills", context);
+  validateStringArray(memory.required_skills ?? [], "required_skills", context);
+  validateStringArray(memory.suppressed_skills ?? [], "suppressed_skills", context);
+  validateStringArray(memory.skill_trigger_paths ?? [], "skill_trigger_paths", context);
+  validateStringArray(memory.skill_trigger_tasks ?? [], "skill_trigger_tasks", context);
 }
 
 function serializeMemory(memory: Memory): string {
+  const normalizedMemory = normalizeMemory(memory);
   const frontmatterLines = [
     "---",
-    `type: ${quoteYaml(memory.type)}`,
-    `title: ${quoteYaml(memory.title)}`,
-    `summary: ${quoteYaml(memory.summary)}`,
+    `type: ${quoteYaml(normalizedMemory.type)}`,
+    `title: ${quoteYaml(normalizedMemory.title)}`,
+    `summary: ${quoteYaml(normalizedMemory.summary)}`,
     "tags:",
-    ...memory.tags.map((tag) => `  - ${quoteYaml(tag)}`),
-    `importance: ${quoteYaml(memory.importance)}`,
-    `date: ${quoteYaml(memory.date)}`,
+    ...normalizedMemory.tags.map((tag) => `  - ${quoteYaml(tag)}`),
+    `importance: ${quoteYaml(normalizedMemory.importance)}`,
+    `date: ${quoteYaml(normalizedMemory.date)}`,
   ];
 
-  if (memory.source) {
-    frontmatterLines.push(`source: ${quoteYaml(memory.source)}`);
+  if (normalizedMemory.source) {
+    frontmatterLines.push(`source: ${quoteYaml(normalizedMemory.source)}`);
   }
 
-  if (memory.status) {
-    frontmatterLines.push(`status: ${quoteYaml(memory.status)}`);
+  if (normalizedMemory.status) {
+    frontmatterLines.push(`status: ${quoteYaml(normalizedMemory.status)}`);
   }
 
-  frontmatterLines.push("---", "", memory.detail.trim(), "");
+  appendArrayField(frontmatterLines, "recommended_skills", normalizedMemory.recommended_skills ?? []);
+  appendArrayField(frontmatterLines, "required_skills", normalizedMemory.required_skills ?? []);
+  appendArrayField(frontmatterLines, "suppressed_skills", normalizedMemory.suppressed_skills ?? []);
+  appendArrayField(frontmatterLines, "skill_trigger_paths", normalizedMemory.skill_trigger_paths ?? []);
+  appendArrayField(frontmatterLines, "skill_trigger_tasks", normalizedMemory.skill_trigger_tasks ?? []);
+  frontmatterLines.push(`invocation_mode: ${quoteYaml(normalizedMemory.invocation_mode ?? DEFAULT_INVOCATION_MODE)}`);
+  frontmatterLines.push(`risk_level: ${quoteYaml(normalizedMemory.risk_level ?? DEFAULT_RISK_LEVEL)}`);
+  frontmatterLines.push("---", "", normalizedMemory.detail.trim(), "");
 
   return frontmatterLines.join("\n");
 }
 
-function parseMemory(content: string): Memory | null {
+function parseMemory(content: string, filePath: string): Memory {
   const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/);
   if (!match) {
-    return null;
+    throw new Error(`Memory file "${filePath}" is missing valid frontmatter.`);
   }
 
   const rawFrontmatter = match[1];
   const rawDetail = match[2];
   if (!rawFrontmatter || rawDetail === undefined) {
-    return null;
+    throw new Error(`Memory file "${filePath}" is missing required frontmatter or body content.`);
   }
 
   const frontmatter = parseFrontmatter(rawFrontmatter);
@@ -269,22 +381,12 @@ function parseMemory(content: string): Memory | null {
   const status = frontmatter.status;
 
   if (!type || !importance || !frontmatter.title || !frontmatter.summary || !frontmatter.date) {
-    return null;
+    throw new Error(
+      `Memory file "${filePath}" must include type, title, summary, importance, and date in frontmatter.`,
+    );
   }
 
-  if (!MEMORY_TYPES.includes(type as MemoryType) || !IMPORTANCE_LEVELS.includes(importance as any)) {
-    return null;
-  }
-
-  if (source && !MEMORY_SOURCES.includes(source as any)) {
-    return null;
-  }
-
-  if (status && !MEMORY_STATUSES.includes(status as any)) {
-    return null;
-  }
-
-  const memory: Memory = {
+  const memoryInput: Memory = {
     type: type as MemoryType,
     title: frontmatter.title,
     summary: frontmatter.summary,
@@ -292,7 +394,22 @@ function parseMemory(content: string): Memory | null {
     tags: frontmatter.tags,
     importance: importance as Memory["importance"],
     date: frontmatter.date,
+    recommended_skills: frontmatter.recommended_skills,
+    required_skills: frontmatter.required_skills,
+    suppressed_skills: frontmatter.suppressed_skills,
+    skill_trigger_paths: frontmatter.skill_trigger_paths,
+    skill_trigger_tasks: frontmatter.skill_trigger_tasks,
   };
+
+  if (frontmatter.invocation_mode) {
+    memoryInput.invocation_mode = frontmatter.invocation_mode as InvocationMode;
+  }
+
+  if (frontmatter.risk_level) {
+    memoryInput.risk_level = frontmatter.risk_level as RiskLevel;
+  }
+
+  const memory = normalizeMemory(memoryInput);
 
   if (source) {
     memory.source = source as MemorySource;
@@ -302,6 +419,7 @@ function parseMemory(content: string): Memory | null {
     memory.status = status as MemoryStatus;
   }
 
+  validateMemory(memory, `Memory file "${filePath}"`);
   return memory;
 }
 
@@ -310,27 +428,48 @@ function parseFrontmatter(raw: string): {
   title?: string;
   summary?: string;
   tags: string[];
+  recommended_skills: string[];
+  required_skills: string[];
+  suppressed_skills: string[];
+  skill_trigger_paths: string[];
+  skill_trigger_tasks: string[];
   importance?: string;
   date?: string;
   source?: string;
   status?: string;
+  invocation_mode?: string;
+  risk_level?: string;
 } {
   const result: {
     type?: string;
     title?: string;
     summary?: string;
     tags: string[];
+    recommended_skills: string[];
+    required_skills: string[];
+    suppressed_skills: string[];
+    skill_trigger_paths: string[];
+    skill_trigger_tasks: string[];
     importance?: string;
     date?: string;
     source?: string;
     status?: string;
-  } = { tags: [] };
+    invocation_mode?: string;
+    risk_level?: string;
+  } = {
+    tags: [],
+    recommended_skills: [],
+    required_skills: [],
+    suppressed_skills: [],
+    skill_trigger_paths: [],
+    skill_trigger_tasks: [],
+  };
 
-  let activeKey: string | null = null;
+  let activeKey: ArrayFrontmatterField | null = null;
 
   for (const line of raw.split(/\r?\n/)) {
-    if (line.startsWith("  - ") && activeKey === "tags") {
-      result.tags.push(unquoteYaml(line.slice(4).trim()));
+    if (line.startsWith("  - ") && activeKey) {
+      result[activeKey].push(unquoteYaml(line.slice(4).trim()));
       continue;
     }
 
@@ -343,8 +482,8 @@ function parseFrontmatter(raw: string): {
     const key = line.slice(0, separatorIndex).trim();
     const value = line.slice(separatorIndex + 1).trim();
 
-    if (key === "tags") {
-      activeKey = "tags";
+    if (ARRAY_FRONTMATTER_FIELDS.includes(key as ArrayFrontmatterField)) {
+      activeKey = key as ArrayFrontmatterField;
       continue;
     }
 
@@ -356,6 +495,8 @@ function parseFrontmatter(raw: string): {
       case "date":
       case "source":
       case "status":
+      case "invocation_mode":
+      case "risk_level":
         result[key] = unquoteYaml(value);
         break;
       default:
@@ -385,6 +526,41 @@ function unquoteYaml(value: string): string {
   }
 
   return trimmed;
+}
+
+function normalizeMemory(memory: Memory): Memory {
+  return {
+    ...memory,
+    tags: normalizeStringArray(memory.tags),
+    recommended_skills: normalizeStringArray(memory.recommended_skills ?? []),
+    required_skills: normalizeStringArray(memory.required_skills ?? []),
+    suppressed_skills: normalizeStringArray(memory.suppressed_skills ?? []),
+    skill_trigger_paths: normalizeStringArray(memory.skill_trigger_paths ?? []),
+    skill_trigger_tasks: normalizeStringArray(memory.skill_trigger_tasks ?? []),
+    invocation_mode: memory.invocation_mode ?? DEFAULT_INVOCATION_MODE,
+    risk_level: memory.risk_level ?? DEFAULT_RISK_LEVEL,
+  };
+}
+
+function normalizeStringArray(values: string[]): string[] {
+  return values.map((value) => value.trim()).filter(Boolean);
+}
+
+function validateStringArray(values: unknown, fieldName: string, context: string): void {
+  if (!Array.isArray(values) || values.some((value) => typeof value !== "string" || !value.trim())) {
+    throw new Error(`${context} field "${fieldName}" must be an array of non-empty strings.`);
+  }
+}
+
+function appendArrayField(
+  lines: string[],
+  fieldName: Exclude<ArrayFrontmatterField, "tags">,
+  values: string[],
+): void {
+  lines.push(`${fieldName}:`);
+  for (const value of values) {
+    lines.push(`  - ${quoteYaml(value)}`);
+  }
 }
 
 function titleForType(type: MemoryType): string {
@@ -443,13 +619,21 @@ function getActivityStatePath(projectRoot: string): string {
   return path.join(getBrainDir(projectRoot), "activity.json");
 }
 
-async function supersedeOverlappingMemories(memory: Memory, projectRoot: string): Promise<void> {
+async function supersedeMatchingActiveMemories(
+  memory: Memory,
+  projectRoot: string,
+  ignoredFilePath: string | null = null,
+): Promise<void> {
   const existingMemories = await loadStoredMemories(projectRoot);
   const nextIdentity = getMemoryIdentity(memory);
 
   await Promise.all(
     existingMemories.map(async (entry) => {
-      if (entry.memory.status === "superseded") {
+      if (ignoredFilePath && entry.filePath === ignoredFilePath) {
+        return;
+      }
+
+      if (getMemoryStatus(entry.memory) !== "active") {
         return;
       }
 

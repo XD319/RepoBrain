@@ -33,6 +33,7 @@
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch",
+    "test": "npm run build && node test/store.test.mjs",
     "typecheck": "tsc --noEmit",
     "mcp": "node dist/mcp/server.js"
   },

@@ -299,6 +299,50 @@ When TypeScript is already enforcing unused locals, enabling both rules creates 
 - `importance`：它在注入阶段应该占多高优先级
 - `tags`：帮助后续快速扫描和 review 的关键词
 
+### Skill Routing 字段
+
+如果你希望某条 memory 同时给后续 agent / skill routing 提供线索，可以在 frontmatter 里补这些可选字段：
+
+- `recommended_skills`：通常适合优先考虑的 skill
+- `required_skills`：这条 memory 生效时必须纳入考虑的 skill
+- `suppressed_skills`：这条 memory 生效时应避免调用的 skill
+- `skill_trigger_paths`：命中后说明这条 memory 相关的路径或文件模式
+- `skill_trigger_tasks`：命中后说明这条 memory 相关的任务描述
+- `invocation_mode`：只能是 `required`、`prefer`、`optional` 或 `suppress`
+- `risk_level`：只能是 `high`、`medium` 或 `low`
+
+如果这些字段缺省，RepoBrain 会保持旧条目兼容：所有列表字段默认是 `[]`，`invocation_mode` 默认是 `optional`，`risk_level` 默认是 `low`。
+
+最小示例：
+
+```md
+---
+type: "decision"
+title: "将浏览器测试任务路由到 Playwright 经验"
+summary: "调试浏览器测试时优先参考 Playwright 相关经验。"
+tags:
+  - "playwright"
+importance: "medium"
+date: "2026-04-01T12:34:56.000Z"
+recommended_skills:
+  - "github:gh-fix-ci"
+required_skills:
+  - "playwright"
+suppressed_skills:
+skill_trigger_paths:
+  - "tests/e2e/"
+  - "playwright.config.ts"
+skill_trigger_tasks:
+  - "debug flaky browser tests"
+invocation_mode: "prefer"
+risk_level: "medium"
+---
+
+## DECISION
+
+当任务涉及浏览器测试基础设施时，优先采用 Playwright 方向的经验和排查方式。
+```
+
 ### Step 3: Inject And Verify
 
 下一次 session 开始前，把刚刚沉淀的 repo knowledge 注入出来：

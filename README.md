@@ -65,11 +65,28 @@ RepoBrain keeps the loop intentionally small:
 
 1. You finish a coding session or make a meaningful commit.
 2. RepoBrain extracts only long-lived repo knowledge.
-3. It saves the result into `.brain/` as readable Markdown files.
-4. Before the next session, `brain inject` builds a compact context block.
-5. Claude Code or Codex starts with the repo's real decisions, gotchas, and conventions.
+3. Hook-based workflows can save new memories as reviewable candidates first.
+4. Approved memories live in `.brain/` as readable Markdown files.
+5. Before the next session, a session-start hook or `brain inject` builds a compact context block.
 
 That means less repeated setup, fewer old mistakes, and fewer suggestions that ignore how the repo already works.
+
+## Recommended Flow
+
+The default workflow is intentionally asymmetric:
+
+- `inject` should be automatic because it is read-only and low-risk
+- `extract` should be reviewable by default because it writes durable repo knowledge
+
+In practice, that means:
+
+1. A session-start hook or `brain inject` loads active memories into the next session.
+2. A session-end hook extracts candidate memories instead of promoting them immediately.
+3. You review candidates with `brain review`.
+4. You approve good candidates with `brain approve <id>` or `brain approve --all`.
+5. Only approved memories affect future `brain inject` output.
+
+If you want a fully manual flow, set `extractMode: manual`. If you want immediate writes from hooks, set `extractMode: auto`.
 
 ## Knowledge History
 
@@ -167,7 +184,7 @@ Before a new Codex session:
 brain inject
 ```
 
-More setup details live in [.codex/INSTALL.md](./.codex/INSTALL.md).
+If you wire in the session-start hook, injection can happen automatically. More setup details live in [.codex/INSTALL.md](./.codex/INSTALL.md).
 
 ### MCP Setup
 
@@ -268,6 +285,8 @@ cat session-summary.txt | brain extract
 brain list
 ```
 
+Explicit `brain extract` writes active memories immediately. Hook-driven extraction uses reviewable candidates by default.
+
 You should now see a new memory under `.brain/gotchas/`. The exact filename will include the current date and a slugified title. A saved file will look similar to this:
 
 ```md
@@ -298,6 +317,50 @@ The important frontmatter fields are:
 - `type`: what kind of durable repo knowledge this is
 - `importance`: how strongly it should compete for injection space
 - `tags`: quick keywords that make the memory easier to scan and review later
+
+### Skill Routing Fields
+
+If you want a memory to help downstream agent or skill routing, add these optional frontmatter fields:
+
+- `recommended_skills`: skills that are usually a good fit for this memory
+- `required_skills`: skills that must be considered when this memory applies
+- `suppressed_skills`: skills that should be avoided for this memory
+- `skill_trigger_paths`: repo paths or file patterns that suggest the memory is relevant
+- `skill_trigger_tasks`: task phrases that suggest the memory is relevant
+- `invocation_mode`: one of `required`, `prefer`, `optional`, or `suppress`
+- `risk_level`: one of `high`, `medium`, or `low`
+
+When these fields are omitted, RepoBrain keeps old entries compatible by defaulting each list to `[]`, `invocation_mode` to `optional`, and `risk_level` to `low`.
+
+Minimal example:
+
+```md
+---
+type: "decision"
+title: "Route browser test work through Playwright guidance"
+summary: "Prefer Playwright-specific guidance for browser test debugging."
+tags:
+  - "playwright"
+importance: "medium"
+date: "2026-04-01T12:34:56.000Z"
+recommended_skills:
+  - "github:gh-fix-ci"
+required_skills:
+  - "playwright"
+suppressed_skills:
+skill_trigger_paths:
+  - "tests/e2e/"
+  - "playwright.config.ts"
+skill_trigger_tasks:
+  - "debug flaky browser tests"
+invocation_mode: "prefer"
+risk_level: "medium"
+---
+
+## DECISION
+
+Use Playwright-oriented guidance first when the task touches browser test infrastructure.
+```
 
 ### Step 3: Inject And Verify
 
@@ -336,8 +399,9 @@ The long-term habit is intentionally lightweight:
 
 1. Finish a meaningful fix or discover a reusable repo lesson.
 2. Write a short summary and run `brain extract`.
-3. Before the next session, run `brain inject`.
-4. Review `.brain/` changes the same way you review code.
+3. If the memory came from hooks, run `brain review` and approve the good candidates.
+4. Before the next session, run `brain inject` or rely on the session-start hook.
+5. Review `.brain/` changes the same way you review code.
 
 Two commands cover most of the loop:
 
@@ -373,6 +437,9 @@ brain inject
 brain list
 brain stats
 brain status
+brain review
+brain approve <memory-id>
+brain dismiss <memory-id>
 brain share <memory-id>
 brain share --all-active
 brain mcp
@@ -386,6 +453,9 @@ brain mcp
 - `brain list`: list stored memories
 - `brain stats`: show memory counts by type and importance
 - `brain status`: show the most recently injected memories and most recently captured memories for the current repo
+- `brain review`: list candidate memories waiting for approval
+- `brain approve`: promote one candidate, or all candidates, to active memory
+- `brain dismiss`: mark one candidate, or all candidates, as dismissed
 - `brain share`: suggest the next `git add` and `git commit` commands for one memory or all active memories
 - `brain mcp`: run RepoBrain as a minimal MCP stdio server
 
@@ -397,21 +467,27 @@ Current options:
 
 ```yaml
 maxInjectTokens: 1200
-autoExtract: false
+extractMode: suggest
 language: zh-CN
 ```
 
 - `maxInjectTokens`: approximate token budget used when building injected context, with Unicode-aware estimation for mixed English/CJK content
-- `autoExtract`: reserved flag for automation-friendly workflows
+- `extractMode`: controls hook-based extraction behavior
+- `manual`: never write from hooks; use `brain extract` yourself
+- `suggest`: store hook-extracted memories as `candidate` records for review
+- `auto`: let hooks write active memories immediately
 - `language`: preferred output language for extraction prompts
 
 ## Memory Lifecycle
 
 RepoBrain keeps lifecycle rules intentionally small for the current MVP:
 
-- New memories start as `active`
-- If a newly saved memory has the same type and normalized title as an existing active memory, the older one is automatically marked `superseded`
-- `brain inject` excludes `superseded` memories from the generated context block
+- Manual `brain extract` saves new memories as `active`
+- Hook-driven extraction in `suggest` mode saves new memories as `candidate`
+- `brain approve` promotes a candidate to `active`
+- `brain dismiss` marks a candidate as `stale`
+- If a newly activated memory has the same type and normalized title as an existing active memory, the older one is automatically marked `superseded`
+- `brain inject` only loads `active` memories into the generated context block
 
 This is a minimal invalidation mechanism for solo developers and long-lived personal projects. More advanced review workflows can come later.
 
