@@ -362,6 +362,25 @@ risk_level: "medium"
 Use Playwright-oriented guidance first when the task touches browser test infrastructure.
 ```
 
+### Suggest A Skill Shortlist
+
+Once some memories carry routing metadata, you can ask RepoBrain to turn the current task and changed paths into a skill shortlist:
+
+```bash
+brain suggest-skills --task "debug flaky browser tests in CI" --path tests/e2e/login.spec.ts --path playwright.config.ts
+```
+
+The command only considers `active` memories. It matches the task against `skill_trigger_tasks`, matches each provided path against `skill_trigger_paths`, then prints:
+
+- the matched memories and why they matched
+- a shortlist of `required`, `recommended`, `suppressed`, or `conflicted` skills
+
+If you already have the task description in a file or another command, you can also pipe it over stdin:
+
+```bash
+cat task.txt | brain suggest-skills --path src/cli.ts --path test/store.test.mjs
+```
+
 ### Step 3: Inject And Verify
 
 Start the next session with the repo knowledge you just captured:
@@ -440,6 +459,7 @@ brain status
 brain review
 brain approve <memory-id>
 brain dismiss <memory-id>
+brain suggest-skills --task "debug flaky browser tests" --path tests/e2e/login.spec.ts
 brain share <memory-id>
 brain share --all-active
 brain mcp
@@ -456,6 +476,7 @@ brain mcp
 - `brain review`: list candidate memories waiting for approval
 - `brain approve`: promote one candidate, or all candidates, to active memory
 - `brain dismiss`: mark one candidate, or all candidates, as dismissed
+- `brain suggest-skills`: build a skill shortlist from task text, changed paths, and matched active memories
 - `brain share`: suggest the next `git add` and `git commit` commands for one memory or all active memories
 - `brain mcp`: run RepoBrain as a minimal MCP stdio server
 

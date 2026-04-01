@@ -8,6 +8,7 @@ import { extractMemories } from "./extract.js";
 import { buildInjection } from "./inject.js";
 import { runMcpServer } from "./mcp/server.js";
 import { buildSharePlan } from "./share.js";
+import { buildSkillShortlist, renderSkillShortlist } from "./suggest-skills.js";
 import { initBrain, loadActivityState, loadAllMemories, saveMemory, updateIndex } from "./store.js";
 import type { Memory, MemoryActivityEntry } from "./types.js";
 
@@ -150,6 +151,27 @@ program
   });
 
 program
+  .command("suggest-skills")
+  .description("Suggest a skill shortlist from the current task, changed paths, and matched memories.")
+  .option("--task <task>", "Task description to match against skill_trigger_tasks.")
+  .option(
+    "--path <path>",
+    "Changed path to match against skill_trigger_paths. Repeat or pass a comma-separated list.",
+    collectValues,
+    [] as string[],
+  )
+  .action(async (options: { task?: string; path: string[] }) => {
+    const projectRoot = process.cwd();
+    const task = options.task?.trim() || (await readOptionalStdin());
+    const result = await buildSkillShortlist(projectRoot, {
+      ...(task ? { task } : {}),
+      paths: options.path,
+    });
+
+    output.write(`${renderSkillShortlist(result)}\n`);
+  });
+
+program
   .command("mcp")
   .description("Run RepoBrain as a minimal MCP stdio server.")
   .action(async () => {
@@ -170,6 +192,25 @@ async function readStdin(): Promise<string> {
   }
 
   return Buffer.concat(chunks).toString("utf8");
+}
+
+async function readOptionalStdin(): Promise<string | undefined> {
+  if (input.isTTY) {
+    return undefined;
+  }
+
+  const stdinText = (await readStdin()).trim();
+  return stdinText || undefined;
+}
+
+function collectValues(value: string, previous: string[]): string[] {
+  return [
+    ...previous,
+    ...value
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean),
+  ];
 }
 
 function formatCountMap(map: Map<string, number>): string {

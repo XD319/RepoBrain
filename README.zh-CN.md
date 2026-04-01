@@ -343,6 +343,25 @@ risk_level: "medium"
 当任务涉及浏览器测试基础设施时，优先采用 Playwright 方向的经验和排查方式。
 ```
 
+### 生成 Skill Shortlist
+
+当一部分 memories 已经带上 skill routing 元数据后，可以直接让 RepoBrain 按当前任务和变更路径给出 shortlist：
+
+```bash
+brain suggest-skills --task "debug flaky browser tests in CI" --path tests/e2e/login.spec.ts --path playwright.config.ts
+```
+
+这个命令只会读取 `active` 状态的 memories。它会用 `skill_trigger_tasks` 匹配任务描述，用 `skill_trigger_paths` 匹配你传入的路径，然后输出：
+
+- 命中的 memories，以及各自命中的原因
+- 一份 `required`、`recommended`、`suppressed` 或 `conflicted` 的 skill shortlist
+
+如果任务描述已经在文件里，或者来自另一个命令，也可以直接从 `stdin` 管道输入：
+
+```bash
+cat task.txt | brain suggest-skills --path src/cli.ts --path test/store.test.mjs
+```
+
 ### Step 3: Inject And Verify
 
 下一次 session 开始前，把刚刚沉淀的 repo knowledge 注入出来：
@@ -417,6 +436,10 @@ brain inject
 brain list
 brain stats
 brain status
+brain review
+brain approve <memory-id>
+brain dismiss <memory-id>
+brain suggest-skills --task "debug flaky browser tests" --path tests/e2e/login.spec.ts
 brain share <memory-id>
 brain share --all-active
 brain mcp
@@ -430,6 +453,10 @@ brain mcp
 - `brain list`：列出当前仓库里的 memory
 - `brain stats`：按类型和重要度查看统计
 - `brain status`：查看最近一次注入的 memories，以及最近沉淀的 memories
+- `brain review`：列出等待审批的 candidate memories
+- `brain approve`：将单条 candidate memory，或全部 candidates，提升为 active
+- `brain dismiss`：将单条 candidate memory，或全部 candidates，标记为 stale
+- `brain suggest-skills`：根据任务文本、变更路径和命中的 active memories 输出一份 skill shortlist
 - `brain share`：为单条 memory 或全部 active memories 输出建议的 `git add` / `git commit` 命令
 - `brain mcp`：以最小 MCP stdio server 的形式运行 RepoBrain
 
