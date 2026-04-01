@@ -29,3 +29,15 @@ export interface BrainConfig {
 export interface ExtractedMemoriesPayload {
   memories: Memory[];
 }
+
+export interface MemoryActivityEntry {
+  type: MemoryType;
+  title: string;
+  importance: Importance;
+  date: string;
+}
+
+export interface BrainActivityState {
+  lastInjectedAt?: string;
+  recentLoadedMemories: MemoryActivityEntry[];
+}

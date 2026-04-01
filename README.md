@@ -141,7 +141,7 @@ brain status
 - `brain inject`: build a compact memory block for the next session
 - `brain list`: list stored memories
 - `brain stats`: show memory counts by type and importance
-- `brain status`: show recent memory activity for the current repo
+- `brain status`: show the most recently injected memories and most recently captured memories for the current repo
 
 ## Configuration
 

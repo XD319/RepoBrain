@@ -141,7 +141,7 @@ brain status
 - `brain inject`：为下一次 session 生成注入上下文
 - `brain list`：列出当前仓库里的 memory
 - `brain stats`：按类型和重要度查看统计
-- `brain status`：查看最近加载和最近沉淀的 memory
+- `brain status`：查看最近一次注入的 memories，以及最近沉淀的 memories
 
 ## Configuration
 

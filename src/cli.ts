@@ -6,8 +6,8 @@ import { Command } from "commander";
 import { loadConfig } from "./config.js";
 import { extractMemories } from "./extract.js";
 import { buildInjection } from "./inject.js";
-import { initBrain, loadAllMemories, saveMemory, updateIndex } from "./store.js";
-import type { Memory } from "./types.js";
+import { initBrain, loadActivityState, loadAllMemories, saveMemory, updateIndex } from "./store.js";
+import type { Memory, MemoryActivityEntry } from "./types.js";
 
 const program = new Command();
 
@@ -111,15 +111,17 @@ program
   .action(async () => {
     const projectRoot = process.cwd();
     const memories = await loadAllMemories(projectRoot);
-    const recentMemories = memories.slice(0, 5);
+    const activity = await loadActivityState(projectRoot);
+    const recentCapturedMemories = memories.slice(0, 5);
 
     output.write(`Project root: ${projectRoot}\n`);
     output.write(`Total memories: ${memories.length}\n`);
     output.write(`Last updated: ${memories[0]?.date ?? "N/A"}\n`);
+    output.write(`Last injected: ${activity.lastInjectedAt ?? "N/A"}\n`);
     output.write("Recent loaded memories:\n");
-    output.write(`${formatMemoryList(recentMemories)}\n`);
+    output.write(`${formatMemoryList(activity.recentLoadedMemories)}\n`);
     output.write("Recent captured memories:\n");
-    output.write(`${formatMemoryList(recentMemories)}\n`);
+    output.write(`${formatMemoryList(recentCapturedMemories)}\n`);
   });
 
 program.parseAsync(process.argv).catch((error: unknown) => {
@@ -145,7 +147,7 @@ function formatCountMap(map: Map<string, number>): string {
     .join(", ");
 }
 
-function formatMemoryList(memories: Memory[]): string {
+function formatMemoryList(memories: Array<Memory | MemoryActivityEntry>): string {
   if (memories.length === 0) {
     return "- None.";
   }

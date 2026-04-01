@@ -1,4 +1,4 @@
-import { loadAllMemories } from "./store.js";
+import { loadAllMemories, recordInjectedMemories } from "./store.js";
 import type { BrainConfig, Memory, MemoryType } from "./types.js";
 
 const TYPE_ORDER: MemoryType[] = ["decision", "gotcha", "convention", "pattern"];
@@ -14,6 +14,7 @@ export async function buildInjection(projectRoot: string, config: BrainConfig): 
     .filter((memory) => memory.status !== "superseded")
     .sort(compareMemories);
   const selected = selectWithinTokenBudget(activeMemories, config.maxInjectTokens);
+  await recordInjectedMemories(projectRoot, selected);
   const grouped = new Map<MemoryType, Memory[]>(
     TYPE_ORDER.map((type) => [type, selected.filter((memory) => memory.type === type)]),
   );
