@@ -4,7 +4,8 @@ import { stdin as input, stderr } from "node:process";
 
 import { findProjectRoot, loadConfig } from "../config.js";
 import { extractMemories } from "../extract.js";
-import { appendErrorLog, initBrain, saveMemory, updateIndex } from "../store.js";
+import { reviewCandidateMemories } from "../reviewer.js";
+import { appendErrorLog, initBrain, loadStoredMemoryRecords, saveMemory, updateIndex } from "../store.js";
 import type { Memory } from "../types.js";
 
 async function main(): Promise<void> {
@@ -24,13 +25,34 @@ async function main(): Promise<void> {
     }
 
     const memories = await extractMemories(summary, config, projectRoot);
-    for (const memory of memories) {
+    const existingRecords = await loadStoredMemoryRecords(projectRoot);
+    const reviewedCandidates = reviewCandidateMemories(memories, existingRecords);
+
+    for (const entry of reviewedCandidates) {
+      const { memory, review } = entry;
+      if (review.decision === "reject") {
+        debugLog(
+          `Rejected extracted memory "${memory.title}" (${review.reason})`,
+        );
+        continue;
+      }
+
       const toSave: Memory = {
         ...memory,
         ...(memory.source ? {} : { source: "session" }),
-        ...(config.extractMode === "suggest" ? { status: "candidate" as const } : { status: "active" as const }),
+        ...(
+          config.extractMode === "suggest" || review.decision !== "accept"
+            ? { status: "candidate" as const }
+            : { status: "active" as const }
+        ),
       };
       await saveMemory(toSave, projectRoot);
+
+      if (review.decision !== "accept") {
+        debugLog(
+          `Deferred extracted memory "${memory.title}" as candidate (${review.decision}: ${review.reason}; targets=${review.target_memory_ids.join(", ") || "-"})`,
+        );
+      }
     }
 
     await updateIndex(projectRoot);

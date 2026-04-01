@@ -268,6 +268,8 @@ cat session-summary.txt | brain extract
 brain list
 ```
 
+`brain extract` 现在会先跑一轮 deterministic review，再决定怎么落盘。CLI 会为每条提取结果输出 `decision`、`target_memory_ids` 和 `reason`。`accept` 会保持当前写入行为，`merge` / `supersede` 会先保守地落成 `candidate`，`reject` 则不会写入。
+
 这时你应该会在 `.brain/gotchas/` 下看到一条新的 memory。实际文件名会带上当天日期和标题 slug。生成后的文件大致会长这样：
 
 ```md
@@ -478,6 +480,7 @@ brain mcp
 
 - `brain init`：初始化当前仓库的 `.brain/`
 - `brain extract`：从 `stdin` 提取长期有价值的仓库知识
+  并在写入前输出每条 memory 的 review decision
 - `brain inject`：为下一次 session 生成注入上下文，也可以配合 `--task`、`--path`、`--module` 做任务感知排序
 - `brain list`：列出当前仓库里的 memory
 - `brain stats`：按类型和重要度查看统计
@@ -509,11 +512,17 @@ language: zh-CN
 
 当前 MVP 的生命周期规则刻意保持很小：
 
-- 新 memory 默认状态是 `active`
-- 如果新保存的 memory 与现有 active memory 命中“同类型 + 标题归一化后相同”，旧 memory 会自动标记为 `superseded`
-- `brain inject` 生成上下文时会自动排除 `superseded` memories
+- 新提取出的 memory 会先经过一轮 deterministic review：`accept`、`merge`、`supersede` 或 `reject`
+- 手动执行 `brain extract` 时，`accept` 结果仍会直接写成 `active`
+- hook 在 `suggest` 模式下，会把可接受的结果写成 `candidate`
+- `merge` 和 `supersede` 目前都保持保守：RepoBrain 只会把新 memory 存成 `candidate`，并输出目标 memory ids，不会自动改写旧文件
+- `reject` 会带着明确原因被跳过，比如 `duplicate`、`temporary_detail`、`insufficient_signal`
+- `brain approve` 会把 candidate 提升为 `active`
+- `brain dismiss` 会把 candidate 标记为 `stale`
+- 如果新激活的 memory 与现有 active memory 命中“同类型 + 标题归一化后相同 + scope 归一化后相同”，旧 memory 会自动标记为 `superseded`
+- `brain inject` 生成上下文时只会加载 `active` memories
 
-这就是当前版本面向 solo 开发者和长期维护个人项目的最小失效机制，先解决“新结论覆盖旧结论”的主路径，复杂 review 流程后续再补。
+这样既保留了当前清晰的写入主路径，也给后续接入 LLM reviewer 或更高层审批流程留出了明确接口。
 
 ## 外部 Extractor 契约
 

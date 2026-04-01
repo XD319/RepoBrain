@@ -285,7 +285,7 @@ cat session-summary.txt | brain extract
 brain list
 ```
 
-Explicit `brain extract` writes active memories immediately. Hook-driven extraction uses reviewable candidates by default.
+`brain extract` now runs a deterministic review pass before writing. The CLI prints `decision`, `target_memory_ids`, and `reason` for each extracted memory. `accept` keeps the current write behavior, `merge` and `supersede` are stored conservatively as `candidate` memories for follow-up, and `reject` entries are skipped.
 
 You should now see a new memory under `.brain/gotchas/`. The exact filename will include the current date and a slugified title. A saved file will look similar to this:
 
@@ -498,6 +498,7 @@ brain mcp
 
 - `brain init`: create the `.brain/` workspace in the current repo
 - `brain extract`: extract long-lived repo knowledge from `stdin`
+  The command prints a review decision for each extracted memory before writing it.
 - `brain inject`: build a compact memory block for the next session, optionally ranked by `--task`, `--path`, and `--module`
 - `brain list`: list stored memories
 - `brain stats`: show memory counts by type and importance
@@ -532,14 +533,17 @@ language: zh-CN
 
 RepoBrain keeps lifecycle rules intentionally small for the current MVP:
 
-- Manual `brain extract` saves new memories as `active`
-- Hook-driven extraction in `suggest` mode saves new memories as `candidate`
+- New extracted memories go through a deterministic review pass first: `accept`, `merge`, `supersede`, or `reject`
+- Manual `brain extract` still writes `accept` memories immediately as `active`
+- Hook-driven extraction in `suggest` mode saves accepted memories as `candidate`
+- `merge` and `supersede` results are kept conservative today: the extracted memory is saved as a `candidate`, and RepoBrain prints the target memory ids instead of rewriting old files automatically
+- `reject` results are skipped with explicit reasons such as `duplicate`, `temporary_detail`, or `insufficient_signal`
 - `brain approve` promotes a candidate to `active`
 - `brain dismiss` marks a candidate as `stale`
-- If a newly activated memory has the same type and normalized title as an existing active memory, the older one is automatically marked `superseded`
+- If a newly activated memory has the same type, normalized title, and normalized scope as an existing active memory, the older one is automatically marked `superseded`
 - `brain inject` only loads `active` memories into the generated context block
 
-This is a minimal invalidation mechanism for solo developers and long-lived personal projects. More advanced review workflows can come later.
+This keeps the current write path compatible for clear accepts while giving later LLM-backed reviewers or higher-level workflows a structured place to take over merge and supersede decisions.
 
 ## External Extractor Contract
 

@@ -100,6 +100,51 @@ await runTest("new skill routing fields round-trip through save and load", async
   });
 });
 
+await runTest("same-title active memories with different scopes do not supersede each other", async () => {
+  await withTempRepo(async (projectRoot) => {
+    await saveMemory(
+      {
+        type: "decision",
+        title: "Cache invalidation rules",
+        summary: "API cache invalidation should happen after mutation commits.",
+        detail:
+          "## DECISION\n\nAPI cache invalidation should happen after mutation commits so readers do not observe partial state.",
+        tags: ["cache", "api"],
+        importance: "medium",
+        date: "2026-04-01T08:00:00.000Z",
+        status: "active",
+        path_scope: ["src/api/**"],
+      },
+      projectRoot,
+    );
+
+    await saveMemory(
+      {
+        type: "decision",
+        title: "Cache invalidation rules",
+        summary: "Web cache invalidation should happen after optimistic updates settle.",
+        detail:
+          "## DECISION\n\nWeb cache invalidation should happen after optimistic updates settle so the UI does not discard newer local state.",
+        tags: ["cache", "web"],
+        importance: "medium",
+        date: "2026-04-01T09:00:00.000Z",
+        status: "active",
+        path_scope: ["src/web/**"],
+      },
+      projectRoot,
+    );
+
+    const memories = await loadAllMemories(projectRoot);
+    const activeMemories = memories.filter((memory) => memory.status === "active");
+
+    assert.equal(activeMemories.length, 2);
+    assert.deepEqual(
+      activeMemories.map((memory) => memory.path_scope),
+      [["src/web/**"], ["src/api/**"]],
+    );
+  });
+});
+
 await runTest("invalid invocation_mode in stored memory fails with a clear parse error", async () => {
   await withTempRepo(async (projectRoot) => {
     const invalidPath = path.join(projectRoot, ".brain", "decisions", "2026-04-01-invalid-mode.md");

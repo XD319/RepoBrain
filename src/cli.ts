@@ -8,6 +8,7 @@ import { loadConfig } from "./config.js";
 import { extractMemories } from "./extract.js";
 import { buildInjection } from "./inject.js";
 import { runMcpServer } from "./mcp/server.js";
+import { reviewCandidateMemories } from "./reviewer.js";
 import { buildSharePlan } from "./share.js";
 import { buildSkillShortlist, renderSkillShortlist } from "./suggest-skills.js";
 import {
@@ -51,25 +52,67 @@ program
     const config = await loadConfig(projectRoot);
     const stdinText = await readStdin();
     const memories = await extractMemories(stdinText, config, projectRoot);
+    const existingRecords = await loadStoredMemoryRecords(projectRoot);
+    const reviewedCandidates = reviewCandidateMemories(memories, existingRecords);
     const savedPaths: string[] = [];
+    const deferredCandidates: string[] = [];
+    const rejectedCandidates: string[] = [];
 
-    for (const memory of memories) {
+    for (const entry of reviewedCandidates) {
+      const { memory, review } = entry;
       const toSave: Memory = {
         ...memory,
         ...(options.source ? { source: options.source } : {}),
-        ...(options.candidate ? { status: "candidate" as const } : {}),
       };
 
-      const savedPath = await saveMemory(toSave, projectRoot);
+      if (review.decision === "reject") {
+        rejectedCandidates.push(memory.title);
+        continue;
+      }
+
+      const resolvedStatus =
+        options.candidate || review.decision !== "accept" ? ("candidate" as const) : undefined;
+      const savedPath = await saveMemory(
+        resolvedStatus
+          ? {
+              ...toSave,
+              status: resolvedStatus,
+            }
+          : toSave,
+        projectRoot,
+      );
       savedPaths.push(savedPath);
+
+      if (review.decision !== "accept") {
+        deferredCandidates.push(memory.title);
+      }
     }
 
     await updateIndex(projectRoot);
+    output.write(`Reviewed ${reviewedCandidates.length} extracted memor${reviewedCandidates.length === 1 ? "y" : "ies"}.\n`);
+    for (const entry of reviewedCandidates) {
+      output.write(
+        `- ${entry.review.decision} | targets=${entry.review.target_memory_ids.join(", ") || "-"} | reason=${entry.review.reason} | ${entry.memory.title}\n`,
+      );
+    }
+
     output.write(
-      `${options.candidate ? "Saved" : "Extracted"} ${memories.length} ${options.candidate ? "candidate " : ""}memories.\n`,
+      `Saved ${savedPaths.length} memor${savedPaths.length === 1 ? "y" : "ies"}${options.candidate ? " as candidates" : ""}.\n`,
     );
     for (const savedPath of savedPaths) {
       output.write(`- ${savedPath}\n`);
+    }
+
+    if (deferredCandidates.length > 0) {
+      output.write(
+        `${deferredCandidates.length} memor${deferredCandidates.length === 1 ? "y" : "ies"} were kept as candidates because the review decision requires confirmation.\n`,
+      );
+    }
+
+    if (rejectedCandidates.length > 0) {
+      output.write(
+        `${rejectedCandidates.length} memor${rejectedCandidates.length === 1 ? "y" : "ies"} were rejected and not written.\n`,
+      );
     }
   });
 

@@ -4,4 +4,14 @@ export {
   loadStoredMemoryRecords,
   saveMemory,
 } from "./store.js";
-export type { Memory } from "./types.js";
+export {
+  createDeterministicMemoryReviewer,
+  reviewCandidateMemories,
+  reviewCandidateMemory,
+} from "./reviewer.js";
+export type {
+  CandidateMemoryReviewResult,
+  Memory,
+  MemoryReviewer,
+  ReviewedMemoryCandidate,
+} from "./types.js";

@@ -2,6 +2,10 @@ import { mkdir, readdir, readFile, appendFile, writeFile } from "node:fs/promise
 import path from "node:path";
 
 import { getBrainDir, hasBrain, writeDefaultConfig } from "./config.js";
+import {
+  buildMemoryIdentity as buildScopedMemoryIdentity,
+  slugifyMemoryTitle,
+} from "./memory-identity.js";
 import type {
   BrainActivityState,
   Memory,
@@ -82,7 +86,7 @@ export async function saveMemory(memory: Memory, projectRoot: string): Promise<s
   }
 
   const directory = DIRECTORY_BY_TYPE[normalizedMemory.type];
-  const fileName = `${normalizedMemory.date.slice(0, 10)}-${slugify(normalizedMemory.title)}.md`;
+  const fileName = `${normalizedMemory.date.slice(0, 10)}-${slugifyMemoryTitle(normalizedMemory.title)}.md`;
   const brainDir = getBrainDir(projectRoot);
   const content = serializeMemory(normalizedMemory);
 
@@ -584,16 +588,6 @@ function titleForType(type: MemoryType): string {
   }
 }
 
-function slugify(value: string): string {
-  const normalized = value
-    .toLowerCase()
-    .replace(/[^a-z0-9\u4e00-\u9fa5]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 48);
-
-  return normalized || "memory";
-}
-
 function ensureUniqueFileNameSuffix(memory: Memory, fileName: string, attempt: number = 0): string {
   const stamp = memory.date
     .replace(/[^\d]/g, "")
@@ -660,7 +654,7 @@ async function supersedeMatchingActiveMemories(
 }
 
 function getMemoryIdentity(memory: Memory): string {
-  return `${memory.type}:${slugify(memory.title)}`;
+  return buildScopedMemoryIdentity(memory);
 }
 
 export function buildMemoryIdentity(memory: Memory): string {
