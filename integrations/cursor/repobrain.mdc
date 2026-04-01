@@ -1,0 +1,20 @@
+---
+description: Bootstrap Cursor with RepoBrain context and routing hints
+globs:
+alwaysApply: false
+---
+
+Use RepoBrain as the durable repo-memory layer for this repository.
+
+Before non-trivial edits:
+
+- Read the output of `brain inject --task "<current task>" --path <changed-path>`.
+- Read the output of `brain suggest-skills --task "<current task>" --path <changed-path>` when workflow selection is unclear.
+
+Rules:
+
+- `.brain/` is the only durable repo-memory store.
+- `brain inject` provides compact session context.
+- `brain suggest-skills` provides task-aware routing hints.
+- Do not create Cursor-only copies of decisions, gotchas, conventions, or patterns.
+- If a durable lesson appears during implementation, save it back through RepoBrain review flows.

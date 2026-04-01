@@ -10,6 +10,7 @@
   "types": "./dist/cli.d.ts",
   "files": [
     "dist",
+    "integrations",
     "LICENSE",
     "README.md",
     "README.zh-CN.md",
@@ -33,7 +34,7 @@
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch",
-    "test": "npm run build && node test/store.test.mjs && node test/reviewer.test.mjs && node test/suggest-skills.test.mjs && node test/inject.test.mjs",
+    "test": "npm run build && node test/store.test.mjs && node test/reviewer.test.mjs && node test/suggest-skills.test.mjs && node test/inject.test.mjs && node test/integrations.test.mjs",
     "typecheck": "tsc --noEmit",
     "mcp": "node dist/mcp/server.js"
   },

@@ -13,7 +13,7 @@ It is not a generic chat memory platform. It does not try to save every conversa
 - Remember repo knowledge, not the whole chat log
 - Store memory in `.brain/` as Markdown plus frontmatter
 - Keep everything local-first, markdown-first, and Git-friendly
-- Work with both Claude Code and Codex
+- Work with Claude Code, Codex, Cursor, and Copilot through thin adapters
 
 ## Demo GIF
 
@@ -157,16 +157,36 @@ node dist/cli.js init
 node dist/cli.js inject
 ```
 
+## Integrations
+
+RepoBrain keeps the product split into a stable core layer and thin agent adapters. All adapters consume the same `.brain` schema plus the same `brain inject` and `brain suggest-skills` outputs.
+
+Core layer responsibilities:
+
+- define and validate the `.brain/` Markdown plus frontmatter schema
+- store durable repo memories in one Git-friendly location
+- rank and render compact session context through `brain inject`
+- derive task-aware routing hints through `brain suggest-skills`
+
+Adapter layer responsibilities:
+
+- translate RepoBrain outputs into the target agent's preferred instruction format
+- explain where `brain inject` and `brain suggest-skills` fit into that agent workflow
+- stay thin enough that RepoBrain core remains the only knowledge model
+
+Shared adapter templates live in [integrations/README.md](./integrations/README.md).
+
 ### Claude Code
 
-RepoBrain can build session-start context and session-end extraction hooks for Claude Code.
+Claude support keeps the existing hook and plugin surface, while the new adapter template documents how Claude should consume RepoBrain outputs.
 
-Current integration files:
+Current files:
 
 - `.claude-plugin/plugin.json`
 - `.claude-plugin/mcp.json`
 - `dist/hooks/session-start.js`
 - `dist/hooks/session-end.js`
+- `integrations/claude/SKILL.md`
 
 ### Codex
 
@@ -182,9 +202,21 @@ Before a new Codex session:
 
 ```bash
 brain inject
+brain suggest-skills --task "current task" --path src/example.ts
 ```
 
-If you wire in the session-start hook, injection can happen automatically. More setup details live in [.codex/INSTALL.md](./.codex/INSTALL.md).
+Templates and setup notes:
+
+- `integrations/codex/SKILL.md`
+- [.codex/INSTALL.md](./.codex/INSTALL.md)
+
+### Cursor
+
+Cursor support starts with a rules template instead of a deep integration. Copy `integrations/cursor/repobrain.mdc` into `.cursor/rules/repobrain.mdc` and keep RepoBrain as the only durable repo-memory source.
+
+### GitHub Copilot
+
+Copilot support starts with a custom instructions template. Copy `integrations/copilot/copilot-instructions.md` into `.github/copilot-instructions.md` and keep RepoBrain as the shared memory core instead of creating Copilot-only repo notes.
 
 ### MCP Setup
 
@@ -286,6 +318,8 @@ brain list
 ```
 
 `brain extract` now runs a deterministic review pass before writing. The CLI prints `decision`, `target_memory_ids`, and `reason` for each extracted memory. `accept` keeps the current write behavior, `merge` and `supersede` are stored conservatively as `candidate` memories for follow-up, and `reject` entries are skipped.
+
+The baseline reviewer is deterministic and explainable on purpose. It looks at memory type first, then exact normalized scope, title similarity, summary similarity, target status, and target recency. `merge` and `supersede` only trigger when the candidate and target share the same normalized scope. Scope overlap by itself is treated as context, not enough to rewrite or collapse memories.
 
 You should now see a new memory under `.brain/gotchas/`. The exact filename will include the current date and a slugified title. A saved file will look similar to this:
 
@@ -537,13 +571,16 @@ RepoBrain keeps lifecycle rules intentionally small for the current MVP:
 - Manual `brain extract` still writes `accept` memories immediately as `active`
 - Hook-driven extraction in `suggest` mode saves accepted memories as `candidate`
 - `merge` and `supersede` results are kept conservative today: the extracted memory is saved as a `candidate`, and RepoBrain prints the target memory ids instead of rewriting old files automatically
+- The deterministic baseline only considers `merge` and `supersede` against memories with the same type and normalized scope; overlapping scopes are not enough
+- `merge` is reserved for additive updates with strong title and summary overlap
+- `supersede` is reserved for newer memories with the same identity plus explicit replacement language such as "replace", "deprecated", or "no longer"
 - `reject` results are skipped with explicit reasons such as `duplicate`, `temporary_detail`, or `insufficient_signal`
 - `brain approve` promotes a candidate to `active`
 - `brain dismiss` marks a candidate as `stale`
 - If a newly activated memory has the same type, normalized title, and normalized scope as an existing active memory, the older one is automatically marked `superseded`
 - `brain inject` only loads `active` memories into the generated context block
 
-This keeps the current write path compatible for clear accepts while giving later LLM-backed reviewers or higher-level workflows a structured place to take over merge and supersede decisions.
+This keeps the current write path compatible for clear accepts while giving later LLM-backed reviewers or higher-level workflows a structured review context to reuse for merge and supersede decisions.
 
 ## External Extractor Contract
 

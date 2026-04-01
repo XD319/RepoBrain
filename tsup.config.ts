@@ -4,6 +4,7 @@ export default defineConfig({
   entry: [
     "src/cli.ts",
     "src/inject.ts",
+    "src/integrations.ts",
     "src/store-api.ts",
     "src/suggest-skills.ts",
     "src/hooks/session-start.ts",
