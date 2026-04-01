@@ -55,12 +55,12 @@ export async function extractMemories(
   try {
     const rawOutput = await runExtractorCommand(extractorCommand, prompt);
     const parsed = safeParsePayload(rawOutput);
-    if (!parsed) {
-      await appendErrorLog(projectRoot, "Failed to parse extractor JSON output.");
-      return [];
+    if (!parsed.ok) {
+      await appendErrorLog(projectRoot, `Extractor output invalid: ${parsed.error}`);
+      return heuristicExtract(trimmed, config);
     }
 
-    return parsed.memories;
+    return parsed.payload.memories;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     await appendErrorLog(projectRoot, `Extractor command failed: ${message}`);
@@ -81,6 +81,7 @@ export function buildExtractionPrompt(conversationText: string, config: BrainCon
 
 async function runExtractorCommand(command: string, prompt: string): Promise<string> {
   return new Promise((resolve, reject) => {
+    // The extractor command receives the full prompt on stdin and must return strict JSON on stdout.
     const child = spawn(command, {
       shell: true,
       stdio: ["pipe", "pipe", "pipe"],
@@ -113,20 +114,31 @@ async function runExtractorCommand(command: string, prompt: string): Promise<str
   });
 }
 
-function safeParsePayload(raw: string): ExtractedMemoriesPayload | null {
+function safeParsePayload(
+  raw: string,
+):
+  | { ok: true; payload: ExtractedMemoriesPayload }
+  | { ok: false; error: string } {
   try {
     const parsed = JSON.parse(raw) as { memories?: unknown };
     if (!Array.isArray(parsed.memories)) {
-      return null;
+      return { ok: false, error: "JSON payload must include a memories array." };
     }
 
     const memories = parsed.memories
       .map((entry) => normalizeMemory(entry))
       .filter((memory): memory is Memory => memory !== null);
 
-    return { memories };
+    if (memories.length !== parsed.memories.length) {
+      return {
+        ok: false,
+        error: "One or more memory entries were missing required fields or used unsupported values.",
+      };
+    }
+
+    return { ok: true, payload: { memories } };
   } catch {
-    return null;
+    return { ok: false, error: buildJsonParseErrorMessage(raw) };
   }
 }
 
@@ -297,4 +309,11 @@ function dedupeByTitle(memories: Memory[]): Memory[] {
     seen.add(key);
     return true;
   });
+}
+
+function buildJsonParseErrorMessage(raw: string): string {
+  const preview = raw.replace(/\s+/g, " ").trim().slice(0, 200);
+  return preview
+    ? `stdout was not valid JSON. Preview: ${preview}`
+    : "stdout was empty or not valid JSON.";
 }

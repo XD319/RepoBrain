@@ -159,11 +159,37 @@ language: zh-CN
 - `autoExtract`：给自动化工作流预留的开关
 - `language`：提取提示词偏好的输出语言
 
+## Memory 生命周期
+
+当前 MVP 的生命周期规则刻意保持很小：
+
+- 新 memory 默认状态是 `active`
+- 如果新保存的 memory 与现有 active memory 命中“同类型 + 标题归一化后相同”，旧 memory 会自动标记为 `superseded`
+- `brain inject` 生成上下文时会自动排除 `superseded` memories
+
+这就是当前版本面向 solo 开发者和长期维护个人项目的最小失效机制，先解决“新结论覆盖旧结论”的主路径，复杂 review 流程后续再补。
+
+## 外部 Extractor 契约
+
+如果设置了 `BRAIN_EXTRACTOR_COMMAND`，RepoBrain 会优先调用这个命令，而不是使用内置的启发式提取。
+
+接口约定：
+
+- RepoBrain 会把完整提取 prompt 通过 `stdin` 传给命令
+- 命令必须通过 `stdout` 输出严格 JSON，格式为 `{ "memories": [...] }`
+- 每条 memory 都必须使用受支持的 `type`、`importance`，以及预期的字符串字段
+- 非 0 退出码会被视为 extractor 执行失败
+
+错误处理：
+
+- 如果命令执行失败，RepoBrain 会把错误写入 `.brain/errors.log`，然后回退到启发式提取
+- 如果命令输出的 JSON 非法，或 memory 条目字段不合法，RepoBrain 也会记录错误并回退到启发式提取
+- 如果没有值得保存的内容，命令应返回 `{ "memories": [] }`
+
 ## Roadmap
 
 - 更顺手的 Claude Code 安装和说明
 - 更稳定的 Codex 轻量工作流
-- 更好的去重、过期记忆清理
 - 更清晰的 memory review / promote 流程
 - 更完整的开源演示和真实案例
 

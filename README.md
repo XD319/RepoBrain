@@ -159,11 +159,37 @@ language: zh-CN
 - `autoExtract`: reserved flag for automation-friendly workflows
 - `language`: preferred output language for extraction prompts
 
+## Memory Lifecycle
+
+RepoBrain keeps lifecycle rules intentionally small for the current MVP:
+
+- New memories start as `active`
+- If a newly saved memory has the same type and normalized title as an existing active memory, the older one is automatically marked `superseded`
+- `brain inject` excludes `superseded` memories from the generated context block
+
+This is a minimal invalidation mechanism for solo developers and long-lived personal projects. More advanced review workflows can come later.
+
+## External Extractor Contract
+
+If `BRAIN_EXTRACTOR_COMMAND` is set, RepoBrain will use that command instead of the built-in heuristic extractor.
+
+Contract:
+
+- RepoBrain sends the full extraction prompt to the command over `stdin`
+- The command must write strict JSON to `stdout` using the shape `{ "memories": [...] }`
+- Each memory must use a supported `type`, `importance`, and the expected string fields
+- A non-zero exit code is treated as extractor failure
+
+Error handling:
+
+- If the command fails, RepoBrain logs the error to `.brain/errors.log` and falls back to heuristic extraction
+- If the command returns invalid JSON or unsupported memory entries, RepoBrain logs the parse error and falls back to heuristic extraction
+- If there is nothing worth saving, the command should return `{ "memories": [] }`
+
 ## Roadmap
 
 - Better Claude Code setup and docs
 - Lightweight Codex workflows through Git hooks
-- Smarter dedupe and stale-memory cleanup
 - Better memory promotion and review workflows
 - A stronger open-source README demo story
 
