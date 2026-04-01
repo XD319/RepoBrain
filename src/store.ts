@@ -12,6 +12,11 @@ const DIRECTORY_BY_TYPE: Record<MemoryType, string> = {
   pattern: "patterns",
 };
 
+interface StoredMemory {
+  filePath: string;
+  memory: Memory;
+}
+
 export async function initBrain(projectRoot: string): Promise<void> {
   const brainDir = getBrainDir(projectRoot);
   const existedBeforeInit = await hasBrain(projectRoot);
@@ -44,6 +49,7 @@ export async function saveMemory(memory: Memory, projectRoot: string): Promise<s
   validateMemory(memory);
 
   await initBrain(projectRoot);
+  await supersedeOverlappingMemories(memory, projectRoot);
 
   const directory = DIRECTORY_BY_TYPE[memory.type];
   const fileName = `${memory.date.slice(0, 10)}-${slugify(memory.title)}.md`;
@@ -70,31 +76,10 @@ export async function saveMemory(memory: Memory, projectRoot: string): Promise<s
 }
 
 export async function loadAllMemories(projectRoot: string): Promise<Memory[]> {
-  const brainDir = getBrainDir(projectRoot);
-  const memoriesByType = await Promise.all(
-    MEMORY_TYPES.map(async (type) => {
-      const directory = path.join(brainDir, DIRECTORY_BY_TYPE[type]);
+  const storedMemories = await loadStoredMemories(projectRoot);
 
-      try {
-        const files = await readdir(directory, { withFileTypes: true });
-        const markdownFiles = files.filter((entry) => entry.isFile() && entry.name.endsWith(".md"));
-
-        const loaded = await Promise.all(
-          markdownFiles.map(async (entry) => {
-            const content = await readFile(path.join(directory, entry.name), "utf8");
-            return parseMemory(content);
-          }),
-        );
-
-        return loaded.filter((memory): memory is Memory => memory !== null);
-      } catch {
-        return [];
-      }
-    }),
-  );
-
-  return memoriesByType
-    .flat()
+  return storedMemories
+    .map((entry) => entry.memory)
     .sort((left, right) => right.date.localeCompare(left.date));
 }
 
@@ -136,6 +121,37 @@ export async function updateIndex(projectRoot: string): Promise<void> {
   ].join("\n");
 
   await writeFile(indexPath, content, "utf8");
+}
+
+async function loadStoredMemories(projectRoot: string): Promise<StoredMemory[]> {
+  const brainDir = getBrainDir(projectRoot);
+  const memoriesByType = await Promise.all(
+    MEMORY_TYPES.map(async (type) => {
+      const directory = path.join(brainDir, DIRECTORY_BY_TYPE[type]);
+
+      try {
+        const files = await readdir(directory, { withFileTypes: true });
+        const markdownFiles = files.filter((entry) => entry.isFile() && entry.name.endsWith(".md"));
+
+        const loaded = await Promise.all(
+          markdownFiles.map(async (entry) => {
+            const filePath = path.join(directory, entry.name);
+            const content = await readFile(filePath, "utf8");
+            const memory = parseMemory(content);
+            return memory ? { filePath, memory } : null;
+          }),
+        );
+
+        return loaded.filter((entry): entry is StoredMemory => entry !== null);
+      } catch {
+        return [];
+      }
+    }),
+  );
+
+  return memoriesByType
+    .flat()
+    .sort((left, right) => right.memory.date.localeCompare(left.memory.date));
 }
 
 export async function appendErrorLog(projectRoot: string, message: string): Promise<void> {
@@ -382,6 +398,34 @@ function isFileAlreadyExistsError(error: unknown): boolean {
     typeof error.code === "string" &&
     error.code === "EEXIST"
   );
+}
+
+async function supersedeOverlappingMemories(memory: Memory, projectRoot: string): Promise<void> {
+  const existingMemories = await loadStoredMemories(projectRoot);
+  const nextIdentity = getMemoryIdentity(memory);
+
+  await Promise.all(
+    existingMemories.map(async (entry) => {
+      if (entry.memory.status === "superseded") {
+        return;
+      }
+
+      if (getMemoryIdentity(entry.memory) !== nextIdentity) {
+        return;
+      }
+
+      const updatedMemory: Memory = {
+        ...entry.memory,
+        status: "superseded",
+      };
+
+      await writeFile(entry.filePath, serializeMemory(updatedMemory), "utf8");
+    }),
+  );
+}
+
+function getMemoryIdentity(memory: Memory): string {
+  return `${memory.type}:${slugify(memory.title)}`;
 }
 
 async function touchFile(filePath: string): Promise<void> {
