@@ -5,6 +5,10 @@ export {
   saveMemory,
 } from "./store.js";
 export {
+  buildMemoryAudit,
+  renderMemoryAuditResult,
+} from "./audit-memory.js";
+export {
   buildMemoryReviewContext,
   createDeterministicMemoryReviewer,
   decideCandidateMemoryReview,
@@ -14,6 +18,9 @@ export {
 export type {
   CandidateMemoryReviewResult,
   Memory,
+  MemoryAuditIssue,
+  MemoryAuditResult,
+  MemoryAuditSummary,
   MemoryReviewContext,
   MemoryReviewMatch,
   MemoryReviewer,

@@ -2,6 +2,7 @@ import { defineConfig } from "tsup";
 
 export default defineConfig({
   entry: [
+    "src/audit-memory.ts",
     "src/cli.ts",
     "src/inject.ts",
     "src/integrations.ts",

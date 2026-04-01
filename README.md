@@ -522,6 +522,7 @@ brain status
 brain review
 brain approve <memory-id>
 brain dismiss <memory-id>
+brain audit-memory
 brain suggest-skills --task "debug flaky browser tests" --path tests/e2e/login.spec.ts
 brain share <memory-id>
 brain share --all-active
@@ -540,6 +541,7 @@ brain mcp
 - `brain review`: list candidate memories waiting for approval
 - `brain approve`: promote one candidate, or all candidates, to active memory
 - `brain dismiss`: mark one candidate, or all candidates, as dismissed
+- `brain audit-memory`: audit stored memories for stale, conflict, low-signal, and overscoped entries
 - `brain suggest-skills`: build a skill shortlist from task text, changed paths, and matched active memories
 - `brain share`: suggest the next `git add` and `git commit` commands for one memory or all active memories
 - `brain mcp`: run RepoBrain as a minimal MCP stdio server
@@ -583,6 +585,32 @@ RepoBrain keeps lifecycle rules intentionally small for the current MVP:
 This keeps the current write path compatible for clear accepts while giving later LLM-backed reviewers or higher-level workflows a structured review context to reuse for merge and supersede decisions.
 
 If you are integrating RepoBrain programmatically, the store API also exposes `buildMemoryReviewContext` and `decideCandidateMemoryReview` so higher-level workflows can reuse the same deterministic baseline before adding an LLM reviewer on top.
+
+## Memory Audit
+
+Use `brain audit-memory` when the `.brain/` store starts accumulating enough knowledge that you want a hygiene pass before sharing, release prep, or cleanup work.
+
+Typical moments to run it:
+
+- after several `extract` and `approve` cycles
+- before committing or sharing a larger `.brain/` change set
+- when old guidance feels suspicious, duplicated, or too broad
+
+The command is read-only. It does not rewrite or delete memory files. The first rule-based version audits four issue classes:
+
+- `stale`: old candidate or low-value active memories that likely need review
+- `conflict`: same-scope `decision` or `convention` entries that appear to point in opposite directions
+- `low_signal`: entries too thin or generic to help future routing
+- `overscoped`: entries whose scope or language is broad enough to cause noisy injection
+
+Examples:
+
+```bash
+brain audit-memory
+brain audit-memory --json
+```
+
+The human-readable output includes `memory_id`, issue type, reason, and suggested next action. `--json` returns the same data in a stable machine-friendly shape.
 
 ## External Extractor Contract
 

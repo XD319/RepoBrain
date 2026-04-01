@@ -14,6 +14,7 @@ export const MEMORY_REVIEW_REASONS = [
   "temporary_detail",
   "insufficient_signal",
 ] as const;
+export const MEMORY_AUDIT_ISSUE_TYPES = ["stale", "conflict", "low_signal", "overscoped"] as const;
 
 export type MemoryType = (typeof MEMORY_TYPES)[number];
 export type Importance = (typeof IMPORTANCE_LEVELS)[number];
@@ -24,6 +25,7 @@ export type InvocationMode = (typeof INVOCATION_MODES)[number];
 export type RiskLevel = (typeof RISK_LEVELS)[number];
 export type MemoryReviewDecision = (typeof MEMORY_REVIEW_DECISIONS)[number];
 export type MemoryReviewReason = (typeof MEMORY_REVIEW_REASONS)[number];
+export type MemoryAuditIssueType = (typeof MEMORY_AUDIT_ISSUE_TYPES)[number];
 
 export interface Memory {
   type: MemoryType;
@@ -95,6 +97,26 @@ export interface MemoryReviewMatch {
 export interface MemoryReviewContext {
   memory: Memory;
   comparable_matches: MemoryReviewMatch[];
+}
+
+export interface MemoryAuditIssue {
+  memory_id: string;
+  relative_path: string;
+  issue_type: MemoryAuditIssueType;
+  reason: string;
+  suggested_action: string;
+  related_memory_ids?: string[];
+}
+
+export interface MemoryAuditSummary {
+  total_issues: number;
+  by_issue_type: Record<MemoryAuditIssueType, number>;
+}
+
+export interface MemoryAuditResult {
+  generated_at: string;
+  summary: MemoryAuditSummary;
+  issues: MemoryAuditIssue[];
 }
 
 export interface ReviewedMemoryCandidate {

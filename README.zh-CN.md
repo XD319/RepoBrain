@@ -504,6 +504,7 @@ brain status
 brain review
 brain approve <memory-id>
 brain dismiss <memory-id>
+brain audit-memory
 brain suggest-skills --task "debug flaky browser tests" --path tests/e2e/login.spec.ts
 brain share <memory-id>
 brain share --all-active
@@ -522,6 +523,7 @@ brain mcp
 - `brain review`：列出等待审批的 candidate memories
 - `brain approve`：将单条 candidate memory，或全部 candidates，提升为 active
 - `brain dismiss`：将单条 candidate memory，或全部 candidates，标记为 stale
+- `brain audit-memory`：审计 `.brain/` 中疑似 stale、conflict、low-signal 或 overscoped 的条目
 - `brain suggest-skills`：根据任务文本、变更路径和命中的 active memories 输出一份 skill shortlist
 - `brain share`：为单条 memory 或全部 active memories 输出建议的 `git add` / `git commit` 命令
 - `brain mcp`：以最小 MCP stdio server 的形式运行 RepoBrain
@@ -562,6 +564,32 @@ language: zh-CN
 这样既保留了当前清晰的写入主路径，也给后续接入 LLM reviewer 或更高层审批流程留出了可复用的 review context 接口。
 
 如果你是通过代码集成 RepoBrain，`store-api` 现在也会导出 `buildMemoryReviewContext` 和 `decideCandidateMemoryReview`，这样上层流程可以先复用同一套 deterministic baseline，再逐步叠加 LLM reviewer。
+
+## Memory Audit
+
+当 `.brain/` 里的知识逐渐变多、你想在分享、发布前检查或定期清理时，可以运行 `brain audit-memory` 做一次知识卫生审计。
+
+比较适合的场景：
+
+- 连续做过几轮 `extract` 和 `approve` 之后
+- 准备提交或分享一批 `.brain/` 变更之前
+- 觉得旧 guidance 可能已经冲突、过时或范围过宽时
+
+这个命令是只读的，不会改写或删除 memory 文件。第一版规则审计会检查四类问题：
+
+- `stale`：太旧、太久没处理的 candidate，或可能需要回看的低价值 active memory
+- `conflict`：同 scope 下看起来指向相反方向的 `decision` / `convention`
+- `low_signal`：过薄、过泛，难以给未来任务提供稳定帮助的条目
+- `overscoped`：scope 或表述过宽，容易在注入时制造噪音的条目
+
+示例：
+
+```bash
+brain audit-memory
+brain audit-memory --json
+```
+
+默认的人类可读输出会包含 `memory_id`、问题类型、原因和建议动作；加上 `--json` 后会输出同一份结构化结果，便于后续 hooks 或其他 adapter 消费。
 
 ## 外部 Extractor 契约
 

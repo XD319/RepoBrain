@@ -5,6 +5,7 @@ import { stdin as input, stdout as output } from "node:process";
 import { Command } from "commander";
 
 import { loadConfig } from "./config.js";
+import { buildMemoryAudit, renderMemoryAuditResult } from "./audit-memory.js";
 import { extractMemories } from "./extract.js";
 import { buildInjection } from "./inject.js";
 import { runMcpServer } from "./mcp/server.js";
@@ -306,6 +307,18 @@ program
     });
 
     output.write(`${renderSkillShortlist(result)}\n`);
+  });
+
+program
+  .command("audit-memory")
+  .description("Audit stored memories for stale, conflict, low-signal, and overscoped entries.")
+  .option("--json", "Print the audit result as JSON.")
+  .action(async (options: { json?: boolean }) => {
+    const projectRoot = process.cwd();
+    const result = await buildMemoryAudit(projectRoot);
+    output.write(
+      options.json ? `${JSON.stringify(result, null, 2)}\n` : `${renderMemoryAuditResult(result)}\n`,
+    );
   });
 
 program
