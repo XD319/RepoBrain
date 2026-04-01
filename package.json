@@ -1,10 +1,27 @@
 {
-  "name": "project-brain",
+  "name": "repobrain",
   "version": "0.1.0",
   "description": "Git-friendly repo memory for coding agents.",
   "type": "module",
   "bin": {
     "brain": "./dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "LICENSE",
+    "README.md",
+    "README.zh-CN.md",
+    ".claude-plugin/plugin.json",
+    ".codex/INSTALL.md",
+    "scripts/setup-git-hooks.sh"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/XD319/RepoBrain.git"
+  },
+  "homepage": "https://github.com/XD319/RepoBrain#readme",
+  "bugs": {
+    "url": "https://github.com/XD319/RepoBrain/issues"
   },
   "scripts": {
     "build": "tsup",
@@ -15,8 +32,11 @@
     "agent",
     "memory",
     "repo",
+    "repo-memory",
     "codex",
-    "claude-code"
+    "claude-code",
+    "claude",
+    "typescript"
   ],
   "license": "MIT",
   "engines": {

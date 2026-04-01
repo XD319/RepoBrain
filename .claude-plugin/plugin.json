@@ -1,5 +1,5 @@
 {
-  "name": "project-brain",
+  "name": "repobrain",
   "version": "0.1.0",
   "description": "Repo-native project knowledge memory for Claude Code sessions.",
   "hooks": {

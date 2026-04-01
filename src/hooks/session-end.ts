@@ -48,7 +48,7 @@ async function readStdin(): Promise<string> {
 
 function debugLog(message: string): void {
   if (process.env.PROJECT_BRAIN_VERBOSE === "1") {
-    stderr.write(`[project-brain] ${message}\n`);
+    stderr.write(`[repobrain] ${message}\n`);
   }
 }
 
