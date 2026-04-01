@@ -2,11 +2,12 @@ import { access, readFile, writeFile } from "node:fs/promises";
 import { constants as fsConstants } from "node:fs";
 import path from "node:path";
 
-import type { BrainConfig } from "./types.js";
+import type { BrainConfig, ExtractMode } from "./types.js";
+import { EXTRACT_MODES } from "./types.js";
 
 export const DEFAULT_BRAIN_CONFIG: BrainConfig = {
   maxInjectTokens: 1200,
-  autoExtract: false,
+  extractMode: "suggest",
   language: "zh-CN",
 };
 
@@ -88,8 +89,16 @@ function parseSimpleYaml(raw: string): Partial<BrainConfig> {
       continue;
     }
 
+    if (key === "extractMode") {
+      const normalized = value.toLowerCase() as ExtractMode;
+      if (EXTRACT_MODES.includes(normalized)) {
+        result.extractMode = normalized;
+      }
+      continue;
+    }
+
     if (key === "autoExtract") {
-      result.autoExtract = value.toLowerCase() === "true";
+      result.extractMode = value.toLowerCase() === "true" ? "auto" : "manual";
       continue;
     }
 
@@ -105,7 +114,7 @@ function serializeSimpleYaml(config: BrainConfig): string {
   return [
     "# Project Brain config",
     `maxInjectTokens: ${config.maxInjectTokens}`,
-    `autoExtract: ${String(config.autoExtract)}`,
+    `extractMode: ${config.extractMode}`,
     `language: ${config.language}`,
     "",
   ].join("\n");

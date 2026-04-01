@@ -19,11 +19,16 @@ async function main(): Promise<void> {
       return;
     }
 
+    if (config.extractMode === "manual") {
+      return;
+    }
+
     const memories = await extractMemories(summary, config, projectRoot);
     for (const memory of memories) {
       const toSave: Memory = {
         ...memory,
         ...(memory.source ? {} : { source: "session" }),
+        ...(config.extractMode === "suggest" ? { status: "candidate" as const } : { status: "active" as const }),
       };
       await saveMemory(toSave, projectRoot);
     }

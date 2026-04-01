@@ -1,4 +1,4 @@
-import { loadAllMemories, recordInjectedMemories } from "./store.js";
+import { getMemoryStatus, loadAllMemories, recordInjectedMemories } from "./store.js";
 import type { BrainConfig, Memory, MemoryType } from "./types.js";
 
 const TYPE_ORDER: MemoryType[] = ["decision", "gotcha", "convention", "pattern"];
@@ -11,7 +11,7 @@ const IMPORTANCE_SCORE: Record<Memory["importance"], number> = {
 export async function buildInjection(projectRoot: string, config: BrainConfig): Promise<string> {
   const allMemories = await loadAllMemories(projectRoot);
   const activeMemories = allMemories
-    .filter((memory) => memory.status !== "superseded")
+    .filter((memory) => getMemoryStatus(memory) === "active")
     .sort(compareMemories);
   const selected = selectWithinTokenBudget(activeMemories, config.maxInjectTokens);
   await recordInjectedMemories(projectRoot, selected);

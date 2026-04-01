@@ -31,15 +31,17 @@ Create the local `.brain/` workspace for this repository:
 brain init
 ```
 
-## 3. Use `brain inject` before a new Codex session
+## 3. Load repo context before a new Codex session
 
-Before starting a new session in this repo, run:
+The simplest option is still:
 
 ```bash
 brain inject
 ```
 
 Paste or reference the output in your session so Codex starts with the latest repo decisions, gotchas, and conventions.
+
+If you wire in the session-start hook, this step can be automatic.
 
 ## 4. Install the lightweight Git hook
 
@@ -56,13 +58,30 @@ The installed `post-commit` hook stays lightweight:
 - It silently skips if `brain` is not installed
 - It never blocks your commit flow
 
-## 5. Manual extract
+## 5. Reviewable extract is the recommended default
+
+The safest default is:
+
+- session-start injects context automatically
+- session-end extracts reviewable `candidate` memories
+- you approve the good ones explicitly
+
+Review and approve candidates with:
+
+```bash
+brain review
+brain approve --all
+```
+
+## 6. Manual extract
 
 You can always extract manually from a summary file:
 
 ```bash
 cat session-summary.txt | brain extract
 ```
+
+Manual `brain extract` writes active memories immediately.
 
 Or from the latest commit message without the hook:
 

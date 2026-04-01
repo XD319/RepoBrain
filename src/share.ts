@@ -1,7 +1,7 @@
 import path from "node:path";
 
 import type { Memory, StoredMemoryRecord } from "./types.js";
-import { loadStoredMemoryRecords } from "./store.js";
+import { getMemoryStatus, loadStoredMemoryRecords } from "./store.js";
 
 export interface SharePlan {
   records: StoredMemoryRecord[];
@@ -14,7 +14,7 @@ export async function buildSharePlan(
   options: { allActive?: boolean; memoryId?: string },
 ): Promise<SharePlan> {
   const records = await loadStoredMemoryRecords(projectRoot);
-  const activeRecords = records.filter((entry) => entry.memory.status !== "superseded");
+  const activeRecords = records.filter((entry) => getMemoryStatus(entry.memory) === "active");
 
   if (options.allActive) {
     if (activeRecords.length === 0) {
@@ -77,7 +77,11 @@ function matchStoredMemories(records: StoredMemoryRecord[], rawQuery: string): S
 
 function buildCommitMessage(records: StoredMemoryRecord[]): string {
   if (records.length === 1) {
-    const entry = records[0];
+    const [entry] = records;
+    if (!entry) {
+      return "brain: sync active memories";
+    }
+
     return `brain: add ${entry.memory.type} - ${toCommitSummary(entry.memory.title)}`;
   }
 
