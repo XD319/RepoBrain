@@ -10,7 +10,7 @@ export const MEMORY_REVIEW_REASONS = [
   "novel_memory",
   "same_scope_summary_overlap",
   "newer_memory_replaces_older",
-  "duplicate",
+  "duplicate_memory",
   "temporary_detail",
   "insufficient_signal",
 ] as const;
@@ -51,6 +51,7 @@ export interface BrainConfig {
   maxInjectTokens: number;
   extractMode: ExtractMode;
   language: string;
+  warnings?: string[];
 }
 
 export interface ExtractedMemoriesPayload {
@@ -97,6 +98,7 @@ export interface MemoryReviewMatch {
 export interface MemoryReviewContext {
   memory: Memory;
   comparable_matches: MemoryReviewMatch[];
+  external_review_input?: ValidatedExternalReviewInput;
 }
 
 export interface MemoryAuditIssue {
@@ -126,4 +128,22 @@ export interface ReviewedMemoryCandidate {
 
 export interface MemoryReviewer {
   reviewCandidate(memory: Memory, existingRecords: StoredMemoryRecord[]): CandidateMemoryReviewResult;
+}
+
+export interface ExternalReviewSuggestion {
+  decision: MemoryReviewDecision;
+  target_memory_ids: string[];
+  reason?: string;
+}
+
+export interface ValidatedExternalReviewInput {
+  source: string;
+  suggestion: ExternalReviewSuggestion;
+}
+
+export interface ReviewCandidateMemoriesOptions {
+  resolveExternalReviewInput?: (
+    memory: Memory,
+    existingRecords: StoredMemoryRecord[],
+  ) => unknown;
 }

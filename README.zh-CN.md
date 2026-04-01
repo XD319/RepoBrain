@@ -144,10 +144,14 @@ node dist/cli.js inject
 
 RepoBrain 把产品拆成稳定的核心层和轻量的 adapter 层。所有 adapter 都消费同一套 `.brain` schema，以及同一个 `brain inject` 和 `brain suggest-skills` 输出。
 
+RepoBrain Core 刻意保持本地、轻量、deterministic。它不内置任何 LLM API 调用，也不是模型中间层。
+
 核心层职责：
 
 - 定义并维护 `.brain/` 的 Markdown + frontmatter schema
 - 在一个 Git-friendly 的位置里保存 durable repo memory
+- 在本地执行 deterministic 的 rule-based review / dedupe / supersede
+- 提供基础查询与注入能力：`brain inject`、`brain review`、`brain suggest-skills`
 - 通过 `brain inject` 生成紧凑的 session 上下文
 - 通过 `brain suggest-skills` 生成任务感知的路由提示
 
@@ -155,6 +159,8 @@ adapter 层职责：
 
 - 把 RepoBrain 的统一输出翻译成目标 agent 偏好的指令格式
 - 说明 `brain inject` 和 `brain suggest-skills` 在该 agent 工作流中的接入位置
+- 在需要时帮助提炼 durable knowledge 候选
+- 可以提供结构化的 review suggestion，但不能替代 Core 的本地最终判定
 - 保持足够轻量，避免在 RepoBrain 核心层之外再发明一套知识模型
 
 共享模板位于 [integrations/README.md](./integrations/README.md)。
@@ -276,7 +282,7 @@ brain init
 生成出来的 `config.yaml` 刻意保持很小：
 
 - `maxInjectTokens`：`brain inject` 生成上下文时使用的近似 token 预算
-- `autoExtract`：为后续自动化工作流预留的开关
+- `extractMode`：控制 hooks 走手动、候选写入，还是直接写入 active memory
 - `language`：提取提示词偏好的输出语言
 
 ### Step 2: Capture Your First Memory
@@ -302,7 +308,7 @@ brain list
 
 `brain extract` 现在会先跑一轮 deterministic review，再决定怎么落盘。CLI 会为每条提取结果输出 `decision`、`target_memory_ids` 和 `reason`。`accept` 会保持当前写入行为，`merge` / `supersede` 会先保守地落成 `candidate`，`reject` 则不会写入。
 
-当前 baseline reviewer 是可解释的 deterministic 规则：先看 type，再看 scope 归一化后是否一致，然后结合标题相似度、摘要相似度、目标 memory 的状态和更新时间来做判定。为了避免误覆盖，`merge` 和 `supersede` 只会在“同类型 + 同归一化 scope”下触发；仅仅 scope 有重叠，还不足以自动折叠或替换 memory。
+当前 baseline reviewer 是可解释的 deterministic 规则：先看 type，再看 scope 归一化后是否一致，然后结合标题相似度、摘要相似度、目标 memory 的状态和更新时间来做判定。为了避免误覆盖，`merge` 和 `supersede` 只会在“同类型 + 同归一化 scope”下触发；仅仅 scope 有重叠，还不足以自动折叠或替换 memory。程序化集成可以附带 external review input，但 Core 仍会先校验输入结构，再保留本地最终的 `accept` / `merge` / `supersede` / `reject` 判定。
 
 这时你应该会在 `.brain/gotchas/` 下看到一条新的 memory。实际文件名会带上当天日期和标题 slug。生成后的文件大致会长这样：
 
@@ -536,13 +542,14 @@ RepoBrain 的配置文件位于 `.brain/config.yaml`。
 
 ```yaml
 maxInjectTokens: 1200
-autoExtract: false
+extractMode: suggest
 language: zh-CN
 ```
 
 - `maxInjectTokens`：生成注入上下文时使用的近似 token 预算，针对中英混合内容做了更稳的估算
-- `autoExtract`：给自动化工作流预留的开关
+- `extractMode`：控制 hook 提取走手动、候选写入，还是直接写入 active memory
 - `language`：提取提示词偏好的输出语言
+- 旧的 `provider`、`model`、`apiKey` 一类 review 配置会被忽略，并给出弃用提示；RepoBrain Core 不会调用远程审核服务
 
 ## Memory 生命周期
 
@@ -551,19 +558,21 @@ language: zh-CN
 - 新提取出的 memory 会先经过一轮 deterministic review：`accept`、`merge`、`supersede` 或 `reject`
 - 手动执行 `brain extract` 时，`accept` 结果仍会直接写成 `active`
 - hook 在 `suggest` 模式下，会把可接受的结果写成 `candidate`
+- 重复或高度重合的 durable knowledge 会走 `merge`，而不是交给远程 reviewer
 - `merge` 和 `supersede` 目前都保持保守：RepoBrain 只会把新 memory 存成 `candidate`，并输出目标 memory ids，不会自动改写旧文件
 - deterministic baseline 只会对“同类型 + 同归一化 scope”的 memory 判定 `merge` / `supersede`；scope 仅重叠不会触发自动合并
 - `merge` 只用于补充型更新，也就是标题和摘要都明显指向同一条经验，但没有明确替换语义
 - `supersede` 只用于“更新版本替换旧版本”的情况：同 identity、候选 memory 更新，并且文本里有明确 replacement signal，比如 `replace`、`deprecated`、`no longer`
-- `reject` 会带着明确原因被跳过，比如 `duplicate`、`temporary_detail`、`insufficient_signal`
+- `reject` 会带着明确原因被跳过，比如 `temporary_detail`、`insufficient_signal`
 - `brain approve` 会把 candidate 提升为 `active`
 - `brain dismiss` 会把 candidate 标记为 `stale`
 - 如果新激活的 memory 与现有 active memory 命中“同类型 + 标题归一化后相同 + scope 归一化后相同”，旧 memory 会自动标记为 `superseded`
-- `brain inject` 生成上下文时只会加载 `active` memories
+- `brain inject` 生成上下文时只会加载 `active` memories，所以 `superseded` memory 不会再参与正常匹配或注入基线
+- external review input 是可选附加信息；Core 会校验结构、忽略非法输入，并保留本地最终判定
 
-这样既保留了当前清晰的写入主路径，也给后续接入 LLM reviewer 或更高层审批流程留出了可复用的 review context 接口。
+这样既保留了当前清晰的写入主路径，也允许更高层 agent 工作流围绕同一套 deterministic baseline 附加结构化建议。
 
-如果你是通过代码集成 RepoBrain，`store-api` 现在也会导出 `buildMemoryReviewContext` 和 `decideCandidateMemoryReview`，这样上层流程可以先复用同一套 deterministic baseline，再逐步叠加 LLM reviewer。
+如果你是通过代码集成 RepoBrain，`store-api` 现在也会导出 `buildMemoryReviewContext`、`parseExternalReviewInput` 和 `decideCandidateMemoryReview`，这样 adapter 可以传入 agent-provided candidate review input，同时保持最终审核权仍在 Core。
 
 ## Memory Audit
 
@@ -595,6 +604,8 @@ brain audit-memory --json
 
 如果设置了 `BRAIN_EXTRACTOR_COMMAND`，RepoBrain 会优先调用这个命令，而不是使用内置的启发式提取。
 
+这就是给外部 agent、adapter 或 skill 留的扩展点，用来提供更强的语义候选提炼；RepoBrain Core 仍然只消费本地进程输出，不内置自己的模型 API 客户端。
+
 接口约定：
 
 - RepoBrain 会把完整提取 prompt 通过 `stdin` 传给命令
@@ -612,7 +623,8 @@ brain audit-memory --json
 
 - 更顺手的 Claude Code 安装和说明
 - 更稳定的 Codex 轻量工作流
-- 更清晰的 memory review / promote 流程
+- 更清晰的 deterministic memory review / promote 流程
+- 更完整的 adapter 示例，用于 candidate extraction 和 review suggestion
 - 更完整的开源演示和真实案例
 
 ## Contributing
@@ -629,3 +641,5 @@ brain audit-memory --json
 如果你准备提 PR，最重要的一条是别把项目带偏：
 
 > RepoBrain 的核心是给 coding agent 沉淀 durable repo knowledge，而不是做一个通用长期聊天记忆系统。
+
+它不是另一个 AI 应用，也不是模型 API 中间层；它是 agent-agnostic 的 repo knowledge infrastructure。

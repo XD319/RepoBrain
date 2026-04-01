@@ -2,7 +2,7 @@
 
 import { stdin as input, stderr } from "node:process";
 
-import { findProjectRoot, loadConfig } from "../config.js";
+import { findProjectRoot, loadConfig, renderConfigWarnings } from "../config.js";
 import { extractMemories } from "../extract.js";
 import { reviewCandidateMemories } from "../reviewer.js";
 import { appendErrorLog, initBrain, loadStoredMemoryRecords, saveMemory, updateIndex } from "../store.js";
@@ -14,6 +14,7 @@ async function main(): Promise<void> {
   try {
     await initBrain(projectRoot);
     const config = await loadConfig(projectRoot);
+    renderConfigWarnings(config).forEach((warning) => debugLog(warning));
     const summary = await readStdin();
 
     if (!summary.trim()) {

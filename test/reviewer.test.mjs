@@ -7,6 +7,7 @@ import {
   buildMemoryReviewContext,
   initBrain,
   loadStoredMemoryRecords,
+  reviewCandidateMemories,
   reviewCandidateMemory,
   saveMemory,
 } from "../dist/store-api.js";
@@ -188,7 +189,7 @@ await runTest("marks replacement updates in the same scope as supersede", async 
   });
 });
 
-await runTest("rejects a duplicate memory with an explicit duplicate reason", async () => {
+await runTest("merges an exact duplicate into the existing durable memory", async () => {
   await withTempRepo(async (projectRoot) => {
     const existingPath = await saveMemory(
       {
@@ -222,9 +223,9 @@ await runTest("rejects a duplicate memory with an explicit duplicate reason", as
       records,
     );
 
-    assert.equal(review.decision, "reject");
+    assert.equal(review.decision, "merge");
     assert.deepEqual(review.target_memory_ids, [path.basename(existingPath, ".md")]);
-    assert.equal(review.reason, "duplicate");
+    assert.equal(review.reason, "duplicate_memory");
   });
 });
 
@@ -331,6 +332,30 @@ await runTest("rejects obviously temporary details", async () => {
   });
 });
 
+await runTest("rejects one-off debug TODO details with a deterministic reason", async () => {
+  await withTempRepo(async (projectRoot) => {
+    const review = reviewCandidateMemory(
+      {
+        type: "gotcha",
+        title: "TODO debug flag for today's release",
+        summary: "One-off debug logging stays enabled for now while we inspect the current release issue.",
+        detail:
+          "## GOTCHA\n\nTODO: keep this debug-only flag enabled for today only while we inspect the release logs, then remove it after the incident.",
+        tags: ["debug", "release"],
+        importance: "low",
+        date: "2026-04-01T09:15:00.000Z",
+      },
+      await loadStoredMemoryRecords(projectRoot),
+    );
+
+    assert.deepEqual(review, {
+      decision: "reject",
+      target_memory_ids: [],
+      reason: "temporary_detail",
+    });
+  });
+});
+
 await runTest("rejects low-signal memories that are too thin to preserve", async () => {
   await withTempRepo(async (projectRoot) => {
     const review = reviewCandidateMemory(
@@ -350,6 +375,171 @@ await runTest("rejects low-signal memories that are too thin to preserve", async
       decision: "reject",
       target_memory_ids: [],
       reason: "insufficient_signal",
+    });
+  });
+});
+
+await runTest("keeps validated external review input in context but still makes the local rule-based decision", async () => {
+  await withTempRepo(async (projectRoot) => {
+    const existingPath = await saveMemory(
+      {
+        type: "decision",
+        title: "Keep refund writes inside the transaction helper",
+        summary: "Refund update flows should use the transaction helper so rollback behavior stays consistent.",
+        detail:
+          "## DECISION\n\nRefund update flows should use the transaction helper so rollback behavior stays consistent.",
+        tags: ["payments", "transactions"],
+        importance: "high",
+        date: "2026-04-01T08:00:00.000Z",
+        status: "active",
+        path_scope: ["src/payments/**"],
+      },
+      projectRoot,
+    );
+
+    const records = await loadStoredMemoryRecords(projectRoot);
+    const externalReviewInput = {
+      source: "agent-adapter",
+      suggestion: {
+        decision: "accept",
+        target_memory_ids: [],
+        reason: "agent_thinks_this_is_new",
+      },
+    };
+
+    const context = buildMemoryReviewContext(
+      {
+        type: "decision",
+        title: "Keep refund writes inside the transaction helper",
+        summary: "Refund update flows should use the transaction helper so rollback behavior stays consistent.",
+        detail:
+          "## DECISION\n\nRefund update flows should use the transaction helper so rollback behavior stays consistent.",
+        tags: ["payments", "transactions"],
+        importance: "medium",
+        date: "2026-04-01T10:00:00.000Z",
+        path_scope: ["src/payments/**"],
+      },
+      records,
+      externalReviewInput,
+    );
+
+    assert.deepEqual(context.external_review_input, externalReviewInput);
+
+    const review = reviewCandidateMemory(context.memory, records, externalReviewInput);
+    assert.equal(review.decision, "merge");
+    assert.deepEqual(review.target_memory_ids, [path.basename(existingPath, ".md")]);
+    assert.equal(review.reason, "duplicate_memory");
+  });
+});
+
+await runTest("ignores invalid external review input instead of trusting it", async () => {
+  await withTempRepo(async (projectRoot) => {
+    const records = await loadStoredMemoryRecords(projectRoot);
+    const context = buildMemoryReviewContext(
+      {
+        type: "pattern",
+        title: "Keep CLI fixtures focused",
+        summary: "CLI smoke tests stay easier to debug when they use focused fixtures instead of a full demo repo.",
+        detail:
+          "## PATTERN\n\nCLI smoke tests stay easier to debug when they use focused fixtures instead of a full demo repo.",
+        tags: ["cli", "tests"],
+        importance: "medium",
+        date: "2026-04-01T10:30:00.000Z",
+      },
+      records,
+      {
+        source: "agent-adapter",
+        suggestion: {
+          decision: "invented",
+          target_memory_ids: ["fake-id"],
+        },
+      },
+    );
+
+    assert.equal(context.external_review_input, undefined);
+
+    const review = reviewCandidateMemory(context.memory, records, {
+      source: "agent-adapter",
+      suggestion: {
+        decision: "invented",
+        target_memory_ids: ["fake-id"],
+      },
+    });
+    assert.deepEqual(review, {
+      decision: "accept",
+      target_memory_ids: [],
+      reason: "novel_memory",
+    });
+  });
+});
+
+await runTest("legacy reviewer overrides are ignored so Core never delegates final decisions", async () => {
+  await withTempRepo(async (projectRoot) => {
+    let overrideCalled = false;
+    const reviewed = reviewCandidateMemories(
+      [
+        {
+          type: "pattern",
+          title: "Use focused fixtures for CLI smoke tests",
+          summary: "CLI smoke tests stay easier to debug when they rely on focused fixtures instead of the full demo repo.",
+          detail:
+            "## PATTERN\n\nCLI smoke tests stay easier to debug when they rely on focused fixtures instead of the full demo repo.",
+          tags: ["cli", "tests"],
+          importance: "medium",
+          date: "2026-04-01T09:00:00.000Z",
+        },
+      ],
+      await loadStoredMemoryRecords(projectRoot),
+      {
+        reviewCandidate() {
+          overrideCalled = true;
+          throw new Error("legacy reviewer should not be called");
+        },
+      },
+    );
+
+    assert.equal(reviewed[0]?.review.decision, "accept");
+    assert.equal(overrideCalled, false);
+  });
+});
+
+await runTest("superseded memories do not participate as active review baselines", async () => {
+  await withTempRepo(async (projectRoot) => {
+    await saveMemory(
+      {
+        type: "convention",
+        title: "Run CI checks with npm test",
+        summary: "Older CI guidance that has already been replaced.",
+        detail:
+          "## CONVENTION\n\nThis older CI guidance has already been replaced and should not stay active.",
+        tags: ["ci", "npm"],
+        importance: "medium",
+        date: "2026-04-01T08:00:00.000Z",
+        status: "superseded",
+        path_scope: ["package.json", "scripts/**"],
+      },
+      projectRoot,
+    );
+
+    const review = reviewCandidateMemory(
+      {
+        type: "convention",
+        title: "Run CI checks with npm test",
+        summary: "Current CI still runs npm test before merge so local and remote checks stay aligned.",
+        detail:
+          "## CONVENTION\n\nCurrent CI still runs npm test before merge so local and remote checks stay aligned.",
+        tags: ["ci", "npm"],
+        importance: "medium",
+        date: "2026-04-01T09:00:00.000Z",
+        path_scope: ["package.json", "scripts/**"],
+      },
+      await loadStoredMemoryRecords(projectRoot),
+    );
+
+    assert.deepEqual(review, {
+      decision: "accept",
+      target_memory_ids: [],
+      reason: "novel_memory",
     });
   });
 });

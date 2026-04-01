@@ -1,9 +1,19 @@
 import assert from "node:assert/strict";
+import { spawn } from "node:child_process";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-import { initBrain, loadAllMemories, loadStoredMemoryRecords, saveMemory } from "../dist/store-api.js";
+import {
+  initBrain,
+  loadAllMemories,
+  loadConfig,
+  loadStoredMemoryRecords,
+  renderConfigWarnings,
+  saveMemory,
+} from "../dist/store-api.js";
+
+const repoRoot = process.cwd();
 
 await runTest("legacy .brain entries load with safe skill routing defaults", async () => {
   await withTempRepo(async (projectRoot) => {
@@ -207,6 +217,72 @@ await runTest("invalid risk_level is rejected during save with a clear validatio
   });
 });
 
+await runTest("legacy remote review config fields are ignored with a deprecation warning", async () => {
+  await withTempRepo(async (projectRoot) => {
+    await writeFile(
+      path.join(projectRoot, ".brain", "config.yaml"),
+      [
+        "maxInjectTokens: 1200",
+        "extractMode: suggest",
+        "language: zh-CN",
+        "reviewProvider: openai",
+        "reviewModel: gpt-5",
+        "reviewApiKey: should-not-be-used",
+        "",
+      ].join("\n"),
+      "utf8",
+    );
+
+    const config = await loadConfig(projectRoot);
+    const warnings = renderConfigWarnings(config);
+
+    assert.equal(config.extractMode, "suggest");
+    assert.equal(config.maxInjectTokens, 1200);
+    assert.equal(config.language, "zh-CN");
+    assert.equal(warnings.length, 1);
+    assert.match(warnings[0], /Ignoring deprecated remote review config fields/);
+    assert.match(warnings[0], /reviewApiKey/);
+    assert.match(warnings[0], /reviewModel/);
+    assert.match(warnings[0], /reviewProvider/);
+  });
+});
+
+await runTest("cli extract does not crash or call any remote path when legacy review config fields remain", async () => {
+  await withTempRepo(async (projectRoot) => {
+    await writeFile(
+      path.join(projectRoot, ".brain", "config.yaml"),
+      [
+        "maxInjectTokens: 1200",
+        "extractMode: suggest",
+        "language: zh-CN",
+        "provider: anthropic",
+        "model: claude-sonnet",
+        "apiKey: should-not-be-used",
+        "",
+      ].join("\n"),
+      "utf8",
+    );
+
+    const result = await runNodeProcess(
+      [path.join(repoRoot, "dist", "cli.js"), "extract", "--source", "session"],
+      projectRoot,
+      [
+        "decision: Keep API writes inside a transaction helper",
+        "",
+        "Mutation-heavy API flows should route writes through the transaction helper for consistency and rollback safety.",
+      ].join("\n"),
+    );
+
+    assert.equal(result.code, 0);
+    assert.match(result.stderr, /Ignoring deprecated remote review config fields/);
+    assert.match(result.stdout, /decision=accept|accept \|/i);
+
+    const memories = await loadAllMemories(projectRoot);
+    assert.equal(memories.length, 1);
+    assert.equal(memories[0]?.title, "Keep API writes inside a transaction helper");
+  });
+});
+
 console.log("All store schema tests passed.");
 
 async function withTempRepo(callback) {
@@ -228,4 +304,36 @@ async function runTest(name, callback) {
     console.error(`not ok - ${name}`);
     throw error;
   }
+}
+
+async function runNodeProcess(args, cwd, stdinText = "") {
+  return new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, args, {
+      cwd,
+      stdio: ["pipe", "pipe", "pipe"],
+      env: process.env,
+    });
+
+    let stdout = "";
+    let stderr = "";
+
+    child.stdout.on("data", (chunk) => {
+      stdout += chunk.toString("utf8");
+    });
+
+    child.stderr.on("data", (chunk) => {
+      stderr += chunk.toString("utf8");
+    });
+
+    child.on("error", reject);
+    child.on("close", (code) => {
+      resolve({
+        code,
+        stdout,
+        stderr,
+      });
+    });
+
+    child.stdin.end(stdinText);
+  });
 }

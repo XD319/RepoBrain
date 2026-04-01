@@ -4,7 +4,7 @@ import path from "node:path";
 import { stdin as input, stdout as output } from "node:process";
 import { Command } from "commander";
 
-import { loadConfig } from "./config.js";
+import { loadConfig, renderConfigWarnings } from "./config.js";
 import { buildMemoryAudit, renderMemoryAuditResult } from "./audit-memory.js";
 import { extractMemories } from "./extract.js";
 import { buildInjection } from "./inject.js";
@@ -51,6 +51,7 @@ program
     await initBrain(projectRoot);
 
     const config = await loadConfig(projectRoot);
+    renderConfigWarnings(config).forEach((warning) => process.stderr.write(`[repobrain] ${warning}\n`));
     const stdinText = await readStdin();
     const memories = await extractMemories(stdinText, config, projectRoot);
     const existingRecords = await loadStoredMemoryRecords(projectRoot);
@@ -136,6 +137,7 @@ program
   .action(async (options: { task?: string; path: string[]; module: string[] }) => {
     const projectRoot = process.cwd();
     const config = await loadConfig(projectRoot);
+    renderConfigWarnings(config).forEach((warning) => process.stderr.write(`[repobrain] ${warning}\n`));
     const injection = await buildInjection(projectRoot, config, {
       ...(options.task?.trim() ? { task: options.task.trim() } : {}),
       paths: options.path,

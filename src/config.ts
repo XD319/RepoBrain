@@ -11,6 +11,14 @@ export const DEFAULT_BRAIN_CONFIG: BrainConfig = {
   language: "zh-CN",
 };
 
+const DEPRECATED_REMOTE_REVIEW_KEY_PATTERNS = [
+  /(?:^|_)provider$/i,
+  /(?:^|_)model$/i,
+  /api[_-]?key$/i,
+  /^review(?:er)?(?:[_-]?(?:provider|model|api[_-]?key|llm|remote.*))$/i,
+  /^(?:llm|remote)(?:[_-].+)?$/i,
+] as const;
+
 export function getBrainDir(projectRoot: string): string {
   return path.join(projectRoot, ".brain");
 }
@@ -50,9 +58,10 @@ export async function loadConfig(projectRoot: string): Promise<BrainConfig> {
 
   try {
     const raw = await readFile(configPath, "utf8");
+    const parsed = parseSimpleYaml(raw);
     return {
       ...DEFAULT_BRAIN_CONFIG,
-      ...parseSimpleYaml(raw),
+      ...parsed,
     };
   } catch {
     return { ...DEFAULT_BRAIN_CONFIG };
@@ -66,6 +75,7 @@ export async function writeDefaultConfig(projectRoot: string): Promise<void> {
 
 function parseSimpleYaml(raw: string): Partial<BrainConfig> {
   const result: Partial<BrainConfig> = {};
+  const deprecatedKeys = new Set<string>();
 
   for (const line of raw.split(/\r?\n/)) {
     const trimmed = line.trim();
@@ -80,6 +90,11 @@ function parseSimpleYaml(raw: string): Partial<BrainConfig> {
 
     const key = trimmed.slice(0, separatorIndex).trim();
     const value = trimmed.slice(separatorIndex + 1).trim();
+
+    if (isDeprecatedRemoteReviewConfigKey(key)) {
+      deprecatedKeys.add(key);
+      continue;
+    }
 
     if (key === "maxInjectTokens") {
       const parsed = Number(value);
@@ -107,7 +122,17 @@ function parseSimpleYaml(raw: string): Partial<BrainConfig> {
     }
   }
 
+  if (deprecatedKeys.size > 0) {
+    result.warnings = [
+      `Ignoring deprecated remote review config fields: ${Array.from(deprecatedKeys).sort((left, right) => left.localeCompare(right)).join(", ")}. RepoBrain Core only uses the local deterministic review pipeline.`,
+    ];
+  }
+
   return result;
+}
+
+export function renderConfigWarnings(config: BrainConfig): string[] {
+  return config.warnings ?? [];
 }
 
 function serializeSimpleYaml(config: BrainConfig): string {
@@ -118,4 +143,8 @@ function serializeSimpleYaml(config: BrainConfig): string {
     `language: ${config.language}`,
     "",
   ].join("\n");
+}
+
+function isDeprecatedRemoteReviewConfigKey(key: string): boolean {
+  return DEPRECATED_REMOTE_REVIEW_KEY_PATTERNS.some((pattern) => pattern.test(key));
 }

@@ -6,14 +6,18 @@ import {
 } from "./memory-identity.js";
 import type {
   CandidateMemoryReviewResult,
+  ExternalReviewSuggestion,
   Memory,
   MemoryReviewContext,
   MemoryReviewMatch,
   MemoryReviewer,
   MemoryStatus,
+  ReviewCandidateMemoriesOptions,
   ReviewedMemoryCandidate,
   StoredMemoryRecord,
+  ValidatedExternalReviewInput,
 } from "./types.js";
+import { MEMORY_REVIEW_DECISIONS } from "./types.js";
 
 const DUPLICATE_TITLE_THRESHOLD = 0.96;
 const DUPLICATE_SUMMARY_THRESHOLD = 0.92;
@@ -39,7 +43,9 @@ export function createDeterministicMemoryReviewer(): MemoryReviewer {
 export function buildMemoryReviewContext(
   memory: Memory,
   existingRecords: StoredMemoryRecord[],
+  externalReviewInput?: unknown,
 ): MemoryReviewContext {
+  const validatedExternalReviewInput = parseExternalReviewInput(externalReviewInput);
   const comparableMatches = existingRecords
     .filter((entry) => entry.memory.type === memory.type)
     .map((entry) => buildReviewMatch(memory, entry))
@@ -49,24 +55,32 @@ export function buildMemoryReviewContext(
   return {
     memory,
     comparable_matches: comparableMatches,
+    ...(validatedExternalReviewInput ? { external_review_input: validatedExternalReviewInput } : {}),
   };
 }
 
 export function reviewCandidateMemory(
   memory: Memory,
   existingRecords: StoredMemoryRecord[],
+  externalReviewInput?: unknown,
 ): CandidateMemoryReviewResult {
-  return decideCandidateMemoryReview(buildMemoryReviewContext(memory, existingRecords));
+  return decideCandidateMemoryReview(buildMemoryReviewContext(memory, existingRecords, externalReviewInput));
 }
 
 export function reviewCandidateMemories(
   memories: Memory[],
   existingRecords: StoredMemoryRecord[],
-  reviewer: MemoryReviewer = createDeterministicMemoryReviewer(),
+  legacyReviewerOrOptions?: MemoryReviewer | ReviewCandidateMemoriesOptions,
 ): ReviewedMemoryCandidate[] {
+  const options = normalizeReviewCandidateMemoriesOptions(legacyReviewerOrOptions);
+
   return memories.map((memory) => ({
     memory,
-    review: reviewer.reviewCandidate(memory, existingRecords),
+    review: reviewCandidateMemory(
+      memory,
+      existingRecords,
+      options.resolveExternalReviewInput?.(memory, existingRecords),
+    ),
   }));
 }
 
@@ -92,9 +106,9 @@ export function decideCandidateMemoryReview(context: MemoryReviewContext): Candi
   const duplicateMatches = comparableMatches.filter(isDuplicateMatch);
   if (duplicateMatches.length > 0) {
     return {
-      decision: "reject",
+      decision: "merge",
       target_memory_ids: duplicateMatches.map((entry) => entry.target_memory_id),
-      reason: "duplicate",
+      reason: "duplicate_memory",
     };
   }
 
@@ -297,6 +311,85 @@ function getDiceCoefficient(left: string[], right: string[]): number {
 
 function getMemoryStatus(memory: Memory): MemoryStatus {
   return memory.status ?? "active";
+}
+
+function normalizeReviewCandidateMemoriesOptions(
+  legacyReviewerOrOptions: MemoryReviewer | ReviewCandidateMemoriesOptions | undefined,
+): ReviewCandidateMemoriesOptions {
+  if (!legacyReviewerOrOptions) {
+    return {};
+  }
+
+  if (typeof legacyReviewerOrOptions === "object" && "reviewCandidate" in legacyReviewerOrOptions) {
+    emitLegacyReviewerWarning();
+    return {};
+  }
+
+  return legacyReviewerOrOptions;
+}
+
+export function parseExternalReviewInput(value: unknown): ValidatedExternalReviewInput | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const candidate = value as Record<string, unknown>;
+  const source = asNonEmptyString(candidate.source);
+  const suggestion = parseExternalReviewSuggestion(candidate.suggestion);
+
+  if (!source || !suggestion) {
+    return null;
+  }
+
+  return {
+    source,
+    suggestion,
+  };
+}
+
+function parseExternalReviewSuggestion(value: unknown): ExternalReviewSuggestion | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const candidate = value as Record<string, unknown>;
+  const decision = asNonEmptyString(candidate.decision);
+  if (!decision || !MEMORY_REVIEW_DECISIONS.includes(decision as ExternalReviewSuggestion["decision"])) {
+    return null;
+  }
+
+  const targetMemoryIds = Array.isArray(candidate.target_memory_ids)
+    ? candidate.target_memory_ids.map((entry) => String(entry).trim()).filter(Boolean)
+    : [];
+  const reason = asNonEmptyString(candidate.reason) ?? undefined;
+
+  return {
+    decision: decision as ExternalReviewSuggestion["decision"],
+    target_memory_ids: targetMemoryIds,
+    ...(reason ? { reason } : {}),
+  };
+}
+
+function asNonEmptyString(value: unknown): string | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  return trimmed || null;
+}
+
+let hasWarnedAboutLegacyReviewer = false;
+
+function emitLegacyReviewerWarning(): void {
+  if (hasWarnedAboutLegacyReviewer) {
+    return;
+  }
+
+  hasWarnedAboutLegacyReviewer = true;
+  process.emitWarning(
+    "Custom reviewer overrides are deprecated and ignored. RepoBrain Core always uses the local deterministic reviewer; pass optional external review input instead.",
+  );
 }
 
 function getStoredMemoryId(entry: StoredMemoryRecord): string {

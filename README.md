@@ -161,10 +161,14 @@ node dist/cli.js inject
 
 RepoBrain keeps the product split into a stable core layer and thin agent adapters. All adapters consume the same `.brain` schema plus the same `brain inject` and `brain suggest-skills` outputs.
 
+RepoBrain Core is intentionally local, lightweight, and deterministic. It does not embed any LLM API calls or act as a model middleware layer.
+
 Core layer responsibilities:
 
 - define and validate the `.brain/` Markdown plus frontmatter schema
 - store durable repo memories in one Git-friendly location
+- run deterministic rule-based review, dedupe, and supersede decisions locally
+- own the baseline query and injection surfaces: `brain inject`, `brain review`, and `brain suggest-skills`
 - rank and render compact session context through `brain inject`
 - derive task-aware routing hints through `brain suggest-skills`
 
@@ -172,7 +176,9 @@ Adapter layer responsibilities:
 
 - translate RepoBrain outputs into the target agent's preferred instruction format
 - explain where `brain inject` and `brain suggest-skills` fit into that agent workflow
-- stay thin enough that RepoBrain core remains the only knowledge model
+- extract durable knowledge candidates from richer agent workflows when needed
+- provide optional structured review suggestions without replacing Core's local final decision
+- stay thin enough that RepoBrain core remains the only durable knowledge model
 
 Shared adapter templates live in [integrations/README.md](./integrations/README.md).
 
@@ -293,7 +299,7 @@ After initialization, `.brain/` should look like this:
 The generated `config.yaml` starts small on purpose:
 
 - `maxInjectTokens`: approximate token budget for `brain inject`
-- `autoExtract`: reserved for future automation-friendly workflows
+- `extractMode`: controls whether hooks stay manual, save candidates, or write active memories
 - `language`: preferred output language for extraction prompts
 
 ### Step 2: Capture Your First Memory
@@ -319,7 +325,7 @@ brain list
 
 `brain extract` now runs a deterministic review pass before writing. The CLI prints `decision`, `target_memory_ids`, and `reason` for each extracted memory. `accept` keeps the current write behavior, `merge` and `supersede` are stored conservatively as `candidate` memories for follow-up, and `reject` entries are skipped.
 
-The baseline reviewer is deterministic and explainable on purpose. It looks at memory type first, then exact normalized scope, title similarity, summary similarity, target status, and target recency. `merge` and `supersede` only trigger when the candidate and target share the same normalized scope. Scope overlap by itself is treated as context, not enough to rewrite or collapse memories.
+The baseline reviewer is deterministic and explainable on purpose. It looks at memory type first, then exact normalized scope, title similarity, summary similarity, target status, and target recency. `merge` and `supersede` only trigger when the candidate and target share the same normalized scope. Scope overlap by itself is treated as context, not enough to rewrite or collapse memories. Programmatic integrations may attach optional external review input, but Core still validates that input shape and makes the final local `accept` / `merge` / `supersede` / `reject` decision itself.
 
 You should now see a new memory under `.brain/gotchas/`. The exact filename will include the current date and a slugified title. A saved file will look similar to this:
 
@@ -564,6 +570,7 @@ language: zh-CN
 - `suggest`: store hook-extracted memories as `candidate` records for review
 - `auto`: let hooks write active memories immediately
 - `language`: preferred output language for extraction prompts
+- legacy `provider`, `model`, or `apiKey` style review settings are ignored with a deprecation warning; RepoBrain Core does not call remote review services
 
 ## Memory Lifecycle
 
@@ -572,19 +579,21 @@ RepoBrain keeps lifecycle rules intentionally small for the current MVP:
 - New extracted memories go through a deterministic review pass first: `accept`, `merge`, `supersede`, or `reject`
 - Manual `brain extract` still writes `accept` memories immediately as `active`
 - Hook-driven extraction in `suggest` mode saves accepted memories as `candidate`
+- duplicate or near-duplicate durable knowledge merges into the matched memory id instead of being treated as a remote-review problem
 - `merge` and `supersede` results are kept conservative today: the extracted memory is saved as a `candidate`, and RepoBrain prints the target memory ids instead of rewriting old files automatically
 - The deterministic baseline only considers `merge` and `supersede` against memories with the same type and normalized scope; overlapping scopes are not enough
 - `merge` is reserved for additive updates with strong title and summary overlap
 - `supersede` is reserved for newer memories with the same identity plus explicit replacement language such as "replace", "deprecated", or "no longer"
-- `reject` results are skipped with explicit reasons such as `duplicate`, `temporary_detail`, or `insufficient_signal`
+- `reject` results are skipped with explicit reasons such as `temporary_detail` or `insufficient_signal`
 - `brain approve` promotes a candidate to `active`
 - `brain dismiss` marks a candidate as `stale`
 - If a newly activated memory has the same type, normalized title, and normalized scope as an existing active memory, the older one is automatically marked `superseded`
-- `brain inject` only loads `active` memories into the generated context block
+- `brain inject` only loads `active` memories into the generated context block, so `superseded` entries never become the baseline for normal matching or injection again
+- external review input is optional and advisory only; Core validates the structure, ignores malformed input, and keeps the local final decision
 
-This keeps the current write path compatible for clear accepts while giving later LLM-backed reviewers or higher-level workflows a structured review context to reuse for merge and supersede decisions.
+This keeps the current write path compatible for clear accepts while still allowing higher-level agent workflows to attach structured candidate review suggestions around the same deterministic baseline.
 
-If you are integrating RepoBrain programmatically, the store API also exposes `buildMemoryReviewContext` and `decideCandidateMemoryReview` so higher-level workflows can reuse the same deterministic baseline before adding an LLM reviewer on top.
+If you are integrating RepoBrain programmatically, the store API also exposes `buildMemoryReviewContext`, `parseExternalReviewInput`, and `decideCandidateMemoryReview` so adapters can pass validated agent-provided candidate review input without moving final review authority out of Core.
 
 ## Memory Audit
 
@@ -616,6 +625,8 @@ The human-readable output includes `memory_id`, issue type, reason, and suggeste
 
 If `BRAIN_EXTRACTOR_COMMAND` is set, RepoBrain will use that command instead of the built-in heuristic extractor.
 
+This is the extension point for external agents, adapters, or skills that want richer semantic candidate extraction. RepoBrain Core still only consumes local process output and never embeds its own model API client.
+
 Contract:
 
 - RepoBrain sends the full extraction prompt to the command over `stdin`
@@ -633,7 +644,8 @@ Error handling:
 
 - Better Claude Code setup and docs
 - Lightweight Codex workflows through Git hooks
-- Better memory promotion and review workflows
+- Better memory promotion and deterministic review workflows
+- More adapter examples for agent-provided candidate extraction and review suggestions
 - A stronger open-source README demo story
 
 ## Contributing
@@ -650,3 +662,5 @@ If you want to contribute, the most helpful things right now are:
 If you open a PR, keep the core idea in mind:
 
 > RepoBrain is about durable repo knowledge for coding agents, not generic long-term chat memory.
+
+It is not another AI app and not a model API middle layer. RepoBrain is agent-agnostic repo knowledge infrastructure.
