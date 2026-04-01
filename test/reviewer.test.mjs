@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 
 import {
+  buildMemoryReviewContext,
   initBrain,
   loadStoredMemoryRecords,
   reviewCandidateMemory,
@@ -88,6 +89,62 @@ await runTest("marks additive updates in the same scope as merge", async () => {
 
     assert.equal(review.decision, "merge");
     assert.deepEqual(review.target_memory_ids, [path.basename(existingPath, ".md")]);
+    assert.equal(review.reason, "same_scope_summary_overlap");
+  });
+});
+
+await runTest("prefers the active target over a candidate when both are merge matches", async () => {
+  await withTempRepo(async (projectRoot) => {
+    const activePath = await saveMemory(
+      {
+        type: "decision",
+        title: "Keep billing writes inside the transaction helper",
+        summary: "Billing mutations should use the transaction helper so rollback behavior stays consistent.",
+        detail:
+          "## DECISION\n\nBilling mutations should use the transaction helper so rollback behavior stays consistent across charge and refund flows.",
+        tags: ["billing", "transactions"],
+        importance: "high",
+        date: "2026-04-01T08:00:00.000Z",
+        status: "active",
+        path_scope: ["src/billing/**"],
+      },
+      projectRoot,
+    );
+
+    await saveMemory(
+      {
+        type: "decision",
+        title: "Keep billing writes inside the transaction helper",
+        summary: "Billing writes should still use the transaction helper while a follow-up review is pending.",
+        detail:
+          "## DECISION\n\nBilling writes should still use the transaction helper while a follow-up review is pending, but this candidate has not been approved yet.",
+        tags: ["billing", "candidate"],
+        importance: "medium",
+        date: "2026-04-01T09:00:00.000Z",
+        status: "candidate",
+        path_scope: ["src/billing/**"],
+      },
+      projectRoot,
+    );
+
+    const records = await loadStoredMemoryRecords(projectRoot);
+    const review = reviewCandidateMemory(
+      {
+        type: "decision",
+        title: "Keep billing writes inside the transaction helper",
+        summary: "Billing reconciliation flows should also stay inside the transaction helper so the same rollback rule applies.",
+        detail:
+          "## DECISION\n\nBilling reconciliation flows should also stay inside the transaction helper so the same rollback rule applies to every billing mutation path.",
+        tags: ["billing", "reconciliation"],
+        importance: "medium",
+        date: "2026-04-01T10:00:00.000Z",
+        path_scope: ["src/billing/**"],
+      },
+      records,
+    );
+
+    assert.equal(review.decision, "merge");
+    assert.deepEqual(review.target_memory_ids, [path.basename(activePath, ".md")]);
     assert.equal(review.reason, "same_scope_summary_overlap");
   });
 });
@@ -210,6 +267,43 @@ await runTest("keeps same-title memories with different scopes separate", async 
       target_memory_ids: [],
       reason: "novel_memory",
     });
+  });
+});
+
+await runTest("builds comparable review context without treating different scopes as merge targets", async () => {
+  await withTempRepo(async (projectRoot) => {
+    await saveMemory(
+      {
+        type: "decision",
+        title: "Cache invalidation rules",
+        summary: "API cache invalidation should happen after mutation commits.",
+        detail:
+          "## DECISION\n\nAPI cache invalidation should happen after mutation commits so readers do not observe partial state.",
+        tags: ["cache", "api"],
+        importance: "medium",
+        date: "2026-04-01T08:00:00.000Z",
+        status: "active",
+        path_scope: ["src/api/**"],
+      },
+      projectRoot,
+    );
+
+    const context = buildMemoryReviewContext(
+      {
+        type: "decision",
+        title: "Cache invalidation rules",
+        summary: "Web cache invalidation should happen after optimistic updates settle.",
+        detail:
+          "## DECISION\n\nWeb cache invalidation should happen after optimistic updates settle so the UI does not discard newer local state.",
+        tags: ["cache", "web"],
+        importance: "medium",
+        date: "2026-04-01T09:00:00.000Z",
+        path_scope: ["src/web/**"],
+      },
+      await loadStoredMemoryRecords(projectRoot),
+    );
+
+    assert.deepEqual(context.comparable_matches, []);
   });
 });
 

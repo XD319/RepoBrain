@@ -582,6 +582,8 @@ RepoBrain keeps lifecycle rules intentionally small for the current MVP:
 
 This keeps the current write path compatible for clear accepts while giving later LLM-backed reviewers or higher-level workflows a structured review context to reuse for merge and supersede decisions.
 
+If you are integrating RepoBrain programmatically, the store API also exposes `buildMemoryReviewContext` and `decideCandidateMemoryReview` so higher-level workflows can reuse the same deterministic baseline before adding an LLM reviewer on top.
+
 ## External Extractor Contract
 
 If `BRAIN_EXTRACTOR_COMMAND` is set, RepoBrain will use that command instead of the built-in heuristic extractor.

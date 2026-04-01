@@ -79,6 +79,24 @@ export interface CandidateMemoryReviewResult {
   reason: MemoryReviewReason;
 }
 
+export interface MemoryReviewMatch {
+  target_memory_id: string;
+  target_status: MemoryStatus;
+  target_updated_at: string;
+  title_similarity: number;
+  summary_similarity: number;
+  same_scope: boolean;
+  overlapping_scope: boolean;
+  same_identity: boolean;
+  candidate_is_newer: boolean;
+  replacement_signal: boolean;
+}
+
+export interface MemoryReviewContext {
+  memory: Memory;
+  comparable_matches: MemoryReviewMatch[];
+}
+
 export interface ReviewedMemoryCandidate {
   memory: Memory;
   review: CandidateMemoryReviewResult;

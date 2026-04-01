@@ -561,6 +561,8 @@ language: zh-CN
 
 这样既保留了当前清晰的写入主路径，也给后续接入 LLM reviewer 或更高层审批流程留出了可复用的 review context 接口。
 
+如果你是通过代码集成 RepoBrain，`store-api` 现在也会导出 `buildMemoryReviewContext` 和 `decideCandidateMemoryReview`，这样上层流程可以先复用同一套 deterministic baseline，再逐步叠加 LLM reviewer。
+
 ## 外部 Extractor 契约
 
 如果设置了 `BRAIN_EXTRACTOR_COMMAND`，RepoBrain 会优先调用这个命令，而不是使用内置的启发式提取。

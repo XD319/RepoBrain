@@ -1,11 +1,14 @@
 import {
   buildMemoryIdentity,
+  buildScopeIdentity,
   normalizeTextForComparison,
   scopesOverlap,
 } from "./memory-identity.js";
 import type {
   CandidateMemoryReviewResult,
   Memory,
+  MemoryReviewContext,
+  MemoryReviewMatch,
   MemoryReviewer,
   MemoryStatus,
   ReviewedMemoryCandidate,
@@ -18,6 +21,7 @@ const MERGE_TITLE_THRESHOLD = 0.72;
 const MERGE_SUMMARY_THRESHOLD = 0.45;
 const SUPERSEDE_TITLE_THRESHOLD = 0.9;
 const SUPERSEDE_SUMMARY_THRESHOLD = 0.28;
+const REVIEW_CONTEXT_TITLE_THRESHOLD = 0.58;
 
 const TEMPORARY_DETAIL_PATTERN =
   /\b(?:temporary|temp|for now|one-off|one off|until release|today only|debug only|wip|todo)\b|\u4e34\u65f6|\u6682\u65f6|\u4e00\u6b21\u6027|\u4ec5\u7528\u4e8e\u8c03\u8bd5/u;
@@ -27,8 +31,24 @@ const REPLACEMENT_SIGNAL_PATTERN =
 export function createDeterministicMemoryReviewer(): MemoryReviewer {
   return {
     reviewCandidate(memory, existingRecords) {
-      return reviewCandidateMemory(memory, existingRecords);
+      return decideCandidateMemoryReview(buildMemoryReviewContext(memory, existingRecords));
     },
+  };
+}
+
+export function buildMemoryReviewContext(
+  memory: Memory,
+  existingRecords: StoredMemoryRecord[],
+): MemoryReviewContext {
+  const comparableMatches = existingRecords
+    .filter((entry) => entry.memory.type === memory.type)
+    .map((entry) => buildReviewMatch(memory, entry))
+    .filter((entry): entry is MemoryReviewMatch => entry !== null)
+    .sort(compareReviewMatches);
+
+  return {
+    memory,
+    comparable_matches: comparableMatches,
   };
 }
 
@@ -36,6 +56,23 @@ export function reviewCandidateMemory(
   memory: Memory,
   existingRecords: StoredMemoryRecord[],
 ): CandidateMemoryReviewResult {
+  return decideCandidateMemoryReview(buildMemoryReviewContext(memory, existingRecords));
+}
+
+export function reviewCandidateMemories(
+  memories: Memory[],
+  existingRecords: StoredMemoryRecord[],
+  reviewer: MemoryReviewer = createDeterministicMemoryReviewer(),
+): ReviewedMemoryCandidate[] {
+  return memories.map((memory) => ({
+    memory,
+    review: reviewer.reviewCandidate(memory, existingRecords),
+  }));
+}
+
+export function decideCandidateMemoryReview(context: MemoryReviewContext): CandidateMemoryReviewResult {
+  const { memory, comparable_matches: comparableMatches } = context;
+
   if (hasInsufficientSignal(memory)) {
     return {
       decision: "reject",
@@ -52,35 +89,29 @@ export function reviewCandidateMemory(
     };
   }
 
-  const comparable = existingRecords
-    .filter((entry) => entry.memory.type === memory.type)
-    .map((entry) => buildComparison(memory, entry))
-    .filter((entry) => entry.isComparable)
-    .sort(compareComparisons);
-
-  const duplicateMatches = comparable.filter((entry) => entry.isDuplicate);
+  const duplicateMatches = comparableMatches.filter(isDuplicateMatch);
   if (duplicateMatches.length > 0) {
     return {
       decision: "reject",
-      target_memory_ids: duplicateMatches.map((entry) => entry.targetId),
+      target_memory_ids: duplicateMatches.map((entry) => entry.target_memory_id),
       reason: "duplicate",
     };
   }
 
-  const supersedeTarget = comparable.find((entry) => entry.isSupersedeCandidate);
+  const supersedeTarget = comparableMatches.find(isSupersedeMatch);
   if (supersedeTarget) {
     return {
       decision: "supersede",
-      target_memory_ids: [supersedeTarget.targetId],
+      target_memory_ids: [supersedeTarget.target_memory_id],
       reason: "newer_memory_replaces_older",
     };
   }
 
-  const mergeTarget = comparable.find((entry) => entry.isMergeCandidate);
+  const mergeTarget = comparableMatches.find(isMergeMatch);
   if (mergeTarget) {
     return {
       decision: "merge",
-      target_memory_ids: [mergeTarget.targetId],
+      target_memory_ids: [mergeTarget.target_memory_id],
       reason: "same_scope_summary_overlap",
     };
   }
@@ -92,64 +123,64 @@ export function reviewCandidateMemory(
   };
 }
 
-export function reviewCandidateMemories(
-  memories: Memory[],
-  existingRecords: StoredMemoryRecord[],
-  reviewer: MemoryReviewer = createDeterministicMemoryReviewer(),
-): ReviewedMemoryCandidate[] {
-  return memories.map((memory) => ({
-    memory,
-    review: reviewer.reviewCandidate(memory, existingRecords),
-  }));
-}
-
-function buildComparison(memory: Memory, entry: StoredMemoryRecord) {
+function buildReviewMatch(memory: Memory, entry: StoredMemoryRecord): MemoryReviewMatch | null {
   const targetStatus = getMemoryStatus(entry.memory);
-  const sameScope = scopesOverlap(memory.path_scope ?? [], entry.memory.path_scope ?? []);
+  if (targetStatus === "stale" || targetStatus === "superseded") {
+    return null;
+  }
+
+  const sameScope = hasSameScopeIdentity(memory, entry.memory);
+  const overlappingScope = scopesOverlap(memory.path_scope ?? [], entry.memory.path_scope ?? []);
   const titleSimilarity = getTextSimilarity(memory.title, entry.memory.title);
   const summarySimilarity = getTextSimilarity(memory.summary, entry.memory.summary);
-  const candidateDate = Date.parse(memory.date);
-  const targetDate = Date.parse(entry.memory.date);
-  const candidateIsNewer =
-    Number.isFinite(candidateDate) && Number.isFinite(targetDate)
-      ? candidateDate >= targetDate
-      : memory.date.localeCompare(entry.memory.date) >= 0;
-  const replacementSignal = hasReplacementSignal(memory);
-  const sameIdentity = buildMemoryIdentity(memory) === buildMemoryIdentity(entry.memory);
-  const isComparable = sameScope && (titleSimilarity >= MERGE_TITLE_THRESHOLD || sameIdentity);
-  const statusWeight = getStatusWeight(targetStatus);
-  const recencyWeight = Number.isFinite(targetDate) ? targetDate : Date.parse("1970-01-01T00:00:00.000Z");
+
+  if (!sameScope && !(overlappingScope && titleSimilarity >= REVIEW_CONTEXT_TITLE_THRESHOLD)) {
+    return null;
+  }
 
   return {
-    entry,
-    targetId: getStoredMemoryId(entry),
-    targetStatus,
-    isComparable,
-    titleSimilarity,
-    summarySimilarity,
-    statusWeight,
-    recencyWeight,
-    isDuplicate:
-      (targetStatus === "active" || targetStatus === "candidate") &&
-      sameScope &&
-      sameIdentity &&
-      titleSimilarity >= DUPLICATE_TITLE_THRESHOLD &&
-      summarySimilarity >= DUPLICATE_SUMMARY_THRESHOLD,
-    isSupersedeCandidate:
-      targetStatus === "active" &&
-      sameScope &&
-      sameIdentity &&
-      candidateIsNewer &&
-      replacementSignal &&
-      titleSimilarity >= SUPERSEDE_TITLE_THRESHOLD &&
-      summarySimilarity >= SUPERSEDE_SUMMARY_THRESHOLD,
-    isMergeCandidate:
-      (targetStatus === "active" || targetStatus === "candidate") &&
-      sameScope &&
-      !replacementSignal &&
-      titleSimilarity >= MERGE_TITLE_THRESHOLD &&
-      summarySimilarity >= MERGE_SUMMARY_THRESHOLD,
+    target_memory_id: getStoredMemoryId(entry),
+    target_status: targetStatus,
+    target_updated_at: entry.memory.date,
+    title_similarity: titleSimilarity,
+    summary_similarity: summarySimilarity,
+    same_scope: sameScope,
+    overlapping_scope: overlappingScope,
+    same_identity: buildMemoryIdentity(memory) === buildMemoryIdentity(entry.memory),
+    candidate_is_newer: isCandidateNewer(memory, entry.memory),
+    replacement_signal: hasReplacementSignal(memory),
   };
+}
+
+function isDuplicateMatch(match: MemoryReviewMatch): boolean {
+  return (
+    (match.target_status === "active" || match.target_status === "candidate") &&
+    match.same_identity &&
+    match.title_similarity >= DUPLICATE_TITLE_THRESHOLD &&
+    match.summary_similarity >= DUPLICATE_SUMMARY_THRESHOLD
+  );
+}
+
+function isSupersedeMatch(match: MemoryReviewMatch): boolean {
+  return (
+    match.target_status === "active" &&
+    match.same_scope &&
+    match.same_identity &&
+    match.candidate_is_newer &&
+    match.replacement_signal &&
+    match.title_similarity >= SUPERSEDE_TITLE_THRESHOLD &&
+    match.summary_similarity >= SUPERSEDE_SUMMARY_THRESHOLD
+  );
+}
+
+function isMergeMatch(match: MemoryReviewMatch): boolean {
+  return (
+    (match.target_status === "active" || match.target_status === "candidate") &&
+    match.same_scope &&
+    !match.replacement_signal &&
+    match.title_similarity >= MERGE_TITLE_THRESHOLD &&
+    match.summary_similarity >= MERGE_SUMMARY_THRESHOLD
+  );
 }
 
 function hasInsufficientSignal(memory: Memory): boolean {
@@ -172,6 +203,21 @@ function looksTemporary(memory: Memory): boolean {
 
 function hasReplacementSignal(memory: Memory): boolean {
   return REPLACEMENT_SIGNAL_PATTERN.test(`${memory.title}\n${memory.summary}\n${memory.detail}`);
+}
+
+function isCandidateNewer(memory: Memory, target: Memory): boolean {
+  const candidateDate = Date.parse(memory.date);
+  const targetDate = Date.parse(target.date);
+
+  if (Number.isFinite(candidateDate) && Number.isFinite(targetDate)) {
+    return candidateDate >= targetDate;
+  }
+
+  return memory.date.localeCompare(target.date) >= 0;
+}
+
+function hasSameScopeIdentity(left: Pick<Memory, "path_scope">, right: Pick<Memory, "path_scope">): boolean {
+  return buildScopeIdentity(left.path_scope ?? []) === buildScopeIdentity(right.path_scope ?? []);
 }
 
 function getTextSimilarity(left: string, right: string): number {
@@ -276,21 +322,26 @@ function getStatusWeight(status: MemoryStatus): number {
   }
 }
 
-function compareComparisons(
-  left: ReturnType<typeof buildComparison>,
-  right: ReturnType<typeof buildComparison>,
-): number {
-  if (right.statusWeight !== left.statusWeight) {
-    return right.statusWeight - left.statusWeight;
+function compareReviewMatches(left: MemoryReviewMatch, right: MemoryReviewMatch): number {
+  if (right.same_scope !== left.same_scope) {
+    return Number(right.same_scope) - Number(left.same_scope);
   }
 
-  if (right.titleSimilarity !== left.titleSimilarity) {
-    return right.titleSimilarity - left.titleSimilarity;
+  if (right.target_status !== left.target_status) {
+    return getStatusWeight(right.target_status) - getStatusWeight(left.target_status);
   }
 
-  if (right.summarySimilarity !== left.summarySimilarity) {
-    return right.summarySimilarity - left.summarySimilarity;
+  if (right.title_similarity !== left.title_similarity) {
+    return right.title_similarity - left.title_similarity;
   }
 
-  return right.recencyWeight - left.recencyWeight;
+  if (right.summary_similarity !== left.summary_similarity) {
+    return right.summary_similarity - left.summary_similarity;
+  }
+
+  if (right.target_updated_at !== left.target_updated_at) {
+    return right.target_updated_at.localeCompare(left.target_updated_at);
+  }
+
+  return Number(right.candidate_is_newer) - Number(left.candidate_is_newer);
 }
