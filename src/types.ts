@@ -41,3 +41,9 @@ export interface BrainActivityState {
   lastInjectedAt?: string;
   recentLoadedMemories: MemoryActivityEntry[];
 }
+
+export interface StoredMemoryRecord {
+  filePath: string;
+  relativePath: string;
+  memory: Memory;
+}

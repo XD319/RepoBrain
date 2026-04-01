@@ -147,6 +147,7 @@ RepoBrain can build session-start context and session-end extraction hooks for C
 Current integration files:
 
 - `.claude-plugin/plugin.json`
+- `.claude-plugin/mcp.json`
 - `dist/hooks/session-start.js`
 - `dist/hooks/session-end.js`
 
@@ -167,6 +168,36 @@ brain inject
 ```
 
 More setup details live in [.codex/INSTALL.md](./.codex/INSTALL.md).
+
+### MCP Setup
+
+RepoBrain can also run as a minimal MCP server for tools that support MCP over stdio.
+
+Current scope:
+
+- `brain_get_context`: return the same markdown context block as `brain inject`
+- `brain_add_memory`: save a new durable memory into `.brain/`
+
+Start the server locally with:
+
+```bash
+brain mcp
+```
+
+A Claude Desktop style config looks like this:
+
+```json
+{
+  "mcpServers": {
+    "repobrain": {
+      "command": "node",
+      "args": ["/absolute/path/to/RepoBrain/dist/mcp/server.js"]
+    }
+  }
+}
+```
+
+RepoBrain keeps this MCP mode intentionally small. The CLI and markdown-first workflow are still the core product.
 
 ## 30-Minute Quickstart
 
@@ -319,6 +350,20 @@ If the captured knowledge is good enough to keep with the codebase, commit the `
 
 Total: ~25 min. What to try next -> [docs/demo-script.md](./docs/demo-script.md)
 
+## Team Workflow
+
+For team usage, the happy path is:
+
+1. fix a real issue
+2. run `brain extract`
+3. review the new markdown under `.brain/`
+4. run `brain share <memory-id>` or `brain share --all-active`
+5. copy the suggested `git add` and `git commit` commands
+
+The first version of `brain share` is intentionally conservative: it does not change Git state for you. It prints the exact next commands so the team can review memory changes the same way it reviews code.
+
+See [docs/team-workflow.md](./docs/team-workflow.md) for the full workflow and `.brain/` tracking guidance.
+
 ## CLI Reference
 
 ```bash
@@ -328,6 +373,9 @@ brain inject
 brain list
 brain stats
 brain status
+brain share <memory-id>
+brain share --all-active
+brain mcp
 ```
 
 ### Commands
@@ -338,6 +386,8 @@ brain status
 - `brain list`: list stored memories
 - `brain stats`: show memory counts by type and importance
 - `brain status`: show the most recently injected memories and most recently captured memories for the current repo
+- `brain share`: suggest the next `git add` and `git commit` commands for one memory or all active memories
+- `brain mcp`: run RepoBrain as a minimal MCP stdio server
 
 ## Configuration
 

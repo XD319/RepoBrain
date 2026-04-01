@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "repobrain": {
+      "command": "node",
+      "args": ["./dist/mcp/server.js"]
+    }
+  }
+}

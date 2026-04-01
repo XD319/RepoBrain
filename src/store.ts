@@ -8,6 +8,7 @@ import type {
   MemoryActivityEntry,
   MemorySource,
   MemoryStatus,
+  StoredMemoryRecord,
   MemoryType,
 } from "./types.js";
 import { IMPORTANCE_LEVELS, MEMORY_STATUSES, MEMORY_TYPES, MEMORY_SOURCES } from "./types.js";
@@ -18,11 +19,6 @@ const DIRECTORY_BY_TYPE: Record<MemoryType, string> = {
   convention: "conventions",
   pattern: "patterns",
 };
-
-interface StoredMemory {
-  filePath: string;
-  memory: Memory;
-}
 
 export async function initBrain(projectRoot: string): Promise<void> {
   const brainDir = getBrainDir(projectRoot);
@@ -90,6 +86,10 @@ export async function loadAllMemories(projectRoot: string): Promise<Memory[]> {
     .sort((left, right) => right.date.localeCompare(left.date));
 }
 
+export async function loadStoredMemoryRecords(projectRoot: string): Promise<StoredMemoryRecord[]> {
+  return loadStoredMemories(projectRoot);
+}
+
 export async function updateIndex(projectRoot: string): Promise<void> {
   const memories = await loadAllMemories(projectRoot);
   const brainDir = getBrainDir(projectRoot);
@@ -130,7 +130,7 @@ export async function updateIndex(projectRoot: string): Promise<void> {
   await writeFile(indexPath, content, "utf8");
 }
 
-async function loadStoredMemories(projectRoot: string): Promise<StoredMemory[]> {
+async function loadStoredMemories(projectRoot: string): Promise<StoredMemoryRecord[]> {
   const brainDir = getBrainDir(projectRoot);
   const memoriesByType = await Promise.all(
     MEMORY_TYPES.map(async (type) => {
@@ -145,11 +145,17 @@ async function loadStoredMemories(projectRoot: string): Promise<StoredMemory[]> 
             const filePath = path.join(directory, entry.name);
             const content = await readFile(filePath, "utf8");
             const memory = parseMemory(content);
-            return memory ? { filePath, memory } : null;
+            return memory
+              ? {
+                  filePath,
+                  relativePath: path.relative(projectRoot, filePath),
+                  memory,
+                }
+              : null;
           }),
         );
 
-        return loaded.filter((entry): entry is StoredMemory => entry !== null);
+        return loaded.filter((entry): entry is StoredMemoryRecord => entry !== null);
       } catch {
         return [];
       }
@@ -463,6 +469,10 @@ async function supersedeOverlappingMemories(memory: Memory, projectRoot: string)
 
 function getMemoryIdentity(memory: Memory): string {
   return `${memory.type}:${slugify(memory.title)}`;
+}
+
+export function buildMemoryIdentity(memory: Memory): string {
+  return getMemoryIdentity(memory);
 }
 
 function toActivityEntry(memory: Memory): MemoryActivityEntry {

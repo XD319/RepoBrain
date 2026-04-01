@@ -1,7 +1,12 @@
 import { defineConfig } from "tsup";
 
 export default defineConfig({
-  entry: ["src/cli.ts", "src/hooks/session-start.ts", "src/hooks/session-end.ts"],
+  entry: [
+    "src/cli.ts",
+    "src/hooks/session-start.ts",
+    "src/hooks/session-end.ts",
+    "src/mcp/server.ts",
+  ],
   format: ["esm"],
   dts: true,
   clean: true,

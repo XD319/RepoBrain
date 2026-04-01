@@ -6,6 +6,8 @@ import { Command } from "commander";
 import { loadConfig } from "./config.js";
 import { extractMemories } from "./extract.js";
 import { buildInjection } from "./inject.js";
+import { runMcpServer } from "./mcp/server.js";
+import { buildSharePlan } from "./share.js";
 import { initBrain, loadActivityState, loadAllMemories, saveMemory, updateIndex } from "./store.js";
 import type { Memory, MemoryActivityEntry } from "./types.js";
 
@@ -122,6 +124,36 @@ program
     output.write(`${formatMemoryList(activity.recentLoadedMemories)}\n`);
     output.write("Recent captured memories:\n");
     output.write(`${formatMemoryList(recentCapturedMemories)}\n`);
+  });
+
+program
+  .command("share [memoryId]")
+  .description("Suggest git commands for sharing one memory or all active memories.")
+  .option("--all-active", "Share all active memories in .brain.")
+  .action(async (memoryId: string | undefined, options: { allActive?: boolean }) => {
+    const projectRoot = process.cwd();
+    const plan = await buildSharePlan(projectRoot, {
+      ...(options.allActive ? { allActive: true } : {}),
+      ...(memoryId ? { memoryId } : {}),
+    });
+
+    output.write(`Share plan for ${plan.records.length} memory${plan.records.length === 1 ? "" : "ies"}:\n`);
+    for (const entry of plan.records) {
+      output.write(`- ${entry.relativePath.replace(/\\/g, "/")} | ${entry.memory.type} | ${entry.memory.title}\n`);
+    }
+
+    output.write("\nSuggested next commands:\n");
+    for (const command of plan.addCommands) {
+      output.write(`${command}\n`);
+    }
+    output.write(`git commit -m ${JSON.stringify(plan.commitMessage)}\n`);
+  });
+
+program
+  .command("mcp")
+  .description("Run RepoBrain as a minimal MCP stdio server.")
+  .action(async () => {
+    await runMcpServer(process.cwd());
   });
 
 program.parseAsync(process.argv).catch((error: unknown) => {

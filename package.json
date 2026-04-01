@@ -6,14 +6,21 @@
   "bin": {
     "brain": "./dist/cli.js"
   },
+  "main": "./dist/cli.js",
+  "types": "./dist/cli.d.ts",
   "files": [
     "dist",
     "LICENSE",
     "README.md",
     "README.zh-CN.md",
     ".claude-plugin/plugin.json",
+    ".claude-plugin/mcp.json",
     ".codex/INSTALL.md",
-    "scripts/setup-git-hooks.sh"
+    "scripts/setup-git-hooks.sh",
+    "docs/team-workflow.md",
+    "docs/team-workflow.zh-CN.md",
+    "docs/demo-script.md",
+    "docs/demo-script.zh-CN.md"
   ],
   "repository": {
     "type": "git",
@@ -26,7 +33,8 @@
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "mcp": "node dist/mcp/server.js"
   },
   "keywords": [
     "agent",
