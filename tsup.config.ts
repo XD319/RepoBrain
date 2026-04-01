@@ -3,6 +3,7 @@ import { defineConfig } from "tsup";
 export default defineConfig({
   entry: [
     "src/cli.ts",
+    "src/inject.ts",
     "src/store-api.ts",
     "src/suggest-skills.ts",
     "src/hooks/session-start.ts",

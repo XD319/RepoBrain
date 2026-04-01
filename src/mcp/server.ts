@@ -54,6 +54,24 @@ const TOOLS: ToolDefinition[] = [
           minimum: 1,
           description: "Optional override for the injection token budget.",
         },
+        task: {
+          type: "string",
+          description: "Optional task description for task-aware memory selection.",
+        },
+        paths: {
+          type: "array",
+          items: {
+            type: "string",
+          },
+          description: "Optional target paths for task-aware memory selection.",
+        },
+        modules: {
+          type: "array",
+          items: {
+            type: "string",
+          },
+          description: "Optional module or subsystem keywords for task-aware memory selection.",
+        },
       },
     },
     annotations: {
@@ -185,9 +203,16 @@ async function handleGetContext(
 ): Promise<Record<string, unknown>> {
   const config = await loadConfig(projectRoot);
   const maxTokens = normalizePositiveInteger(args.maxTokens);
+  const task = typeof args.task === "string" && args.task.trim() ? args.task.trim() : undefined;
+  const paths = asOptionalStringArray(args.paths, "paths");
+  const modules = asOptionalStringArray(args.modules, "modules");
   const injection = await buildInjection(projectRoot, {
     ...config,
     ...(maxTokens ? { maxInjectTokens: maxTokens } : {}),
+  }, {
+    ...(task ? { task } : {}),
+    ...(paths.length > 0 ? { paths } : {}),
+    ...(modules.length > 0 ? { modules } : {}),
   });
 
   return {
@@ -279,6 +304,27 @@ function normalizePositiveInteger(value: unknown): number | null {
   }
 
   return value;
+}
+
+function asOptionalStringArray(value: unknown, fieldName: string): string[] {
+  if (value === undefined) {
+    return [];
+  }
+
+  if (!Array.isArray(value)) {
+    throw new Error(`Tool argument "${fieldName}" must be an array of strings.`);
+  }
+
+  const normalized = value
+    .filter((item): item is string => typeof item === "string")
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+  if (normalized.length !== value.length) {
+    throw new Error(`Tool argument "${fieldName}" must be an array of strings.`);
+  }
+
+  return normalized;
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {

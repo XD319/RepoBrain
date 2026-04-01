@@ -76,10 +76,27 @@ program
 program
   .command("inject")
   .description("Build session-start injection text from current .brain memories.")
-  .action(async () => {
+  .option("--task <task>", "Current task description used for task-aware memory selection.")
+  .option(
+    "--path <path>",
+    "Target path to prioritize related memories. Repeat or pass a comma-separated list.",
+    collectValues,
+    [] as string[],
+  )
+  .option(
+    "--module <module>",
+    "Module or subsystem keywords to prioritize. Repeat or pass a comma-separated list.",
+    collectValues,
+    [] as string[],
+  )
+  .action(async (options: { task?: string; path: string[]; module: string[] }) => {
     const projectRoot = process.cwd();
     const config = await loadConfig(projectRoot);
-    const injection = await buildInjection(projectRoot, config);
+    const injection = await buildInjection(projectRoot, config, {
+      ...(options.task?.trim() ? { task: options.task.trim() } : {}),
+      paths: options.path,
+      modules: options.module,
+    });
     output.write(`${injection}\n`);
   });
 

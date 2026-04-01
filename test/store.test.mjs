@@ -35,6 +35,7 @@ await runTest("legacy .brain entries load with safe skill routing defaults", asy
 
     const memory = memories[0];
     assert.ok(memory);
+    assert.deepEqual(memory.path_scope, []);
     assert.deepEqual(memory.recommended_skills, []);
     assert.deepEqual(memory.required_skills, []);
     assert.deepEqual(memory.suppressed_skills, []);
@@ -61,6 +62,7 @@ await runTest("new skill routing fields round-trip through save and load", async
       date: "2026-04-01T10:00:00.000Z",
       source: "manual",
       status: "active",
+      path_scope: ["src/browser/", "src/web/**"],
       recommended_skills: ["github:gh-fix-ci"],
       required_skills: ["playwright"],
       suppressed_skills: ["imagegen"],
@@ -73,6 +75,7 @@ await runTest("new skill routing fields round-trip through save and load", async
     const filePath = await saveMemory(memory, projectRoot);
     const raw = await readFile(filePath, "utf8");
 
+    assert.match(raw, /path_scope:/);
     assert.match(raw, /recommended_skills:/);
     assert.match(raw, /required_skills:/);
     assert.match(raw, /suppressed_skills:/);
@@ -86,6 +89,7 @@ await runTest("new skill routing fields round-trip through save and load", async
 
     const stored = records[0]?.memory;
     assert.ok(stored);
+    assert.deepEqual(stored.path_scope, ["src/browser/", "src/web/**"]);
     assert.deepEqual(stored.recommended_skills, ["github:gh-fix-ci"]);
     assert.deepEqual(stored.required_skills, ["playwright"]);
     assert.deepEqual(stored.suppressed_skills, ["imagegen"]);

@@ -31,6 +31,7 @@ const DIRECTORY_BY_TYPE: Record<MemoryType, string> = {
 
 const ARRAY_FRONTMATTER_FIELDS = [
   "tags",
+  "path_scope",
   "recommended_skills",
   "required_skills",
   "suppressed_skills",
@@ -322,6 +323,7 @@ function validateMemory(memory: Memory, context = "Memory"): void {
   }
 
   validateStringArray(memory.tags, "tags", context);
+  validateStringArray(memory.path_scope ?? [], "path_scope", context);
   validateStringArray(memory.recommended_skills ?? [], "recommended_skills", context);
   validateStringArray(memory.required_skills ?? [], "required_skills", context);
   validateStringArray(memory.suppressed_skills ?? [], "suppressed_skills", context);
@@ -350,6 +352,7 @@ function serializeMemory(memory: Memory): string {
     frontmatterLines.push(`status: ${quoteYaml(normalizedMemory.status)}`);
   }
 
+  appendArrayField(frontmatterLines, "path_scope", normalizedMemory.path_scope ?? []);
   appendArrayField(frontmatterLines, "recommended_skills", normalizedMemory.recommended_skills ?? []);
   appendArrayField(frontmatterLines, "required_skills", normalizedMemory.required_skills ?? []);
   appendArrayField(frontmatterLines, "suppressed_skills", normalizedMemory.suppressed_skills ?? []);
@@ -394,6 +397,7 @@ function parseMemory(content: string, filePath: string): Memory {
     tags: frontmatter.tags,
     importance: importance as Memory["importance"],
     date: frontmatter.date,
+    path_scope: frontmatter.path_scope,
     recommended_skills: frontmatter.recommended_skills,
     required_skills: frontmatter.required_skills,
     suppressed_skills: frontmatter.suppressed_skills,
@@ -428,6 +432,7 @@ function parseFrontmatter(raw: string): {
   title?: string;
   summary?: string;
   tags: string[];
+  path_scope: string[];
   recommended_skills: string[];
   required_skills: string[];
   suppressed_skills: string[];
@@ -445,6 +450,7 @@ function parseFrontmatter(raw: string): {
     title?: string;
     summary?: string;
     tags: string[];
+    path_scope: string[];
     recommended_skills: string[];
     required_skills: string[];
     suppressed_skills: string[];
@@ -458,6 +464,7 @@ function parseFrontmatter(raw: string): {
     risk_level?: string;
   } = {
     tags: [],
+    path_scope: [],
     recommended_skills: [],
     required_skills: [],
     suppressed_skills: [],
@@ -532,6 +539,7 @@ function normalizeMemory(memory: Memory): Memory {
   return {
     ...memory,
     tags: normalizeStringArray(memory.tags),
+    path_scope: normalizeStringArray(memory.path_scope ?? []),
     recommended_skills: normalizeStringArray(memory.recommended_skills ?? []),
     required_skills: normalizeStringArray(memory.required_skills ?? []),
     suppressed_skills: normalizeStringArray(memory.suppressed_skills ?? []),

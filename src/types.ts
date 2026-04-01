@@ -24,6 +24,7 @@ export interface Memory {
   date: string;
   source?: MemorySource;
   status?: MemoryStatus;
+  path_scope?: string[];
   recommended_skills?: string[];
   required_skills?: string[];
   suppressed_skills?: string[];

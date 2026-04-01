@@ -322,6 +322,7 @@ The important frontmatter fields are:
 
 If you want a memory to help downstream agent or skill routing, add these optional frontmatter fields:
 
+- `path_scope`: repo paths or file patterns that define where the memory is most relevant
 - `recommended_skills`: skills that are usually a good fit for this memory
 - `required_skills`: skills that must be considered when this memory applies
 - `suppressed_skills`: skills that should be avoided for this memory
@@ -343,6 +344,8 @@ tags:
   - "playwright"
 importance: "medium"
 date: "2026-04-01T12:34:56.000Z"
+path_scope:
+  - "tests/e2e/"
 recommended_skills:
   - "github:gh-fix-ci"
 required_skills:
@@ -381,6 +384,20 @@ If you already have the task description in a file or another command, you can a
 cat task.txt | brain suggest-skills --path src/cli.ts --path test/store.test.mjs
 ```
 
+### When To Use `inject` Vs `suggest-skills`
+
+Use `brain inject` when the agent needs a compact, durable repo context block before it starts coding. Use `brain suggest-skills` when you already know the task and want RepoBrain to narrow the execution workflow or tool choice.
+
+- `brain inject`: best for session start, implementation planning, risky edits, and avoiding old repo-specific mistakes
+- `brain suggest-skills`: best for deciding which skill or workflow should own the task once you already know the target work
+
+Task-aware `inject` stays backward compatible. If you provide no task signals, it falls back to the older importance-and-recency ordering. If you do provide signals, RepoBrain scores memories with an explainable mix of:
+
+- task phrase matches from `skill_trigger_tasks`
+- path matches from `path_scope` and `skill_trigger_paths`
+- module keyword overlap from the task/module input against titles, summaries, tags, and scoped paths
+- small tie-break bonuses from `importance`, `risk_level`, and `invocation_mode`
+
 ### Step 3: Inject And Verify
 
 Start the next session with the repo knowledge you just captured:
@@ -388,6 +405,18 @@ Start the next session with the repo knowledge you just captured:
 ```bash
 brain inject
 brain status
+```
+
+If you already know the task, you can ask `inject` to rank memories by relevance instead of relying only on importance and time:
+
+```bash
+brain inject --task "refactor config loading for the CLI" --path src/config.ts --path src/cli.ts --module cli
+```
+
+For higher-risk work, pass the risky area explicitly so RepoBrain can surface stricter gotchas and decisions first:
+
+```bash
+brain inject --task "fix refund transaction bug before release" --path src/payments/refund.ts --module payments --module ledger
 ```
 
 The injected block will group memories by category and end with a short set of requirements. The output will look like this:
@@ -469,7 +498,7 @@ brain mcp
 
 - `brain init`: create the `.brain/` workspace in the current repo
 - `brain extract`: extract long-lived repo knowledge from `stdin`
-- `brain inject`: build a compact memory block for the next session
+- `brain inject`: build a compact memory block for the next session, optionally ranked by `--task`, `--path`, and `--module`
 - `brain list`: list stored memories
 - `brain stats`: show memory counts by type and importance
 - `brain status`: show the most recently injected memories and most recently captured memories for the current repo

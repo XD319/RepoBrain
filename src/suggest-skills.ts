@@ -1,4 +1,11 @@
 import { getMemoryStatus, loadStoredMemoryRecords } from "./store.js";
+import {
+  matchPathPatterns,
+  matchTaskTriggers,
+  normalizePath,
+  normalizePaths,
+  normalizeText,
+} from "./memory-relevance.js";
 import type {
   Importance,
   InvocationMode,
@@ -269,8 +276,10 @@ function matchMemory(
   task: string | undefined,
   paths: string[],
 ): MatchedMemory | null {
-  const taskReasons = task ? matchTaskTriggers(task, record.memory.skill_trigger_tasks ?? []) : [];
-  const pathReasons = matchPathTriggers(paths, record.memory.skill_trigger_paths ?? []);
+  const taskReasons = task
+    ? matchTaskTriggers(task, record.memory.skill_trigger_tasks ?? [], "task")
+    : [];
+  const pathReasons = matchPathPatterns(paths, record.memory.skill_trigger_paths ?? [], "path");
   const reasons = [...taskReasons, ...pathReasons];
 
   if (reasons.length === 0) {
@@ -291,145 +300,6 @@ function matchMemory(
   };
 }
 
-function matchTaskTriggers(task: string, triggers: string[]): string[] {
-  const normalizedTask = normalizeText(task);
-  if (!normalizedTask) {
-    return [];
-  }
-
-  return triggers
-    .filter((trigger) => isTaskTriggerMatch(normalizedTask, normalizeText(trigger)))
-    .map((trigger) => `task: ${trigger}`);
-}
-
-function isTaskTriggerMatch(normalizedTask: string, normalizedTrigger: string): boolean {
-  if (!normalizedTrigger) {
-    return false;
-  }
-
-  if (normalizedTask.includes(normalizedTrigger) || normalizedTrigger.includes(normalizedTask)) {
-    return true;
-  }
-
-  const taskTokens = new Set(normalizedTask.split(" ").filter(Boolean));
-  const triggerTokens = normalizedTrigger.split(" ").filter(Boolean);
-  if (triggerTokens.length === 0) {
-    return false;
-  }
-
-  let overlap = 0;
-  for (const token of triggerTokens) {
-    if (taskTokens.has(token)) {
-      overlap += 1;
-    }
-  }
-
-  const minimumOverlap =
-    triggerTokens.length >= 4 ? Math.ceil(triggerTokens.length * 0.6) : Math.min(triggerTokens.length, 2);
-
-  return overlap >= minimumOverlap;
-}
-
-function matchPathTriggers(paths: string[], patterns: string[]): string[] {
-  if (paths.length === 0) {
-    return [];
-  }
-
-  const reasons: string[] = [];
-
-  for (const pattern of patterns) {
-    const matchedPaths = paths.filter((item) => isPathTriggerMatch(item, pattern));
-    if (matchedPaths.length === 0) {
-      continue;
-    }
-
-    reasons.push(`path: ${toDisplayPath(pattern)} -> ${matchedPaths.join(", ")}`);
-  }
-
-  return reasons;
-}
-
-function isPathTriggerMatch(candidatePath: string, pattern: string): boolean {
-  const normalizedPath = normalizePath(candidatePath);
-  const normalizedPattern = normalizePath(pattern);
-  if (!normalizedPattern) {
-    return false;
-  }
-
-  if (hasGlobSyntax(normalizedPattern)) {
-    const regex = globToRegExp(normalizedPattern);
-    return regex.test(normalizedPath);
-  }
-
-  if (normalizedPath === normalizedPattern) {
-    return true;
-  }
-
-  if (normalizedPattern.endsWith("/")) {
-    return normalizedPath.startsWith(normalizedPattern);
-  }
-
-  return normalizedPath.includes(normalizedPattern);
-}
-
-function hasGlobSyntax(value: string): boolean {
-  return value.includes("*") || value.includes("?");
-}
-
-function globToRegExp(pattern: string): RegExp {
-  let regexSource = "^";
-
-  for (let index = 0; index < pattern.length; index += 1) {
-    const character = pattern[index];
-    const nextCharacter = pattern[index + 1];
-    if (character === undefined) {
-      continue;
-    }
-
-    if (character === "*" && nextCharacter === "*") {
-      regexSource += ".*";
-      index += 1;
-      continue;
-    }
-
-    if (character === "*") {
-      regexSource += "[^\\n]*";
-      continue;
-    }
-
-    if (character === "?") {
-      regexSource += "[^/]";
-      continue;
-    }
-
-    regexSource += escapeRegExp(character);
-  }
-
-  regexSource += "$";
-  return new RegExp(regexSource, "i");
-}
-
-function normalizeText(value: string): string {
-  return value
-    .toLowerCase()
-    .replace(/[^a-z0-9\u4e00-\u9fa5]+/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function normalizePaths(values: string[]): string[] {
-  return values.map((value) => normalizePath(value)).filter(Boolean);
-}
-
-function normalizePath(value: string): string {
-  return value
-    .trim()
-    .replace(/\\/g, "/")
-    .replace(/^\.\//, "")
-    .replace(/\/+/g, "/")
-    .toLowerCase();
-}
-
 function formatSources(sources: SkillSuggestionSource[]): string {
   return sources
     .map((source) => `${source.relation} via ${source.memoryTitle} (${source.relativePath})`)
@@ -438,8 +308,4 @@ function formatSources(sources: SkillSuggestionSource[]): string {
 
 function toDisplayPath(value: string): string {
   return value.replace(/\\/g, "/");
-}
-
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }

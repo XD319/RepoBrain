@@ -303,6 +303,7 @@ When TypeScript is already enforcing unused locals, enabling both rules creates 
 
 如果你希望某条 memory 同时给后续 agent / skill routing 提供线索，可以在 frontmatter 里补这些可选字段：
 
+- `path_scope`：这条 memory 最相关的仓库路径或文件模式
 - `recommended_skills`：通常适合优先考虑的 skill
 - `required_skills`：这条 memory 生效时必须纳入考虑的 skill
 - `suppressed_skills`：这条 memory 生效时应避免调用的 skill
@@ -324,6 +325,8 @@ tags:
   - "playwright"
 importance: "medium"
 date: "2026-04-01T12:34:56.000Z"
+path_scope:
+  - "tests/e2e/"
 recommended_skills:
   - "github:gh-fix-ci"
 required_skills:
@@ -362,6 +365,20 @@ brain suggest-skills --task "debug flaky browser tests in CI" --path tests/e2e/l
 cat task.txt | brain suggest-skills --path src/cli.ts --path test/store.test.mjs
 ```
 
+### 什么时候用 `inject`，什么时候用 `suggest-skills`
+
+如果你需要在开始编码前先把 repo 的 durable context 压缩带进 session，用 `brain inject`。如果你已经知道当前任务，只是想让 RepoBrain 帮你缩小 skill / workflow 选择范围，用 `brain suggest-skills`。
+
+- `brain inject`：更适合 session 开始前、方案实现前、风险较高的改动前，用来先看 repo 级上下文和历史约束
+- `brain suggest-skills`：更适合任务已经明确之后，决定该交给哪个 skill 或执行流来处理
+
+task-aware `inject` 仍然保持向后兼容：如果不传任务信号，就回退到旧的 importance + 时间排序；如果传了任务信号，RepoBrain 会按一套可解释的规则打分，主要包括：
+
+- `skill_trigger_tasks` 的任务短语命中
+- `path_scope` 和 `skill_trigger_paths` 的路径命中
+- `--module` / 任务文本与标题、summary、tags、scope 路径之间的关键词重叠
+- `importance`、`risk_level`、`invocation_mode` 的小幅加权，用来做同分时的偏置
+
 ### Step 3: Inject And Verify
 
 下一次 session 开始前，把刚刚沉淀的 repo knowledge 注入出来：
@@ -369,6 +386,18 @@ cat task.txt | brain suggest-skills --path src/cli.ts --path test/store.test.mjs
 ```bash
 brain inject
 brain status
+```
+
+如果你已经知道当前任务，可以直接把任务信息传给 `inject`，让它按相关性优先选 memory，而不是只看 importance 和时间：
+
+```bash
+brain inject --task "refactor config loading for the CLI" --path src/config.ts --path src/cli.ts --module cli
+```
+
+如果任务风险更高，建议把关键路径和模块一起传进去，让 RepoBrain 更早暴露高风险 gotcha / decision：
+
+```bash
+brain inject --task "fix refund transaction bug before release" --path src/payments/refund.ts --module payments --module ledger
 ```
 
 生成出来的 block 会按类别分组，并在末尾附带几条简短要求。输出大致如下：
@@ -449,7 +478,7 @@ brain mcp
 
 - `brain init`：初始化当前仓库的 `.brain/`
 - `brain extract`：从 `stdin` 提取长期有价值的仓库知识
-- `brain inject`：为下一次 session 生成注入上下文
+- `brain inject`：为下一次 session 生成注入上下文，也可以配合 `--task`、`--path`、`--module` 做任务感知排序
 - `brain list`：列出当前仓库里的 memory
 - `brain stats`：按类型和重要度查看统计
 - `brain status`：查看最近一次注入的 memories，以及最近沉淀的 memories
