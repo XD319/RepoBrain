@@ -596,6 +596,7 @@ brain mcp
 - `brain extract-commit`：从更丰富的 git commit 上下文提取知识，输入会包含 commit metadata、变更文件和 diff stat
 - `brain inject`：为下一次 session 生成注入上下文，也可以配合 `--task`、`--path`、`--module` 做任务感知排序
   当仍有待审核的 candidate memories 时，注入结果底部会提醒你运行 `brain review`。
+- `brain sweep`：扫描陈旧 memory；默认交互式逐条确认，`--dry-run` 只看报告，`--auto` 自动执行安全清理规则
 - `brain list`：列出当前仓库里的 memory
 - `brain stats`：按类型和重要度查看统计
 - `brain status`：查看最近一次注入的 memories，以及最近沉淀的 memories
@@ -621,11 +622,15 @@ RepoBrain 的配置文件位于 `.brain/config.yaml`。
 maxInjectTokens: 1200
 extractMode: suggest
 language: zh-CN
+staleDays: 90
+sweepOnInject: false
 ```
 
 - `maxInjectTokens`：生成注入上下文时使用的近似 token 预算，针对中英混合内容做了更稳的估算
 - `extractMode`：控制 hook 提取走手动、候选写入，还是直接写入 active memory
 - `language`：提取提示词偏好的输出语言
+- `staleDays`：非 goal memory 距离 `updated` 超过多少天后，`brain sweep` 会把它判定为陈旧并尝试降权
+- `sweepOnInject`：为 `true` 时，每次 `brain inject` 前都会先执行一次 `brain sweep --auto`；清理日志写到 `stderr`，不会污染 inject 的 markdown 输出
 - 旧的 `provider`、`model`、`apiKey` 一类 review 配置会被忽略，并给出弃用提示；RepoBrain Core 不会调用远程审核服务
 
 ## Memory 生命周期

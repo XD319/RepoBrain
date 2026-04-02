@@ -20,6 +20,16 @@ import { buildSharePlan } from "./share.js";
 import { setupRepoBrain } from "./setup.js";
 import { buildSkillShortlist, renderSkillShortlist } from "./suggest-skills.js";
 import {
+  applySweepAuto,
+  archiveGoalMemory,
+  deleteExpiredWorking,
+  downgradeStaleMemory,
+  previewMemoryLines,
+  renderSweepDryRun,
+  scanSweepCandidates,
+  toDisplayPath,
+} from "./sweep.js";
+import {
   approveCandidateMemory,
   getMemoryStatus,
   initBrain,
@@ -132,6 +142,10 @@ program
     const projectRoot = process.cwd();
     const config = await loadConfig(projectRoot);
     renderConfigWarnings(config).forEach((warning) => process.stderr.write(`[repobrain] ${warning}\n`));
+    if (config.sweepOnInject) {
+      await initBrain(projectRoot);
+      await runSweepAuto(projectRoot, config, (line) => process.stderr.write(`${line}\n`), true);
+    }
     const injection = await buildInjection(projectRoot, config, {
       ...(options.task?.trim() ? { task: options.task.trim() } : {}),
       paths: options.path,
@@ -141,6 +155,35 @@ program
       ...(options.includeWorking ? { includeWorking: true } : {}),
     });
     output.write(`${injection}\n`);
+  });
+
+program
+  .command("sweep")
+  .description("Scan and clean stale memories in the current .brain store.")
+  .option("--auto", "Apply all safe sweep rules without prompting.")
+  .option("--dry-run", "Print the sweep report without changing any files.")
+  .action(async (options: { auto?: boolean; dryRun?: boolean }) => {
+    if (options.auto && options.dryRun) {
+      throw new Error('Use either "--auto" or "--dry-run", not both.');
+    }
+
+    const projectRoot = process.cwd();
+    await initBrain(projectRoot);
+    const config = await loadConfig(projectRoot);
+    renderConfigWarnings(config).forEach((warning) => process.stderr.write(`[repobrain] ${warning}\n`));
+
+    if (options.dryRun) {
+      const result = await scanSweepCandidates(projectRoot, config);
+      output.write(`${renderSweepDryRun(result)}\n`);
+      return;
+    }
+
+    if (options.auto) {
+      await runSweepAuto(projectRoot, config, (line) => output.write(`${line}\n`));
+      return;
+    }
+
+    await runSweepInteractive(projectRoot, config);
   });
 
 program
@@ -702,6 +745,130 @@ async function readStdin(): Promise<string> {
   }
 
   return Buffer.concat(chunks).toString("utf8");
+}
+
+async function runSweepAuto(
+  projectRoot: string,
+  config: BrainConfig,
+  writeLine: (line: string) => void,
+  quietWhenNoActions = false,
+): Promise<void> {
+  const result = await applySweepAuto(projectRoot, config);
+  result.lines.forEach((line) => writeLine(line));
+
+  if (!quietWhenNoActions || result.changed || result.scan.duplicatePairs.length > 0) {
+    writeLine("brain sweep 扫描完成");
+    writeLine(`过期 working 记忆: ${result.scan.expiredWorking.length}`);
+    writeLine(`陈旧记忆: ${result.scan.staleMemories.length}`);
+    writeLine(`可疑重复对: ${result.scan.duplicatePairs.length}`);
+    writeLine(`已完成 goal: ${result.scan.archiveGoals.length}`);
+  }
+}
+
+async function runSweepInteractive(projectRoot: string, config: BrainConfig): Promise<void> {
+  const terminal = await createPromptTerminal();
+  if (!terminal) {
+    throw new Error('Interactive sweep requires a TTY. Re-run with "--auto" or "--dry-run".');
+  }
+
+  const rl = createInterface({
+    input: terminal.input,
+    output: terminal.output,
+  });
+
+  let changed = false;
+  const deletedPaths = new Set<string>();
+
+  try {
+    const result = await scanSweepCandidates(projectRoot, config);
+    const today = getTodayDate();
+
+    for (const entry of result.expiredWorking) {
+      const answer = (await rl.question(`? 删除已过期的 working 记忆 "${entry.record.memory.title}"？[Y/n] `))
+        .trim()
+        .toLowerCase();
+      if (answer === "" || answer === "y" || answer === "yes") {
+        await deleteExpiredWorking(entry);
+        changed = true;
+        output.write(`[EXPIRED]  已删除 ${toDisplayPath(entry.record)}\n`);
+      }
+    }
+
+    for (const entry of result.staleMemories) {
+      const answer = (
+        await rl.question(
+          `? 降权 ${entry.daysSinceUpdated} 天未更新的记忆 "${entry.record.memory.title}"（${entry.record.memory.importance} → ${entry.nextImportance}）？[Y/n] `,
+        )
+      )
+        .trim()
+        .toLowerCase();
+      if (answer === "" || answer === "y" || answer === "yes") {
+        await downgradeStaleMemory(entry, today);
+        changed = true;
+        output.write(`[STALE]    已降权 ${toDisplayPath(entry.record)}\n`);
+      }
+    }
+
+    for (const entry of result.duplicatePairs) {
+      if (deletedPaths.has(entry.left.filePath) || deletedPaths.has(entry.right.filePath)) {
+        continue;
+      }
+
+      output.write("? 发现可能重复的记忆：\n");
+      output.write(`[1] ${toDisplayPath(entry.left, false)}: "${entry.left.memory.title}"\n`);
+      for (const line of previewMemoryLines(entry.left)) {
+        output.write(`    ${line}\n`);
+      }
+      output.write(`[2] ${toDisplayPath(entry.right, false)}: "${entry.right.memory.title}"\n`);
+      for (const line of previewMemoryLines(entry.right)) {
+        output.write(`    ${line}\n`);
+      }
+
+      const answer = (
+        await rl.question("操作: (1) 保留两者  (2) 删除 [1]  (3) 删除 [2]  (4) 跳过 ")
+      )
+        .trim()
+        .toLowerCase();
+
+      if (answer === "2") {
+        await rm(entry.left.filePath, { force: true });
+        deletedPaths.add(entry.left.filePath);
+        changed = true;
+        output.write(`[POSSIBLE-DUP] 已删除 ${toDisplayPath(entry.left)}\n`);
+      } else if (answer === "3") {
+        await rm(entry.right.filePath, { force: true });
+        deletedPaths.add(entry.right.filePath);
+        changed = true;
+        output.write(`[POSSIBLE-DUP] 已删除 ${toDisplayPath(entry.right)}\n`);
+      }
+    }
+
+    for (const entry of result.archiveGoals) {
+      if (deletedPaths.has(entry.record.filePath)) {
+        continue;
+      }
+
+      const answer = (
+        await rl.question(`? 将已完成 30+ 天的目标 "${entry.record.memory.title}" 归档到 .brain/archive/？[Y/n] `)
+      )
+        .trim()
+        .toLowerCase();
+      if (answer === "" || answer === "y" || answer === "yes") {
+        const archivedPath = await archiveGoalMemory(projectRoot, entry);
+        changed = true;
+        output.write(
+          `[ARCHIVE]  已归档 ${toDisplayPath(entry.record)} → ${path.relative(projectRoot, archivedPath).replace(/\\/g, "/")}\n`,
+        );
+      }
+    }
+
+    if (changed) {
+      await updateIndex(projectRoot);
+    }
+  } finally {
+    rl.close();
+    terminal.close();
+  }
 }
 
 async function readOptionalStdin(): Promise<string | undefined> {

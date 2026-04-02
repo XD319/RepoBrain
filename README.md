@@ -612,6 +612,7 @@ brain mcp
 - `brain extract-commit`: extract from a richer git commit context that includes commit metadata, changed files, and diff stat
 - `brain inject`: build a compact memory block for the next session, optionally ranked by `--task`, `--path`, and `--module`
   When candidate memories are waiting for review, the injected footer now reminds you to run `brain review`.
+- `brain sweep`: scan stale memory hygiene issues; use the default interactive mode to confirm each action, `--dry-run` for a report, or `--auto` to apply safe cleanup rules without prompts
 - `brain list`: list stored memories; use `--type <memory-type>` to filter or `--goals` to group goal memories by status
 - `brain stats`: show memory counts by type and importance, including `working` and `goal`
 - `brain goal done`: mark a matching goal memory as done and refresh its `updated` date
@@ -638,6 +639,8 @@ Current options:
 maxInjectTokens: 1200
 extractMode: suggest
 language: zh-CN
+staleDays: 90
+sweepOnInject: false
 ```
 
 - `maxInjectTokens`: approximate token budget used when building injected context, with Unicode-aware estimation for mixed English/CJK content
@@ -646,6 +649,8 @@ language: zh-CN
 - `suggest`: store hook-extracted memories as `candidate` records for review
 - `auto`: let hooks write active memories immediately
 - `language`: preferred output language for extraction prompts
+- `staleDays`: number of days before a non-goal memory becomes eligible for sweep downgrading
+- `sweepOnInject`: when `true`, `brain inject` runs `brain sweep --auto` first and prints sweep logs to `stderr` so the injected markdown stays clean
 - legacy `provider`, `model`, or `apiKey` style review settings are ignored with a deprecation warning; RepoBrain Core does not call remote review services
 
 ## Memory Lifecycle

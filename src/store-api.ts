@@ -2,8 +2,10 @@ export {
   initBrain,
   loadAllMemories,
   loadStoredMemoryRecords,
+  overwriteStoredMemory,
   saveMemory,
   supersedeMemoryPair,
+  updateIndex,
 } from "./store.js";
 export {
   computeInjectPriority,

@@ -70,6 +70,8 @@ export interface BrainConfig {
   maxInjectTokens: number;
   extractMode: ExtractMode;
   language: string;
+  staleDays: number;
+  sweepOnInject: boolean;
   warnings?: string[];
 }
 

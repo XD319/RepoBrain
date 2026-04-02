@@ -9,6 +9,8 @@ export const DEFAULT_BRAIN_CONFIG: BrainConfig = {
   maxInjectTokens: 1200,
   extractMode: "suggest",
   language: "zh-CN",
+  staleDays: 90,
+  sweepOnInject: false,
 };
 
 const DEPRECATED_REMOTE_REVIEW_KEY_PATTERNS = [
@@ -76,6 +78,7 @@ export async function writeDefaultConfig(projectRoot: string): Promise<void> {
 function parseSimpleYaml(raw: string): Partial<BrainConfig> {
   const result: Partial<BrainConfig> = {};
   const deprecatedKeys = new Set<string>();
+  const warnings: string[] = [];
 
   for (const line of raw.split(/\r?\n/)) {
     const trimmed = line.trim();
@@ -119,13 +122,42 @@ function parseSimpleYaml(raw: string): Partial<BrainConfig> {
 
     if (key === "language" && value) {
       result.language = value;
+      continue;
+    }
+
+    if (key === "staleDays") {
+      const parsed = Number(value);
+      if (Number.isInteger(parsed) && parsed > 0) {
+        result.staleDays = parsed;
+      } else {
+        warnings.push(
+          `Ignoring invalid config value staleDays=${value}. Expected a positive integer; using default ${DEFAULT_BRAIN_CONFIG.staleDays}.`,
+        );
+      }
+      continue;
+    }
+
+    if (key === "sweepOnInject") {
+      if (value.toLowerCase() === "true") {
+        result.sweepOnInject = true;
+      } else if (value.toLowerCase() === "false") {
+        result.sweepOnInject = false;
+      } else {
+        warnings.push(
+          `Ignoring invalid config value sweepOnInject=${value}. Expected true or false; using default ${DEFAULT_BRAIN_CONFIG.sweepOnInject}.`,
+        );
+      }
     }
   }
 
   if (deprecatedKeys.size > 0) {
-    result.warnings = [
+    warnings.push(
       `Ignoring deprecated remote review config fields: ${Array.from(deprecatedKeys).sort((left, right) => left.localeCompare(right)).join(", ")}. RepoBrain Core only uses the local deterministic review pipeline.`,
-    ];
+    );
+  }
+
+  if (warnings.length > 0) {
+    result.warnings = warnings;
   }
 
   return result;
@@ -141,6 +173,8 @@ function serializeSimpleYaml(config: BrainConfig): string {
     `maxInjectTokens: ${config.maxInjectTokens}`,
     `extractMode: ${config.extractMode}`,
     `language: ${config.language}`,
+    `staleDays: ${config.staleDays}`,
+    `sweepOnInject: ${config.sweepOnInject ? "true" : "false"}`,
     "",
   ].join("\n");
 }

@@ -10,6 +10,7 @@ export default defineConfig({
     "src/reinforce.ts",
     "src/store-api.ts",
     "src/suggest-skills.ts",
+    "src/sweep.ts",
     "src/hooks/session-start.ts",
     "src/hooks/session-end.ts",
     "src/mcp/server.ts",
