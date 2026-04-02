@@ -24,13 +24,13 @@ cat > "$hook_path" <<'EOF'
 
 # project-brain post-commit hook
 # Lightweight Codex workflow amplifier: extract repo knowledge from
-# the latest commit message when the `brain` command is available.
+# the latest commit context when the `brain` command is available.
 
 if ! command -v brain >/dev/null 2>&1; then
   exit 0
 fi
 
-git log -1 --pretty=format:"%B" | brain extract --source git-commit >/dev/null 2>&1 || true
+brain extract-commit >/dev/null 2>&1 || true
 
 exit 0
 EOF

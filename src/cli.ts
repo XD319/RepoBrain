@@ -11,10 +11,11 @@ import { getBrainDir, loadConfig, renderConfigWarnings } from "./config.js";
 import { buildMemoryAudit, renderMemoryAuditResult } from "./audit-memory.js";
 import { extractMemories } from "./extract.js";
 import { detectFailures } from "./failure-detector.js";
+import { buildCommitExtractionInput } from "./git-commit.js";
 import { buildInjection } from "./inject.js";
 import { runMcpServer } from "./mcp/server.js";
 import { reinforceMemories } from "./reinforce.js";
-import { reviewCandidateMemories } from "./reviewer.js";
+import { reviewCandidateMemories, reviewCandidateMemory } from "./reviewer.js";
 import { buildSharePlan } from "./share.js";
 import { setupRepoBrain } from "./setup.js";
 import { buildSkillShortlist, renderSkillShortlist } from "./suggest-skills.js";
@@ -31,7 +32,7 @@ import {
   updateStoredMemoryStatus,
 } from "./store.js";
 import type { FailureEvent } from "./failure-detector.js";
-import type { Memory, MemoryActivityEntry, StoredMemoryRecord } from "./types.js";
+import type { BrainConfig, CandidateMemoryReviewResult, Memory, MemoryActivityEntry, StoredMemoryRecord } from "./types.js";
 
 const program = new Command();
 
@@ -78,69 +79,24 @@ program
     const config = await loadConfig(projectRoot);
     renderConfigWarnings(config).forEach((warning) => process.stderr.write(`[repobrain] ${warning}\n`));
     const stdinText = await readStdin();
-    const memories = await extractMemories(stdinText, config, projectRoot);
-    const existingRecords = await loadStoredMemoryRecords(projectRoot);
-    const reviewedCandidates = reviewCandidateMemories(memories, existingRecords);
-    const savedPaths: string[] = [];
-    const deferredCandidates: string[] = [];
-    const rejectedCandidates: string[] = [];
+    await runExtractionWorkflow(projectRoot, config, stdinText, options);
+  });
 
-    for (const entry of reviewedCandidates) {
-      const { memory, review } = entry;
-      const toSave: Memory = {
-        ...memory,
-        ...(options.source ? { source: options.source } : {}),
-      };
+program
+  .command("extract-commit")
+  .description("Extract repo knowledge from a richer git commit context for the latest commit or a target revision.")
+  .option("--rev <revision>", "Git revision to analyze", "HEAD")
+  .option("--candidate", "Save extracted memories as candidates for later review.")
+  .action(async (options: { rev?: string; candidate?: boolean }) => {
+    const projectRoot = process.cwd();
+    await initBrain(projectRoot);
 
-      if (review.decision === "reject") {
-        rejectedCandidates.push(memory.title);
-        continue;
-      }
-
-      const resolvedStatus =
-        options.candidate || review.decision !== "accept" ? ("candidate" as const) : undefined;
-      const savedPath = await saveMemory(
-        resolvedStatus
-          ? {
-              ...toSave,
-              status: resolvedStatus,
-            }
-          : toSave,
-        projectRoot,
-      );
-      savedPaths.push(savedPath);
-
-      if (review.decision !== "accept") {
-        deferredCandidates.push(memory.title);
-      }
-    }
-
-    await updateIndex(projectRoot);
-    output.write(`Reviewed ${reviewedCandidates.length} extracted memor${reviewedCandidates.length === 1 ? "y" : "ies"}.\n`);
-    for (const entry of reviewedCandidates) {
-      output.write(
-        `- ${entry.review.decision} | targets=${entry.review.target_memory_ids.join(", ") || "-"} | reason=${entry.review.reason} | ${entry.memory.title}\n`,
-      );
-    }
-
-    output.write(
-      `Saved ${savedPaths.length} memor${savedPaths.length === 1 ? "y" : "ies"}${options.candidate ? " as candidates" : ""}.\n`,
-    );
-    for (const savedPath of savedPaths) {
-      output.write(`- ${savedPath}\n`);
-    }
-
-    if (deferredCandidates.length > 0) {
-      output.write(
-        `${deferredCandidates.length} memor${deferredCandidates.length === 1 ? "y" : "ies"} were kept as candidates because the review decision requires confirmation.\n`,
-      );
-    }
-
-    if (rejectedCandidates.length > 0) {
-      output.write(
-        `${rejectedCandidates.length} memor${rejectedCandidates.length === 1 ? "y" : "ies"} were rejected and not written.\n`,
-      );
-    }
+    const config = await loadConfig(projectRoot);
+    renderConfigWarnings(config).forEach((warning) => process.stderr.write(`[repobrain] ${warning}\n`));
+    const commitContext = await buildCommitExtractionInput(projectRoot, options.rev?.trim() || "HEAD");
+    await runExtractionWorkflow(projectRoot, config, commitContext, options.candidate
+      ? { source: "git-commit", candidate: true }
+      : { source: "git-commit" });
   });
 
 program
@@ -262,17 +218,38 @@ program
   .command("approve [memoryId]")
   .description("Approve one candidate memory, or all candidates with --all.")
   .option("--all", "Approve all candidate memories.")
-  .action(async (memoryId: string | undefined, options: { all?: boolean }) => {
+  .option("--safe", "Approve only candidates that still review as low-risk novel memories.")
+  .action(async (memoryId: string | undefined, options: { all?: boolean; safe?: boolean }) => {
     const projectRoot = process.cwd();
     const records = await loadStoredMemoryRecords(projectRoot);
-    const matches = resolveCandidateRecords(records, memoryId, options.all);
+    const resolution = options.safe
+      ? resolveSafeCandidateRecords(records, memoryId, options.all)
+      : { matches: resolveCandidateRecords(records, memoryId, options.all), skipped: [] as SafeCandidateRecord[] };
+    const matches = resolution.matches;
+
+    if (options.safe && matches.length === 0) {
+      const suffix =
+        resolution.skipped.length > 0
+          ? ` ${resolution.skipped.length} candidate memor${resolution.skipped.length === 1 ? "y still requires" : "ies still require"} manual review.`
+          : "";
+      output.write(`No safe candidate memories found.${suffix}\n`);
+      return;
+    }
 
     for (const entry of matches) {
       await approveCandidateMemory(entry, projectRoot);
     }
 
     await updateIndex(projectRoot);
-    output.write(`Approved ${matches.length} candidate memor${matches.length === 1 ? "y" : "ies"}.\n`);
+    output.write(
+      `Approved ${matches.length} ${options.safe ? "safe " : ""}candidate memor${matches.length === 1 ? "y" : "ies"}.\n`,
+    );
+
+    if (options.safe && resolution.skipped.length > 0) {
+      output.write(
+        `${resolution.skipped.length} candidate memor${resolution.skipped.length === 1 ? "y still requires" : "ies still require"} manual review.\n`,
+      );
+    }
   });
 
 program
@@ -562,6 +539,80 @@ program.parseAsync(process.argv).catch((error: unknown) => {
   process.stderr.write(`${message}\n`);
   process.exitCode = 1;
 });
+
+async function runExtractionWorkflow(
+  projectRoot: string,
+  config: BrainConfig,
+  rawInput: string,
+  options: {
+    source: Memory["source"];
+    candidate?: boolean;
+  },
+): Promise<void> {
+  const memories = await extractMemories(rawInput, config, projectRoot);
+  const existingRecords = await loadStoredMemoryRecords(projectRoot);
+  const reviewedCandidates = reviewCandidateMemories(memories, existingRecords);
+  const savedPaths: string[] = [];
+  const deferredCandidates: string[] = [];
+  const rejectedCandidates: string[] = [];
+
+  for (const entry of reviewedCandidates) {
+    const { memory, review } = entry;
+    const toSave: Memory = {
+      ...memory,
+      ...(options.source ? { source: options.source } : {}),
+    };
+
+    if (review.decision === "reject") {
+      rejectedCandidates.push(memory.title);
+      continue;
+    }
+
+    const resolvedStatus =
+      options.candidate || review.decision !== "accept" ? ("candidate" as const) : undefined;
+    const savedPath = await saveMemory(
+      resolvedStatus
+        ? {
+            ...toSave,
+            status: resolvedStatus,
+          }
+        : toSave,
+      projectRoot,
+    );
+    savedPaths.push(savedPath);
+
+    if (review.decision !== "accept") {
+      deferredCandidates.push(memory.title);
+    }
+  }
+
+  await updateIndex(projectRoot);
+  output.write(`Reviewed ${reviewedCandidates.length} extracted memor${reviewedCandidates.length === 1 ? "y" : "ies"}.\n`);
+  for (const entry of reviewedCandidates) {
+    output.write(
+      `- ${entry.review.decision} | targets=${entry.review.target_memory_ids.join(", ") || "-"} | reason=${entry.review.reason} | ${entry.memory.title}\n`,
+    );
+  }
+
+  output.write(
+    `Saved ${savedPaths.length} memor${savedPaths.length === 1 ? "y" : "ies"}${options.candidate ? " as candidates" : ""}.\n`,
+  );
+  for (const savedPath of savedPaths) {
+    output.write(`- ${savedPath}\n`);
+  }
+
+  if (deferredCandidates.length > 0) {
+    output.write(
+      `${deferredCandidates.length} memor${deferredCandidates.length === 1 ? "y" : "ies"} were kept as candidates because the review decision requires confirmation.\n`,
+    );
+  }
+
+  if (rejectedCandidates.length > 0) {
+    output.write(
+      `${rejectedCandidates.length} memor${rejectedCandidates.length === 1 ? "y" : "ies"} were rejected and not written.\n`,
+    );
+  }
+}
 
 async function readStdin(): Promise<string> {
   const chunks: Buffer[] = [];
@@ -899,6 +950,11 @@ function getCandidateRecords(records: StoredMemoryRecord[]): StoredMemoryRecord[
   return records.filter((entry) => getMemoryStatus(entry.memory) === "candidate");
 }
 
+interface SafeCandidateRecord {
+  record: StoredMemoryRecord;
+  review: CandidateMemoryReviewResult;
+}
+
 function resolveCandidateRecords(
   records: StoredMemoryRecord[],
   rawQuery: string | undefined,
@@ -931,6 +987,71 @@ function resolveCandidateRecords(
   }
 
   return matches;
+}
+
+function resolveSafeCandidateRecords(
+  records: StoredMemoryRecord[],
+  rawQuery: string | undefined,
+  all: boolean | undefined,
+): {
+  matches: StoredMemoryRecord[];
+  skipped: SafeCandidateRecord[];
+} {
+  const candidates = getCandidateRecords(records);
+  if (candidates.length === 0) {
+    throw new Error("No candidate memories found.");
+  }
+
+  const evaluations = candidates.map((record) => ({
+    record,
+    review: reviewCandidateMemory(
+      record.memory,
+      records.filter((entry) => entry.filePath !== record.filePath),
+    ),
+  }));
+  const safeMatches = evaluations.filter((entry) => isSafeCandidateReview(entry.review));
+  const skipped = evaluations.filter((entry) => !isSafeCandidateReview(entry.review));
+
+  if (all || !rawQuery?.trim()) {
+    return {
+      matches: safeMatches.map((entry) => entry.record),
+      skipped,
+    };
+  }
+
+  const query = rawQuery.trim();
+  const target = evaluations.filter(({ record }) => matchesStoredMemory(record, query));
+  if (target.length === 0) {
+    throw new Error(`No candidate memory matched "${query}".`);
+  }
+
+  if (target.length > 1) {
+    const suggestions = target.map(({ record }) => `- ${getStoredMemoryId(record)} (${record.memory.title})`);
+    throw new Error(
+      [`Multiple candidate memories matched "${query}". Use a more specific id:`, ...suggestions].join("\n"),
+    );
+  }
+
+  const [selected] = target;
+  if (!selected) {
+    throw new Error(`No candidate memory matched "${query}".`);
+  }
+
+  if (!isSafeCandidateReview(selected.review)) {
+    throw new Error(
+      `Candidate "${getStoredMemoryId(selected.record)}" still requires manual review (${selected.review.decision}: ${selected.review.reason}).`,
+    );
+  }
+
+  return {
+    matches: [selected.record],
+    skipped: evaluations
+      .filter((entry) => entry.record.filePath !== selected.record.filePath && !isSafeCandidateReview(entry.review)),
+  };
+}
+
+function isSafeCandidateReview(review: CandidateMemoryReviewResult): boolean {
+  return review.decision === "accept" && review.reason === "novel_memory";
 }
 
 function matchesStoredMemory(entry: StoredMemoryRecord, rawQuery: string): boolean {

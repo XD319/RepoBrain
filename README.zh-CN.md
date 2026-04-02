@@ -53,10 +53,10 @@ npm link
 cat session-summary.txt | brain extract
 ```
 
-从最近一次 commit message 提取：
+从最近一次 commit 上下文提取：
 
 ```bash
-git log -1 --pretty=format:"%B" | brain extract --source git-commit
+brain extract-commit
 ```
 
 ## How It Works
@@ -266,7 +266,7 @@ npm link
 brain setup
 ```
 
-`brain setup` 是当前更推荐的入口。它会像 `brain init` 一样初始化 `.brain/`，并且当你在 Git 根目录执行时，还会顺手安装一个轻量的 `post-commit` hook，用于从 commit message 做自动提取。
+`brain setup` 是当前更推荐的入口。它会像 `brain init` 一样初始化 `.brain/`，并且当你在 Git 根目录执行时，还会顺手安装一个轻量的 `post-commit` hook，用于从更丰富的 commit 上下文做自动提取。
 
 如果你只想初始化工作区、不想安装自动化入口，`brain init` 仍然保持原来的行为。
 
@@ -544,11 +544,13 @@ Total: ~25 min. What to try next -> [docs/demo-script.zh-CN.md](./docs/demo-scri
 brain init
 brain setup
 brain extract < session-summary.txt
+brain extract-commit
 brain inject
 brain list
 brain stats
 brain status
 brain review
+brain approve --safe
 brain approve <memory-id>
 brain dismiss <memory-id>
 brain supersede <new-memory-file> <old-memory-file>
@@ -568,13 +570,14 @@ brain mcp
 - `brain setup`：初始化 `.brain/`，并在 Git 根目录执行时安装低风险的 `post-commit` Git hook
 - `brain extract`：从 `stdin` 提取长期有价值的仓库知识
   并在写入前输出每条 memory 的 review decision
+- `brain extract-commit`：从更丰富的 git commit 上下文提取知识，输入会包含 commit metadata、变更文件和 diff stat
 - `brain inject`：为下一次 session 生成注入上下文，也可以配合 `--task`、`--path`、`--module` 做任务感知排序
   当仍有待审核的 candidate memories 时，注入结果底部会提醒你运行 `brain review`。
 - `brain list`：列出当前仓库里的 memory
 - `brain stats`：按类型和重要度查看统计
 - `brain status`：查看最近一次注入的 memories，以及最近沉淀的 memories
 - `brain review`：列出等待审批的 candidate memories
-- `brain approve`：将单条 candidate memory，或全部 candidates，提升为 active
+- `brain approve`：将单条 candidate memory、全部 candidates，或仅 `--safe` 的低风险 candidates 提升为 active
 - `brain dismiss`：将单条 candidate memory，或全部 candidates，标记为 stale
 - `brain supersede`：手动把新 memory 和旧 memory 建立取代关系，更新 `supersedes` / `superseded_by`，把新 memory 的 `version` 设为 `旧 version + 1`，并把旧 memory 标记为 stale
 - `brain lineage`：以 ASCII 树形式打印所有有血缘关系的 memory，或只打印包含指定 memory 文件的那条血缘链

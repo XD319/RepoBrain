@@ -1,51 +1,51 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { access, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
+import { initBrain, loadStoredMemoryRecords } from "../dist/store-api.js";
+
 const repoRoot = process.cwd();
 const cliPath = path.join(repoRoot, "dist", "cli.js");
+const fixturePath = path.join(repoRoot, "test", "fixtures", "extract-commit-fixture.mjs");
+const fixtureCommand = `"${process.execPath}" "${fixturePath}"`;
 
-await runTest("brain setup initializes .brain and installs the post-commit hook", async () => {
+await runTest("brain extract-commit feeds richer commit context into the extractor", async () => {
   await withTempRepo(async (projectRoot) => {
+    await initBrain(projectRoot);
     await runCommand("git", ["init"], projectRoot);
+    await runCommand("git", ["config", "user.name", "RepoBrain Test"], projectRoot);
+    await runCommand("git", ["config", "user.email", "repobrain@example.com"], projectRoot);
 
-    const result = await runCliProcess(["setup"], projectRoot);
+    const featurePath = path.join(projectRoot, "feature.txt");
+    await writeFile(featurePath, "feature-on\n", "utf8");
+    await runCommand("git", ["add", "feature.txt"], projectRoot);
+    await runCommand("git", ["commit", "-m", "feat: add commit extraction input"], projectRoot);
+
+    const result = await runCliProcess(
+      ["extract-commit", "--candidate"],
+      projectRoot,
+      {
+        BRAIN_EXTRACTOR_COMMAND: fixtureCommand,
+      },
+    );
+
     assert.equal(result.code, 0);
-    assert.match(result.stdout, /Initialized RepoBrain in/);
-    assert.match(result.stdout, /Installed the post-commit hook at/);
+    assert.match(result.stdout, /Reviewed 1 extracted memory\./);
+    assert.match(result.stdout, /Use richer git commit context for extraction/);
 
-    await access(path.join(projectRoot, ".brain", "config.yaml"));
-
-    const hookContent = await readFile(path.join(projectRoot, ".git", "hooks", "post-commit"), "utf8");
-    assert.match(hookContent, /project-brain post-commit hook/);
-    assert.match(hookContent, /brain extract-commit/);
+    const records = await loadStoredMemoryRecords(projectRoot);
+    assert.equal(records.length, 1);
+    assert.equal(records[0]?.memory.source, "git-commit");
+    assert.equal(records[0]?.memory.status, "candidate");
   });
 });
 
-await runTest("brain setup backs up an existing custom post-commit hook before installing its own", async () => {
-  await withTempRepo(async (projectRoot) => {
-    await runCommand("git", ["init"], projectRoot);
-
-    const existingHookPath = path.join(projectRoot, ".git", "hooks", "post-commit");
-    const existingHook = "#!/usr/bin/env sh\necho custom-hook\n";
-    await writeFile(existingHookPath, existingHook, "utf8");
-
-    const result = await runCliProcess(["setup"], projectRoot);
-    assert.equal(result.code, 0);
-    assert.match(result.stdout, /backed up the existing hook/);
-
-    const backupPath = path.join(projectRoot, ".git", "hooks", "post-commit.project-brain.bak");
-    const backupContent = await readFile(backupPath, "utf8");
-    assert.equal(backupContent, existingHook);
-  });
-});
-
-console.log("All setup command tests passed.");
+console.log("All extract-commit command tests passed.");
 
 async function withTempRepo(callback) {
-  const projectRoot = await mkdtemp(path.join(os.tmpdir(), "repobrain-setup-"));
+  const projectRoot = await mkdtemp(path.join(os.tmpdir(), "repobrain-extract-commit-"));
 
   try {
     await callback(projectRoot);
@@ -54,12 +54,15 @@ async function withTempRepo(callback) {
   }
 }
 
-async function runCliProcess(args, cwd) {
+async function runCliProcess(args, cwd, extraEnv = {}) {
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, [cliPath, ...args], {
       cwd,
       stdio: ["ignore", "pipe", "pipe"],
-      env: process.env,
+      env: {
+        ...process.env,
+        ...extraEnv,
+      },
     });
 
     let stdout = "";

@@ -53,10 +53,10 @@ Extract memory from a session summary:
 cat session-summary.txt | brain extract
 ```
 
-Extract memory from the latest commit message:
+Extract memory from the latest commit context:
 
 ```bash
-git log -1 --pretty=format:"%B" | brain extract --source git-commit
+brain extract-commit
 ```
 
 ## How It Works
@@ -83,7 +83,7 @@ In practice, that means:
 1. A session-start hook or `brain inject` loads active memories into the next session.
 2. A session-end hook extracts candidate memories instead of promoting them immediately.
 3. You review candidates with `brain review`.
-4. You approve good candidates with `brain approve <id>` or `brain approve --all`.
+4. You approve good candidates with `brain approve <id>`, `brain approve --safe`, or `brain approve --all`.
 5. Only approved memories affect future `brain inject` output.
 
 If you want a fully manual flow, set `extractMode: manual`. If you want immediate writes from hooks, set `extractMode: auto`.
@@ -283,7 +283,7 @@ Create the local RepoBrain workspace in the current repository:
 brain setup
 ```
 
-`brain setup` is the fastest recommended entry point. It still initializes `.brain/` like `brain init`, and when you run it from the Git root it also installs the lightweight `post-commit` hook for commit-message extraction.
+`brain setup` is the fastest recommended entry point. It still initializes `.brain/` like `brain init`, and when you run it from the Git root it also installs the lightweight `post-commit` hook for richer commit-context extraction.
 
 If you only want the workspace without automation, `brain init` still works as before.
 
@@ -562,11 +562,13 @@ See [docs/team-workflow.md](./docs/team-workflow.md) for the full workflow and `
 brain init
 brain setup
 brain extract < session-summary.txt
+brain extract-commit
 brain inject
 brain list
 brain stats
 brain status
 brain review
+brain approve --safe
 brain approve <memory-id>
 brain dismiss <memory-id>
 brain supersede <new-memory-file> <old-memory-file>
@@ -586,13 +588,14 @@ brain mcp
 - `brain setup`: initialize `.brain/` and install the low-risk `post-commit` Git hook when run from the Git root
 - `brain extract`: extract long-lived repo knowledge from `stdin`
   The command prints a review decision for each extracted memory before writing it.
+- `brain extract-commit`: extract from a richer git commit context that includes commit metadata, changed files, and diff stat
 - `brain inject`: build a compact memory block for the next session, optionally ranked by `--task`, `--path`, and `--module`
   When candidate memories are waiting for review, the injected footer now reminds you to run `brain review`.
 - `brain list`: list stored memories
 - `brain stats`: show memory counts by type and importance
 - `brain status`: show the most recently injected memories and most recently captured memories for the current repo
 - `brain review`: list candidate memories waiting for approval
-- `brain approve`: promote one candidate, or all candidates, to active memory
+- `brain approve`: promote one candidate, all candidates, or only `--safe` low-risk candidates to active memory
 - `brain dismiss`: mark one candidate, or all candidates, as dismissed
 - `brain supersede`: manually link a newer memory to an older memory, update `supersedes` / `superseded_by`, carry the old version forward as `old.version + 1`, and mark the older memory as stale
 - `brain lineage`: print ASCII lineage trees for all related memories, or for the chain that contains a specific memory file

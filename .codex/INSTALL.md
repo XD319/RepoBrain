@@ -47,7 +47,7 @@ If you wire in the session-start hook, this step can be automatic.
 
 ## 4. Install the lightweight Git hook
 
-To let Project Brain extract from the latest commit message after each commit:
+To let Project Brain extract from the latest commit context after each commit:
 
 ```bash
 sh scripts/setup-git-hooks.sh
@@ -57,8 +57,8 @@ If you already ran `brain setup` from the Git root, you can skip this step.
 
 The installed `post-commit` hook stays lightweight:
 
-- It only reads the latest commit message
-- It runs `brain extract --source git-commit`
+- It gathers the latest commit metadata, changed files, and diff stat
+- It runs `brain extract-commit`
 - It silently skips if `brain` is not installed
 - It never blocks your commit flow
 
@@ -74,6 +74,7 @@ Review and approve candidates with:
 
 ```bash
 brain review
+brain approve --safe
 brain approve --all
 ```
 
@@ -87,8 +88,8 @@ cat session-summary.txt | brain extract
 
 Manual `brain extract` writes active memories immediately.
 
-Or from the latest commit message without the hook:
+Or from the latest commit context without the hook:
 
 ```bash
-git log -1 --pretty=format:"%B" | brain extract --source git-commit
+brain extract-commit
 ```
