@@ -323,6 +323,16 @@ program
   });
 
 program
+  .command("lineage [memoryFile]")
+  .description("Render memory lineage trees from the current .brain store.")
+  .action(async (memoryFile: string | undefined) => {
+    const projectRoot = process.cwd();
+    const records = await loadStoredMemoryRecords(projectRoot);
+    const rendered = renderMemoryLineage(records, memoryFile);
+    output.write(`${rendered}\n`);
+  });
+
+program
   .command("share [memoryId]")
   .description("Suggest git commands for sharing one memory or all active memories.")
   .option("--all-active", "Share all active memories in .brain.")
@@ -681,6 +691,190 @@ function describeSupersedeState(
     hasExistingRelationship: details.length > 0,
     details,
   };
+}
+
+function renderMemoryLineage(records: StoredMemoryRecord[], rawQuery?: string): string {
+  const lineageNodes = new Map<string, StoredMemoryRecord>();
+  const supersedesByNode = new Map<string, string | null>();
+  const supersededByNode = new Map<string, string[]>();
+
+  for (const record of records) {
+    const pathKey = toBrainRelativePath(record.relativePath);
+    const hasLineage = Boolean(record.memory.supersedes || record.memory.superseded_by);
+    if (!hasLineage) {
+      continue;
+    }
+
+    lineageNodes.set(pathKey, record);
+    supersedesByNode.set(pathKey, record.memory.supersedes ?? null);
+    supersededByNode.set(pathKey, []);
+  }
+
+  const matchedRecord = rawQuery ? resolveStoredMemoryByFile(records, rawQuery) : null;
+  if (lineageNodes.size === 0) {
+    if (matchedRecord) {
+      return `Memory "${toBrainRelativePath(matchedRecord.relativePath)}" has no lineage relationships.`;
+    }
+
+    return "No memory lineage found.";
+  }
+
+  for (const [pathKey, record] of lineageNodes.entries()) {
+    const supersedes = record.memory.supersedes;
+    if (!supersedes) {
+      continue;
+    }
+
+    const target = lineageNodes.get(supersedes);
+    if (!target) {
+      throw new Error(
+        `Memory lineage reference "${supersedes}" from "${pathKey}" does not exist. Run "brain list" to inspect available memories.`,
+      );
+    }
+
+    const incoming = supersededByNode.get(supersedes);
+    if (incoming) {
+      incoming.push(pathKey);
+    }
+  }
+
+  detectLineageCycles(lineageNodes, supersedesByNode);
+
+  const roots = Array.from(lineageNodes.keys())
+    .filter((pathKey) => (supersededByNode.get(pathKey) ?? []).length === 0)
+    .sort((left, right) => compareLineageRecords(lineageNodes.get(left), lineageNodes.get(right)));
+
+  const selectedRoots = matchedRecord
+    ? filterLineageRootsByQuery(roots, lineageNodes, toBrainRelativePath(matchedRecord.relativePath))
+    : roots;
+
+  if (selectedRoots.length === 0) {
+    if (matchedRecord) {
+      const matchedPath = toBrainRelativePath(matchedRecord.relativePath);
+      if (!lineageNodes.has(matchedPath)) {
+        return `Memory "${matchedPath}" has no lineage relationships.`;
+      }
+    }
+
+    return "No memory lineage found.";
+  }
+
+  return selectedRoots
+    .map((rootPath) => renderLineageNode(rootPath, lineageNodes, supersedesByNode, "", true))
+    .join("\n\n");
+}
+
+function filterLineageRootsByQuery(
+  roots: string[],
+  lineageNodes: Map<string, StoredMemoryRecord>,
+  matchedPath: string,
+): string[] {
+  return roots.filter((rootPath) => lineageContains(rootPath, matchedPath, supersedesByNodeFromRecords(lineageNodes)));
+}
+
+function supersedesByNodeFromRecords(
+  lineageNodes: Map<string, StoredMemoryRecord>,
+): Map<string, string | null> {
+  const result = new Map<string, string | null>();
+  for (const [pathKey, record] of lineageNodes.entries()) {
+    result.set(pathKey, record.memory.supersedes ?? null);
+  }
+  return result;
+}
+
+function lineageContains(
+  currentPath: string,
+  targetPath: string,
+  supersedesByNode: Map<string, string | null>,
+): boolean {
+  let cursor: string | null = currentPath;
+
+  while (cursor) {
+    if (cursor === targetPath) {
+      return true;
+    }
+
+    cursor = supersedesByNode.get(cursor) ?? null;
+  }
+
+  return false;
+}
+
+function detectLineageCycles(
+  lineageNodes: Map<string, StoredMemoryRecord>,
+  supersedesByNode: Map<string, string | null>,
+): void {
+  const visiting = new Set<string>();
+  const visited = new Set<string>();
+
+  const visit = (pathKey: string): void => {
+    if (visited.has(pathKey)) {
+      return;
+    }
+
+    if (visiting.has(pathKey)) {
+      throw new Error(`Memory lineage contains a cycle involving "${pathKey}".`);
+    }
+
+    visiting.add(pathKey);
+    const next = supersedesByNode.get(pathKey) ?? null;
+    if (next && lineageNodes.has(next)) {
+      visit(next);
+    }
+    visiting.delete(pathKey);
+    visited.add(pathKey);
+  };
+
+  for (const pathKey of lineageNodes.keys()) {
+    visit(pathKey);
+  }
+}
+
+function renderLineageNode(
+  pathKey: string,
+  lineageNodes: Map<string, StoredMemoryRecord>,
+  supersedesByNode: Map<string, string | null>,
+  prefix: string,
+  isRoot: boolean,
+): string {
+  const record = lineageNodes.get(pathKey);
+  if (!record) {
+    throw new Error(`Missing lineage node "${pathKey}".`);
+  }
+
+  const currentLine = `${prefix}${isRoot ? "" : "└── supersedes: "}${formatLineageRecord(record)}`;
+  const parentPath = supersedesByNode.get(pathKey) ?? null;
+
+  if (!parentPath) {
+    return currentLine;
+  }
+
+  return `${currentLine}\n${renderLineageNode(parentPath, lineageNodes, supersedesByNode, `${prefix}${isRoot ? "" : "    "}`, false)}`;
+}
+
+function formatLineageRecord(record: StoredMemoryRecord): string {
+  const version = record.memory.version ?? 1;
+  const status = record.memory.stale || record.memory.superseded_by ? "✗ 已过期" : "✓ 有效";
+  return `[${record.memory.type}] ${toUndatedBrainRelativePath(record.relativePath)}  v${version} · score:${record.memory.score} · ${status}`;
+}
+
+function compareLineageRecords(
+  left: StoredMemoryRecord | undefined,
+  right: StoredMemoryRecord | undefined,
+): number {
+  if (!left && !right) {
+    return 0;
+  }
+
+  if (!left) {
+    return 1;
+  }
+
+  if (!right) {
+    return -1;
+  }
+
+  return right.memory.date.localeCompare(left.memory.date);
 }
 
 function getCandidateRecords(records: StoredMemoryRecord[]): StoredMemoryRecord[] {

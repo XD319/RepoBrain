@@ -547,6 +547,8 @@ brain review
 brain approve <memory-id>
 brain dismiss <memory-id>
 brain supersede <new-memory-file> <old-memory-file>
+brain lineage
+brain lineage <file>
 brain audit-memory
 brain reinforce < session-summary.txt
 brain suggest-skills --task "debug flaky browser tests" --path tests/e2e/login.spec.ts
@@ -568,6 +570,7 @@ brain mcp
 - `brain approve`：将单条 candidate memory，或全部 candidates，提升为 active
 - `brain dismiss`：将单条 candidate memory，或全部 candidates，标记为 stale
 - `brain supersede`：手动把新 memory 和旧 memory 建立取代关系，更新 `supersedes` / `superseded_by`，把新 memory 的 `version` 设为 `旧 version + 1`，并把旧 memory 标记为 stale
+- `brain lineage`：以 ASCII 树形式打印所有有血缘关系的 memory，或只打印包含指定 memory 文件的那条血缘链
 - `brain score`：按严重度排序检查低质量或过旧的 memories，并支持交互式或批量标记 stale、删除、跳过或导出 JSON
 - `brain audit-memory`：审计 `.brain/` 中疑似 stale、conflict、low-signal 或 overscoped 的条目
 - `brain reinforce`：从 `stdin` 手动执行失败分析和记忆强化；自动化或 CI 场景可加 `--yes` 跳过确认

@@ -360,6 +360,268 @@ await runTest("brain supersede can overwrite an existing relationship with --yes
   });
 });
 
+await runTest("brain lineage prints all latest roots and their superseded chains", async () => {
+  await withTempRepo(async (projectRoot) => {
+    await saveMemory(
+      {
+        type: "decision",
+        title: "Use tsc",
+        summary: "Old build guidance.",
+        detail: "## DECISION\n\nUse tsc.",
+        tags: ["build"],
+        importance: "medium",
+        date: "2026-04-01T08:00:00.000Z",
+        status: "active",
+        version: 1,
+        score: 45,
+        stale: true,
+        superseded_by: "decisions/2026-04-01-use-tsup-090000000.md",
+      },
+      projectRoot,
+    );
+
+    await saveMemory(
+      {
+        type: "decision",
+        title: "Use tsup",
+        summary: "New build guidance.",
+        detail: "## DECISION\n\nUse tsup.",
+        tags: ["build"],
+        importance: "high",
+        date: "2026-04-01T09:00:00.000Z",
+        status: "active",
+        version: 2,
+        score: 90,
+        supersedes: "decisions/2026-04-01-use-tsc-080000000.md",
+      },
+      projectRoot,
+    );
+
+    await saveMemory(
+      {
+        type: "gotcha",
+        title: "dist generated",
+        summary: "Oldest dist warning.",
+        detail: "## GOTCHA\n\nDist is generated.",
+        tags: ["dist"],
+        importance: "low",
+        date: "2026-04-01T07:00:00.000Z",
+        status: "active",
+        version: 1,
+        score: 30,
+        stale: true,
+        superseded_by: "gotchas/2026-04-01-check-dist-080000000.md",
+      },
+      projectRoot,
+    );
+
+    await saveMemory(
+      {
+        type: "gotcha",
+        title: "check dist",
+        summary: "Middle dist warning.",
+        detail: "## GOTCHA\n\nCheck dist before editing.",
+        tags: ["dist"],
+        importance: "medium",
+        date: "2026-04-01T08:00:00.000Z",
+        status: "active",
+        version: 2,
+        score: 70,
+        stale: true,
+        supersedes: "gotchas/2026-04-01-dist-generated-070000000.md",
+        superseded_by: "gotchas/2026-04-01-no-direct-dist-edit-090000000.md",
+      },
+      projectRoot,
+    );
+
+    await saveMemory(
+      {
+        type: "gotcha",
+        title: "no direct dist edit",
+        summary: "Latest dist warning.",
+        detail: "## GOTCHA\n\nDo not edit dist directly.",
+        tags: ["dist"],
+        importance: "high",
+        date: "2026-04-01T09:00:00.000Z",
+        status: "active",
+        version: 3,
+        score: 95,
+        supersedes: "gotchas/2026-04-01-check-dist-080000000.md",
+      },
+      projectRoot,
+    );
+
+    await saveMemory(
+      {
+        type: "pattern",
+        title: "Standalone pattern",
+        summary: "No lineage.",
+        detail: "## PATTERN\n\nStandalone.",
+        tags: ["solo"],
+        importance: "low",
+        date: "2026-04-01T10:00:00.000Z",
+        status: "active",
+      },
+      projectRoot,
+    );
+
+    const result = await runNodeProcess(
+      [path.join(repoRoot, "dist", "cli.js"), "lineage"],
+      projectRoot,
+    );
+
+    assert.equal(result.code, 0);
+    assert.match(result.stdout, /\[decision\] decisions\/use-tsup\.md  v2 · score:90 · ✓ 有效/);
+    assert.match(result.stdout, /└── supersedes: \[decision\] decisions\/use-tsc\.md  v1 · score:45 · ✗ 已过期/);
+    assert.match(result.stdout, /\[gotcha\] gotchas\/no-direct-dist-edit\.md  v3 · score:95 · ✓ 有效/);
+    assert.match(result.stdout, /└── supersedes: \[gotcha\] gotchas\/check-dist\.md  v2 · score:70 · ✗ 已过期/);
+    assert.match(result.stdout, /└── supersedes: \[gotcha\] gotchas\/dist-generated\.md  v1 · score:30 · ✗ 已过期/);
+    assert.doesNotMatch(result.stdout, /Standalone pattern/);
+  });
+});
+
+await runTest("brain lineage shows the full chain for a specified memory file", async () => {
+  await withTempRepo(async (projectRoot) => {
+    await saveMemory(
+      {
+        type: "gotcha",
+        title: "dist generated",
+        summary: "Oldest dist warning.",
+        detail: "## GOTCHA\n\nDist is generated.",
+        tags: ["dist"],
+        importance: "low",
+        date: "2026-04-01T07:00:00.000Z",
+        status: "active",
+        version: 1,
+        score: 30,
+        stale: true,
+        superseded_by: "gotchas/2026-04-01-check-dist-080000000.md",
+      },
+      projectRoot,
+    );
+
+    await saveMemory(
+      {
+        type: "gotcha",
+        title: "check dist",
+        summary: "Middle dist warning.",
+        detail: "## GOTCHA\n\nCheck dist before editing.",
+        tags: ["dist"],
+        importance: "medium",
+        date: "2026-04-01T08:00:00.000Z",
+        status: "active",
+        version: 2,
+        score: 70,
+        stale: true,
+        supersedes: "gotchas/2026-04-01-dist-generated-070000000.md",
+        superseded_by: "gotchas/2026-04-01-no-direct-dist-edit-090000000.md",
+      },
+      projectRoot,
+    );
+
+    await saveMemory(
+      {
+        type: "gotcha",
+        title: "no direct dist edit",
+        summary: "Latest dist warning.",
+        detail: "## GOTCHA\n\nDo not edit dist directly.",
+        tags: ["dist"],
+        importance: "high",
+        date: "2026-04-01T09:00:00.000Z",
+        status: "active",
+        version: 3,
+        score: 95,
+        supersedes: "gotchas/2026-04-01-check-dist-080000000.md",
+      },
+      projectRoot,
+    );
+
+    const result = await runNodeProcess(
+      [path.join(repoRoot, "dist", "cli.js"), "lineage", "gotchas/check-dist.md"],
+      projectRoot,
+    );
+
+    assert.equal(result.code, 0);
+    assert.match(result.stdout, /\[gotcha\] gotchas\/no-direct-dist-edit\.md  v3 · score:95 · ✓ 有效/);
+    assert.match(result.stdout, /└── supersedes: \[gotcha\] gotchas\/check-dist\.md  v2 · score:70 · ✗ 已过期/);
+    assert.match(result.stdout, /└── supersedes: \[gotcha\] gotchas\/dist-generated\.md  v1 · score:30 · ✗ 已过期/);
+  });
+});
+
+await runTest("brain lineage reports when a specified memory has no lineage relationships", async () => {
+  await withTempRepo(async (projectRoot) => {
+    await saveMemory(
+      {
+        type: "pattern",
+        title: "Standalone pattern",
+        summary: "No lineage.",
+        detail: "## PATTERN\n\nStandalone.",
+        tags: ["solo"],
+        importance: "low",
+        date: "2026-04-01T10:00:00.000Z",
+        status: "active",
+      },
+      projectRoot,
+    );
+
+    const result = await runNodeProcess(
+      [path.join(repoRoot, "dist", "cli.js"), "lineage", "patterns/standalone-pattern.md"],
+      projectRoot,
+    );
+
+    assert.equal(result.code, 0);
+    assert.match(result.stdout, /Memory "patterns\/2026-04-01-standalone-pattern-100000000\.md" has no lineage relationships\./);
+  });
+});
+
+await runTest("brain lineage detects cycles and exits with an error", async () => {
+  await withTempRepo(async (projectRoot) => {
+    await saveMemory(
+      {
+        type: "decision",
+        title: "A",
+        summary: "A.",
+        detail: "## DECISION\n\nA.",
+        tags: ["cycle"],
+        importance: "medium",
+        date: "2026-04-01T08:00:00.000Z",
+        status: "active",
+        version: 1,
+        score: 50,
+        supersedes: "decisions/2026-04-01-b-090000000.md",
+        superseded_by: "decisions/2026-04-01-b-090000000.md",
+      },
+      projectRoot,
+    );
+
+    await saveMemory(
+      {
+        type: "decision",
+        title: "B",
+        summary: "B.",
+        detail: "## DECISION\n\nB.",
+        tags: ["cycle"],
+        importance: "medium",
+        date: "2026-04-01T09:00:00.000Z",
+        status: "active",
+        version: 2,
+        score: 60,
+        supersedes: "decisions/2026-04-01-a-080000000.md",
+        superseded_by: "decisions/2026-04-01-a-080000000.md",
+      },
+      projectRoot,
+    );
+
+    const result = await runNodeProcess(
+      [path.join(repoRoot, "dist", "cli.js"), "lineage"],
+      projectRoot,
+    );
+
+    assert.equal(result.code, 1);
+    assert.match(result.stderr, /Memory lineage contains a cycle involving/);
+  });
+});
+
 await runTest("invalid invocation_mode in stored memory fails with a clear parse error", async () => {
   await withTempRepo(async (projectRoot) => {
     const invalidPath = path.join(projectRoot, ".brain", "decisions", "2026-04-01-invalid-mode.md");
