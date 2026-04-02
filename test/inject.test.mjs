@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { spawn } from "node:child_process";
 import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -211,6 +212,98 @@ await runTest("inject skips stale memories, reports them, and updates usage meta
   });
 });
 
+await runTest("inject filters superseded lineage entries and prefixes newer versions", async () => {
+  await withTempRepo(async (projectRoot) => {
+    const oldDate = "2026-04-01T08:00:00.000Z";
+    const newDate = "2026-04-01T09:00:00.000Z";
+    const newRelativePath = buildExpectedBrainRelativePath("decision", "Use the new deploy gate", newDate);
+
+    await saveMemory(
+      {
+        type: "decision",
+        title: "Use the old deploy gate",
+        summary: "Legacy guidance that should be hidden once replaced.",
+        detail: "## DECISION\n\nThe old deploy gate is kept only for history.",
+        tags: ["deploy"],
+        importance: "medium",
+        date: oldDate,
+        status: "active",
+        superseded_by: newRelativePath,
+      },
+      projectRoot,
+    );
+
+    const oldRelativePath = buildExpectedBrainRelativePath("decision", "Use the old deploy gate", oldDate);
+
+    await saveMemory(
+      {
+        type: "decision",
+        title: "Use the new deploy gate",
+        summary: "Current guidance that replaces the old gate.",
+        detail: "## DECISION\n\nOnly the new deploy gate should be injected.",
+        tags: ["deploy"],
+        importance: "high",
+        date: newDate,
+        status: "active",
+        supersedes: oldRelativePath,
+        version: 2,
+      },
+      projectRoot,
+    );
+
+    const injection = await buildInjection(projectRoot, DEFAULT_BRAIN_CONFIG);
+    assert.match(injection, /\[更新 v2\] Use the new deploy gate/);
+    assert.match(injection, /Only the new deploy gate should be injected/);
+    assert.doesNotMatch(injection, /Use the old deploy gate/);
+    assert.match(injection, /\[RepoBrain\].*1\/1/);
+  });
+});
+
+await runTest("inject warns when supersedes lineage is not fully linked back", async () => {
+  await withTempRepo(async (projectRoot) => {
+    const oldDate = "2026-04-01T08:00:00.000Z";
+    const oldRelativePath = buildExpectedBrainRelativePath("decision", "Old cache guidance", oldDate);
+
+    await saveMemory(
+      {
+        type: "decision",
+        title: "Old cache guidance",
+        summary: "Older guidance still missing the backlink.",
+        detail: "## DECISION\n\nOld cache guidance.",
+        tags: ["cache"],
+        importance: "medium",
+        date: oldDate,
+        status: "active",
+      },
+      projectRoot,
+    );
+
+    await saveMemory(
+      {
+        type: "decision",
+        title: "New cache guidance",
+        summary: "Newer guidance points back to the old file.",
+        detail: "## DECISION\n\nNew cache guidance.",
+        tags: ["cache"],
+        importance: "high",
+        date: "2026-04-01T09:00:00.000Z",
+        status: "active",
+        supersedes: oldRelativePath,
+        version: 2,
+      },
+      projectRoot,
+    );
+
+    const result = await runNodeProcess([path.join(process.cwd(), "dist", "cli.js"), "inject"], projectRoot);
+    assert.equal(result.code, 0);
+    assert.match(
+      result.stderr,
+      /⚠ \[brain\] 血缘不一致: decisions\/2026-04-01-old-cache-guidance-080000000\.md 应设置 superseded_by: decisions\//,
+    );
+    assert.match(result.stdout, /\[更新 v2\] New cache guidance/);
+  });
+});
+
 console.log("All inject tests passed.");
 
 async function withTempRepo(callback) {
@@ -232,4 +325,63 @@ async function runTest(name, callback) {
     console.error(`not ok - ${name}`);
     throw error;
   }
+}
+
+async function runNodeProcess(args, cwd, stdinText = "") {
+  return new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, args, {
+      cwd,
+      stdio: ["pipe", "pipe", "pipe"],
+      env: process.env,
+    });
+
+    let stdout = "";
+    let stderr = "";
+
+    child.stdout.on("data", (chunk) => {
+      stdout += chunk.toString("utf8");
+    });
+
+    child.stderr.on("data", (chunk) => {
+      stderr += chunk.toString("utf8");
+    });
+
+    child.on("error", reject);
+    child.on("close", (code) => {
+      resolve({
+        code,
+        stdout,
+        stderr,
+      });
+    });
+
+    child.stdin.end(stdinText);
+  });
+}
+
+function buildExpectedBrainRelativePath(type, title, date) {
+  return `${directoryByType(type)}/${date.slice(0, 10)}-${slugifyTitle(title)}-${date.replace(/[^\d]/g, "").slice(8, 17)}.md`;
+}
+
+function directoryByType(type) {
+  switch (type) {
+    case "decision":
+      return "decisions";
+    case "gotcha":
+      return "gotchas";
+    case "convention":
+      return "conventions";
+    case "pattern":
+      return "patterns";
+    default:
+      throw new Error(`Unsupported memory type: ${type}`);
+  }
+}
+
+function slugifyTitle(title) {
+  return title
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9\u4e00-\u9fa5]+/g, "-")
+    .replace(/^-+|-+$/g, "");
 }

@@ -362,6 +362,10 @@ The important frontmatter fields are:
 - `last_used`: ISO timestamp for the latest injection, defaults to `null`
 - `created_at`: ISO timestamp for when the memory was first created, defaults to the memory `date`
 - `stale`: whether the memory has been marked stale in metadata, defaults to `false`
+- `supersedes`: optional `.brain/`-relative file path for the older memory this entry replaces, defaults to `null`
+- `superseded_by`: optional `.brain/`-relative file path for the newer memory that replaces this entry, defaults to `null`
+- `version`: version number for the same decision lineage, defaults to `1`
+- `related`: optional `.brain/`-relative file path list for related memories that do not replace this one, defaults to `[]`
 - `origin`: optional origin marker for special write paths such as failure reinforcement
 
 ### Skill Routing Fields
@@ -377,7 +381,7 @@ If you want a memory to help downstream agent or skill routing, add these option
 - `invocation_mode`: one of `required`, `prefer`, `optional`, or `suppress`
 - `risk_level`: one of `high`, `medium`, or `low`
 
-When these fields are omitted, RepoBrain keeps old entries compatible by defaulting each list to `[]`, `invocation_mode` to `optional`, `risk_level` to `low`, `score` to `60`, `hit_count` to `0`, `last_used` to `null`, `created_at` to the memory `date`, `stale` to `false`, and `origin` to unset.
+When these fields are omitted, RepoBrain keeps old entries compatible by defaulting each list to `[]`, `invocation_mode` to `optional`, `risk_level` to `low`, `score` to `60`, `hit_count` to `0`, `last_used` to `null`, `created_at` to the memory `date`, `stale` to `false`, `supersedes` to `null`, `superseded_by` to `null`, `version` to `1`, `related` to `[]`, and `origin` to unset.
 
 Minimal example:
 
@@ -437,7 +441,7 @@ Use `brain inject` when the agent needs a compact, durable repo context block be
 - `brain inject`: best for session start, implementation planning, risky edits, and avoiding old repo-specific mistakes
 - `brain suggest-skills`: best for deciding which skill or workflow should own the task once you already know the target work
 
-`brain inject` now sorts active memories by computed injection priority, skips memories whose frontmatter sets `stale: true`, and atomically writes back a higher `hit_count` plus a fresh `last_used` date for injected memories. When you provide task signals, RepoBrain still shows short rationale hints based on:
+`brain inject` now sorts active memories by computed injection priority, skips memories whose frontmatter sets `stale: true` or `superseded_by` to a newer `.brain/` file, prefixes versioned entries with `[更新 vN]` when `version >= 2`, warns on broken supersede back-links during inject, and atomically writes back a higher `hit_count` plus a fresh `last_used` date for injected memories. When you provide task signals, RepoBrain still shows short rationale hints based on:
 
 - task phrase matches from `skill_trigger_tasks`
 - path matches from `path_scope` and `skill_trigger_paths`
@@ -484,6 +488,32 @@ _None._
 ## Reusable patterns
 _None._
 ```
+
+Lineage example:
+
+```md
+---
+type: "decision"
+title: "Use the old deploy gate"
+summary: "Legacy guidance kept only for history."
+importance: "medium"
+date: "2026-04-01T08:00:00.000Z"
+superseded_by: "decisions/2026-04-01-use-the-new-deploy-gate-090000000.md"
+version: 1
+---
+
+---
+type: "decision"
+title: "Use the new deploy gate"
+summary: "Current guidance."
+importance: "high"
+date: "2026-04-01T09:00:00.000Z"
+supersedes: "decisions/2026-04-01-use-the-old-deploy-gate-080000000.md"
+version: 2
+---
+```
+
+With that pair, `brain inject` only renders the newer memory, and the title line is prefixed as `[更新 v2] Use the new deploy gate`.
 
 Paste that output at the start of a new Claude Code or Codex session, or wire it into your local session-start workflow. The goal is simple: the next agent run should see this repo-specific lesson before it suggests another duplicate lint configuration.
 
@@ -597,7 +627,8 @@ RepoBrain keeps lifecycle rules intentionally small for the current MVP:
 - `brain approve` promotes a candidate to `active`
 - `brain dismiss` marks a candidate as `stale`
 - If a newly activated memory has the same type, normalized title, and normalized scope as an existing active memory, the older one is automatically marked `superseded`
-- `brain inject` only loads `active` memories into the generated context block, so `superseded` entries never become the baseline for normal matching or injection again
+- `brain inject` only loads `active` memories into the generated context block, then additionally filters out entries with `stale: true` or a non-null `superseded_by`, so superseded lineage entries never become the baseline for normal matching or injection again
+- if a memory sets `supersedes`, inject checks whether the older file points back with `superseded_by`; if not, RepoBrain prints a warning to stderr so the lineage can be repaired without breaking compatibility
 - external review input is optional and advisory only; Core validates the structure, ignores malformed input, and keeps the local final decision
 - the session-end hook can also reinforce failures: it detects violated memories or repeated mistakes, boosts or rewrites the affected memory, and can save a new `gotcha` with `origin: failure`
 

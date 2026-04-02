@@ -37,6 +37,7 @@ const DIRECTORY_BY_TYPE: Record<MemoryType, string> = {
 
 const ARRAY_FRONTMATTER_FIELDS = [
   "tags",
+  "related",
   "path_scope",
   "recommended_skills",
   "required_skills",
@@ -53,6 +54,9 @@ const DEFAULT_MEMORY_SCORE = 60;
 const DEFAULT_MEMORY_HIT_COUNT = 0;
 const DEFAULT_MEMORY_LAST_USED: string | null = null;
 const DEFAULT_MEMORY_STALE = false;
+const DEFAULT_MEMORY_SUPERSEDES: string | null = null;
+const DEFAULT_MEMORY_SUPERSEDED_BY: string | null = null;
+const DEFAULT_MEMORY_VERSION = 1;
 
 export async function initBrain(projectRoot: string): Promise<void> {
   const brainDir = getBrainDir(projectRoot);
@@ -394,6 +398,10 @@ function validateMemory(memory: Memory, context = "Memory"): void {
   }
 
   validateStringArray(memory.tags, "tags", context);
+  validateNullableRelativeBrainPath(memory.supersedes ?? DEFAULT_MEMORY_SUPERSEDES, "supersedes", context);
+  validateNullableRelativeBrainPath(memory.superseded_by ?? DEFAULT_MEMORY_SUPERSEDED_BY, "superseded_by", context);
+  validateVersion(memory.version ?? DEFAULT_MEMORY_VERSION, context);
+  validateStringArray(memory.related ?? [], "related", context);
   validateStringArray(memory.path_scope ?? [], "path_scope", context);
   validateStringArray(memory.recommended_skills ?? [], "recommended_skills", context);
   validateStringArray(memory.required_skills ?? [], "required_skills", context);
@@ -417,6 +425,9 @@ function serializeMemory(memory: Memory): string {
     `last_used: ${quoteYamlNullable(normalizedMemory.last_used)}`,
     `created_at: ${quoteYaml(normalizedMemory.created_at)}`,
     `stale: ${normalizedMemory.stale ? "true" : "false"}`,
+    `supersedes: ${quoteYamlNullable(normalizedMemory.supersedes ?? DEFAULT_MEMORY_SUPERSEDES)}`,
+    `superseded_by: ${quoteYamlNullable(normalizedMemory.superseded_by ?? DEFAULT_MEMORY_SUPERSEDED_BY)}`,
+    `version: ${normalizedMemory.version ?? DEFAULT_MEMORY_VERSION}`,
     `date: ${quoteYaml(normalizedMemory.date)}`,
   ];
 
@@ -432,6 +443,7 @@ function serializeMemory(memory: Memory): string {
     frontmatterLines.push(`origin: ${quoteYaml(normalizedMemory.origin)}`);
   }
 
+  appendArrayField(frontmatterLines, "related", normalizedMemory.related ?? []);
   appendArrayField(frontmatterLines, "path_scope", normalizedMemory.path_scope ?? []);
   appendArrayField(frontmatterLines, "recommended_skills", normalizedMemory.recommended_skills ?? []);
   appendArrayField(frontmatterLines, "required_skills", normalizedMemory.required_skills ?? []);
@@ -483,6 +495,10 @@ function parseMemory(content: string, filePath: string): Memory {
     last_used: frontmatter.last_used ?? DEFAULT_MEMORY_LAST_USED,
     created_at: frontmatter.created_at ?? frontmatter.date,
     stale: (frontmatter.stale ?? DEFAULT_MEMORY_STALE) as Memory["stale"],
+    supersedes: frontmatter.supersedes ?? DEFAULT_MEMORY_SUPERSEDES,
+    superseded_by: frontmatter.superseded_by ?? DEFAULT_MEMORY_SUPERSEDED_BY,
+    version: frontmatter.version ?? DEFAULT_MEMORY_VERSION,
+    related: frontmatter.related,
     path_scope: frontmatter.path_scope,
     recommended_skills: frontmatter.recommended_skills,
     required_skills: frontmatter.required_skills,
@@ -522,6 +538,7 @@ function parseFrontmatter(raw: string): {
   title?: string;
   summary?: string;
   tags: string[];
+  related: string[];
   path_scope: string[];
   recommended_skills: string[];
   required_skills: string[];
@@ -535,6 +552,9 @@ function parseFrontmatter(raw: string): {
   last_used?: string | null;
   created_at?: string;
   stale?: boolean | string;
+  supersedes?: string | null;
+  superseded_by?: string | null;
+  version?: number;
   source?: string;
   status?: string;
   origin?: string;
@@ -546,6 +566,7 @@ function parseFrontmatter(raw: string): {
     title?: string;
     summary?: string;
     tags: string[];
+    related: string[];
     path_scope: string[];
     recommended_skills: string[];
     required_skills: string[];
@@ -559,6 +580,9 @@ function parseFrontmatter(raw: string): {
     last_used?: string | null;
     created_at?: string;
     stale?: boolean | string;
+    supersedes?: string | null;
+    superseded_by?: string | null;
+    version?: number;
     source?: string;
     status?: string;
     origin?: string;
@@ -566,6 +590,7 @@ function parseFrontmatter(raw: string): {
     risk_level?: string;
   } = {
     tags: [],
+    related: [],
     path_scope: [],
     recommended_skills: [],
     required_skills: [],
@@ -618,11 +643,27 @@ function parseFrontmatter(raw: string): {
         }
         break;
       }
+      case "version": {
+        const parsed = parseYamlNumber(value);
+        if (parsed !== undefined) {
+          result.version = parsed;
+        }
+        break;
+      }
       case "last_used":
       {
         const parsed = parseYamlNullableString(value);
         if (parsed !== undefined) {
           result.last_used = parsed;
+        }
+        break;
+      }
+      case "supersedes":
+      case "superseded_by":
+      {
+        const parsed = parseYamlNullableString(value);
+        if (parsed !== undefined) {
+          result[key] = parsed;
         }
         break;
       }
@@ -707,6 +748,7 @@ function normalizeMemory(memory: Memory): Memory {
   return {
     ...memory,
     tags: normalizeStringArray(memory.tags),
+    related: normalizeStringArray(memory.related ?? []),
     path_scope: normalizeStringArray(memory.path_scope ?? []),
     recommended_skills: normalizeStringArray(memory.recommended_skills ?? []),
     required_skills: normalizeStringArray(memory.required_skills ?? []),
@@ -718,6 +760,11 @@ function normalizeMemory(memory: Memory): Memory {
     last_used: memory.last_used ?? DEFAULT_MEMORY_LAST_USED,
     created_at: memory.created_at ?? memory.date,
     stale: memory.stale ?? DEFAULT_MEMORY_STALE,
+    supersedes: normalizeNullableBrainRelativePath(memory.supersedes ?? DEFAULT_MEMORY_SUPERSEDES),
+    superseded_by: normalizeNullableBrainRelativePath(
+      memory.superseded_by ?? DEFAULT_MEMORY_SUPERSEDED_BY,
+    ),
+    version: memory.version ?? DEFAULT_MEMORY_VERSION,
     invocation_mode: memory.invocation_mode ?? DEFAULT_INVOCATION_MODE,
     risk_level: memory.risk_level ?? DEFAULT_RISK_LEVEL,
   };
@@ -731,6 +778,54 @@ function validateStringArray(values: unknown, fieldName: string, context: string
   if (!Array.isArray(values) || values.some((value) => typeof value !== "string" || !value.trim())) {
     throw new Error(`${context} field "${fieldName}" must be an array of non-empty strings.`);
   }
+}
+
+function validateNullableRelativeBrainPath(
+  value: string | null,
+  fieldName: "supersedes" | "superseded_by",
+  context: string,
+): void {
+  if (value === null) {
+    return;
+  }
+
+  const trimmed = typeof value === "string" ? value.trim() : "";
+  if (!trimmed) {
+    throw new Error(`${context} field "${fieldName}" must be a non-empty relative .brain path or null.`);
+  }
+
+  const normalized = normalizeBrainRelativePath(trimmed);
+  if (
+    !normalized ||
+    trimmed.startsWith("/") ||
+    normalized.startsWith("../") ||
+    /^[A-Za-z]:/.test(trimmed)
+  ) {
+    throw new Error(`${context} field "${fieldName}" must stay relative to .brain/.`);
+  }
+}
+
+function validateVersion(value: number, context: string): void {
+  if (!Number.isInteger(value) || value < 1) {
+    throw new Error(`${context} has invalid version "${value}". Expected an integer >= 1.`);
+  }
+}
+
+function normalizeNullableBrainRelativePath(value: string | null): string | null {
+  if (value === null) {
+    return null;
+  }
+
+  const normalized = normalizeBrainRelativePath(value);
+  return normalized || null;
+}
+
+function normalizeBrainRelativePath(value: string): string {
+  return value
+    .replace(/\\/g, "/")
+    .trim()
+    .replace(/^\.brain\//, "")
+    .replace(/^\/+/, "");
 }
 
 function appendArrayField(

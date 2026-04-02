@@ -56,6 +56,10 @@ await runTest("legacy .brain entries load with safe skill routing defaults", asy
     assert.equal(memory.last_used, null);
     assert.equal(memory.created_at, "2026-03-31T08:00:00.000Z");
     assert.equal(memory.stale, false);
+    assert.equal(memory.supersedes, null);
+    assert.equal(memory.superseded_by, null);
+    assert.equal(memory.version, 1);
+    assert.deepEqual(memory.related, []);
     assert.equal(memory.invocation_mode, "optional");
     assert.equal(memory.risk_level, "low");
     assert.equal(memory.origin, undefined);
@@ -89,6 +93,10 @@ await runTest("new skill routing fields round-trip through save and load", async
       last_used: "2026-04-01T18:30:00.000Z",
       created_at: "2026-04-01T10:00:00.000Z",
       stale: true,
+      supersedes: "decisions/2026-03-30-old-browser-guidance.md",
+      superseded_by: null,
+      version: 2,
+      related: ["patterns/2026-04-01-browser-pattern.md"],
       invocation_mode: "prefer",
       risk_level: "medium",
       origin: "failure",
@@ -108,6 +116,10 @@ await runTest("new skill routing fields round-trip through save and load", async
     assert.match(raw, /last_used: "2026-04-01T18:30:00.000Z"/);
     assert.match(raw, /created_at: "2026-04-01T10:00:00.000Z"/);
     assert.match(raw, /stale: true/);
+    assert.match(raw, /supersedes: "decisions\/2026-03-30-old-browser-guidance.md"/);
+    assert.match(raw, /superseded_by: null/);
+    assert.match(raw, /version: 2/);
+    assert.match(raw, /related:/);
     assert.match(raw, /invocation_mode: "prefer"/);
     assert.match(raw, /risk_level: "medium"/);
     assert.match(raw, /origin: "failure"/);
@@ -128,6 +140,10 @@ await runTest("new skill routing fields round-trip through save and load", async
     assert.equal(stored.last_used, "2026-04-01T18:30:00.000Z");
     assert.equal(stored.created_at, "2026-04-01T10:00:00.000Z");
     assert.equal(stored.stale, true);
+    assert.equal(stored.supersedes, "decisions/2026-03-30-old-browser-guidance.md");
+    assert.equal(stored.superseded_by, null);
+    assert.equal(stored.version, 2);
+    assert.deepEqual(stored.related, ["patterns/2026-04-01-browser-pattern.md"]);
     assert.equal(stored.invocation_mode, "prefer");
     assert.equal(stored.risk_level, "medium");
     assert.equal(stored.origin, "failure");

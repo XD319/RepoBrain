@@ -345,6 +345,10 @@ When TypeScript is already enforcing unused locals, enabling both rules creates 
 - `last_used`：最后一次被注入的 ISO 时间戳，默认 `null`
 - `created_at`：这条 memory 首次创建时的 ISO 时间戳，默认沿用 `date`
 - `stale`：这条 memory 的元数据是否已标记为过期，默认 `false`
+- `supersedes`：可选，表示这条 memory 取代了哪条旧 memory，值为相对于 `.brain/` 的文件路径，默认 `null`
+- `superseded_by`：可选，表示这条 memory 被哪条新 memory 取代，值为相对于 `.brain/` 的文件路径，默认 `null`
+- `version`：同一决策血缘中的版本号，默认 `1`
+- `related`：可选，相关但不互相取代的 memory 文件路径列表，路径相对于 `.brain/`，默认 `[]`
 - `origin`：可选来源标记，用于 failure reinforcement 这类特殊写入路径
 
 ### Skill Routing 字段
@@ -360,7 +364,7 @@ When TypeScript is already enforcing unused locals, enabling both rules creates 
 - `invocation_mode`：只能是 `required`、`prefer`、`optional` 或 `suppress`
 - `risk_level`：只能是 `high`、`medium` 或 `low`
 
-如果这些字段缺省，RepoBrain 会保持旧条目兼容：所有列表字段默认是 `[]`，`invocation_mode` 默认是 `optional`，`risk_level` 默认是 `low`，`score` 默认是 `60`，`hit_count` 默认是 `0`，`last_used` 默认是 `null`，`created_at` 默认沿用 memory 的 `date`，`stale` 默认是 `false`，`origin` 默认不设置。
+如果这些字段缺省，RepoBrain 会保持旧条目兼容：所有列表字段默认是 `[]`，`invocation_mode` 默认是 `optional`，`risk_level` 默认是 `low`，`score` 默认是 `60`，`hit_count` 默认是 `0`，`last_used` 默认是 `null`，`created_at` 默认沿用 memory 的 `date`，`stale` 默认是 `false`，`supersedes` 默认是 `null`，`superseded_by` 默认是 `null`，`version` 默认是 `1`，`related` 默认是 `[]`，`origin` 默认不设置。
 
 最小示例：
 
@@ -420,7 +424,7 @@ cat task.txt | brain suggest-skills --path src/cli.ts --path test/store.test.mjs
 - `brain inject`：更适合 session 开始前、方案实现前、风险较高的改动前，用来先看 repo 级上下文和历史约束
 - `brain suggest-skills`：更适合任务已经明确之后，决定该交给哪个 skill 或执行流来处理
 
-`brain inject` 现在会按综合注入优先级对 `active` memories 排序，跳过 frontmatter 中 `stale: true` 的条目，并在成功注入后以原子方式回写更高的 `hit_count` 和最新的 `last_used` 日期。如果你传入任务信号，RepoBrain 仍会给出简短的命中原因，主要包括：
+`brain inject` 现在会按综合注入优先级对 `active` memories 排序，跳过 frontmatter 中 `stale: true` 或 `superseded_by` 非空的条目；当 `version >= 2` 时，会在标题前加上 `[更新 vN]` 前缀；如果 `supersedes` 指向的旧文件没有正确回填 `superseded_by`，inject 还会在终端输出警告。成功注入后，RepoBrain 仍会以原子方式回写更高的 `hit_count` 和最新的 `last_used` 日期。如果你传入任务信号，RepoBrain 仍会给出简短的命中原因，主要包括：
 
 - `skill_trigger_tasks` 的任务短语命中
 - `path_scope` 和 `skill_trigger_paths` 的路径命中
@@ -467,6 +471,32 @@ _None._
 ## Reusable patterns
 _None._
 ```
+
+血缘示例：
+
+```md
+---
+type: "decision"
+title: "Use the old deploy gate"
+summary: "Legacy guidance kept only for history."
+importance: "medium"
+date: "2026-04-01T08:00:00.000Z"
+superseded_by: "decisions/2026-04-01-use-the-new-deploy-gate-090000000.md"
+version: 1
+---
+
+---
+type: "decision"
+title: "Use the new deploy gate"
+summary: "Current guidance."
+importance: "high"
+date: "2026-04-01T09:00:00.000Z"
+supersedes: "decisions/2026-04-01-use-the-old-deploy-gate-080000000.md"
+version: 2
+---
+```
+
+在这组关系下，`brain inject` 只会输出新的那条 memory，并把标题渲染成 `[更新 v2] Use the new deploy gate`。
 
 把这段输出贴到新的 Claude Code 或 Codex session 开头，或者接到你本地的 session-start 工作流里。目标很简单：让下一次 agent 在提出 lint 配置建议之前，先看到这个仓库已经踩过的坑。
 
@@ -576,7 +606,8 @@ language: zh-CN
 - `brain approve` 会把 candidate 提升为 `active`
 - `brain dismiss` 会把 candidate 标记为 `stale`
 - 如果新激活的 memory 与现有 active memory 命中“同类型 + 标题归一化后相同 + scope 归一化后相同”，旧 memory 会自动标记为 `superseded`
-- `brain inject` 生成上下文时只会加载 `active` memories，所以 `superseded` memory 不会再参与正常匹配或注入基线
+- `brain inject` 生成上下文时只会加载 `active` memories，然后进一步过滤 `stale: true` 或 `superseded_by` 非空的条目，所以被新版本取代的血缘节点不会再参与正常匹配或注入基线
+- 如果某条 memory 设置了 `supersedes`，inject 会额外检查旧文件是否正确设置了 `superseded_by`；若未设置，会把修复提示输出到 stderr，但不会破坏现有兼容行为
 - external review input 是可选附加信息；Core 会校验结构、忽略非法输入，并保留本地最终判定
 - session-end hook 现在还可以做 failure reinforcement：识别违反旧记忆或重复错误，提升或重写对应记忆，也可以额外保存一条带 `origin: failure` 的新 `gotcha`
 

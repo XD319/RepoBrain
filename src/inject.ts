@@ -1,4 +1,4 @@
-import { getMemoryStatus, loadAllMemories, recordInjectedMemories } from "./store.js";
+import { getMemoryStatus, loadStoredMemoryRecords, recordInjectedMemories } from "./store.js";
 import { computeInjectPriority } from "./memory-priority.js";
 import {
   hasSelectionContext,
@@ -7,6 +7,7 @@ import {
 } from "./memory-relevance.js";
 import type { BrainConfig, Memory } from "./types.js";
 import type { MemorySelectionOptions } from "./memory-relevance.js";
+import type { StoredMemoryRecord } from "./types.js";
 
 interface RankedMemory {
   memory: Memory;
@@ -26,12 +27,15 @@ export async function buildInjection(
   config: BrainConfig,
   rawOptions: MemorySelectionOptions = {},
 ): Promise<string> {
-  const allMemories = await loadAllMemories(projectRoot);
-  const activeMemories = allMemories.filter((memory) => getMemoryStatus(memory) === "active");
+  const allRecords = await loadStoredMemoryRecords(projectRoot);
+  const allMemories = allRecords.map((entry) => entry.memory);
+  const activeRecords = allRecords.filter((entry) => getMemoryStatus(entry.memory) === "active");
+  emitLineageWarnings(activeRecords);
+  const staleCount = activeRecords.filter((entry) => entry.memory.stale).length;
   const options = normalizeSelectionOptions(rawOptions);
   const taskAware = hasSelectionContext(options);
-  const ranked = rankMemories(activeMemories, options, taskAware);
-  const selection = selectWithinTokenBudget(ranked, config.maxInjectTokens, taskAware);
+  const ranked = rankMemories(activeRecords, options, taskAware);
+  const selection = selectWithinTokenBudget(ranked, config.maxInjectTokens, taskAware, staleCount);
   const selected = selection.selected;
 
   await recordInjectedMemories(
@@ -64,12 +68,14 @@ export async function buildInjection(
 }
 
 function rankMemories(
-  memories: Memory[],
+  records: StoredMemoryRecord[],
   options: MemorySelectionOptions,
   taskAware: boolean,
 ): RankedMemory[] {
-  return memories
-    .map((memory) => {
+  return records
+    .filter((entry) => entry.memory.superseded_by === null && !entry.memory.stale)
+    .map((entry) => {
+      const memory = entry.memory;
       const match = taskAware ? scoreMemoryForSelection(memory, options) : { score: 0, reasons: [] };
       return {
         memory,
@@ -101,10 +107,10 @@ function selectWithinTokenBudget(
   rankedMemories: RankedMemory[],
   maxTokens: number,
   taskAware: boolean,
+  staleCount: number,
 ): SelectionResult {
   const selected: RankedMemory[] = [];
-  const staleCount = rankedMemories.filter((entry) => entry.memory.stale).length;
-  const eligibleMemories = rankedMemories.filter((entry) => !entry.memory.stale);
+  const eligibleMemories = rankedMemories;
   let usedTokens = approximateTokens(
     [
       "# Project Brain: Repo Knowledge Context",
@@ -162,8 +168,9 @@ function renderGroup(memories: RankedMemory[], taskAware: boolean): string {
 
 function renderRankedMemory(entry: RankedMemory, taskAware: boolean): string {
   const tags = entry.memory.tags.length > 0 ? ` | tags: ${entry.memory.tags.join(", ")}` : "";
+  const titlePrefix = entry.memory.version && entry.memory.version >= 2 ? `[更新 v${entry.memory.version}] ` : "";
   const lines = [
-    `- [${entry.memory.type} | ${entry.memory.importance}] ${entry.memory.title}`,
+    `- [${entry.memory.type} | ${entry.memory.importance}] ${titlePrefix}${entry.memory.title}`,
     `  ${entry.memory.summary}`,
     `  Scope: ${extractScope(entry.memory.detail)}${tags}`,
   ];
@@ -232,4 +239,32 @@ function approximateTokens(text: string): number {
   }
 
   return Math.ceil(asciiChars / 4) + nonAsciiTokens;
+}
+
+function emitLineageWarnings(activeRecords: StoredMemoryRecord[]): void {
+  const byBrainRelativePath = new Map<string, StoredMemoryRecord>();
+
+  for (const entry of activeRecords) {
+    byBrainRelativePath.set(toBrainRelativePath(entry.relativePath), entry);
+  }
+
+  for (const entry of activeRecords) {
+    const supersededPath = entry.memory.supersedes;
+    if (!supersededPath) {
+      continue;
+    }
+
+    const supersededRecord = byBrainRelativePath.get(supersededPath);
+    if (!supersededRecord || supersededRecord.memory.superseded_by !== null) {
+      continue;
+    }
+
+    process.stderr.write(
+      `⚠ [brain] 血缘不一致: ${supersededPath} 应设置 superseded_by: ${toBrainRelativePath(entry.relativePath)}\n`,
+    );
+  }
+}
+
+function toBrainRelativePath(relativePath: string): string {
+  return relativePath.replace(/\\/g, "/").replace(/^\.brain\//, "");
 }

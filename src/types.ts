@@ -42,6 +42,10 @@ export interface Memory {
   last_used: string | null;
   created_at: string;
   stale: boolean;
+  supersedes?: string | null;
+  superseded_by?: string | null;
+  version?: number;
+  related?: string[];
   source?: MemorySource;
   status?: MemoryStatus;
   origin?: MemoryOrigin;
