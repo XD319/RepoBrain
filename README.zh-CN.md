@@ -268,7 +268,18 @@ brain setup
 
 `brain setup` 是当前更推荐的入口。它会像 `brain init` 一样初始化 `.brain/`，并且当你在 Git 根目录执行时，还会顺手安装一个轻量的 `post-commit` hook，用于从更丰富的 commit 上下文做自动提取。
 
-如果你只想初始化工作区、不想安装自动化入口，`brain init` 仍然保持原来的行为。
+如果你只想初始化工作区、不想安装 Git hook 自动化，`brain init` 仍然是最轻量的入口。现在它在 `.brain/` 初始化完成后，还会顺手询问是否生成 Claude Code / Codex 的 steering rules：
+
+```text
+已初始化 .brain/ 目录。
+? 你使用哪个 AI 编码工具？（用于生成 steering rules）
+1. Claude Code（生成 .claude/rules/brain-session.md）
+2. Codex（补充 .codex/brain-session.md）
+3. 两者都用
+4. 跳过
+```
+
+这些文件都是纯 Markdown 工作流说明，用来提醒 agent 在新会话开始时先运行 `brain inject`，以及在结束后及时提取 durable memory。
 
 初始化完成后，`.brain/` 大致会是这样的结构：
 
@@ -590,6 +601,7 @@ brain mcp
 - `brain goal done <keyword>`：按标题关键字查找 goal memory，标记成 `done` 并刷新 `updated`
 
 - `brain init`：初始化当前仓库的 `.brain/`
+  初始化后可按提示额外生成 `.claude/rules/brain-session.md` 和/或 `.codex/brain-session.md` steering rules。
 - `brain setup`：初始化 `.brain/`，并在 Git 根目录执行时安装低风险的 `post-commit` Git hook
 - `brain extract`：从 `stdin` 提取长期有价值的仓库知识
   并在写入前输出每条 memory 的 review decision
@@ -600,6 +612,7 @@ brain mcp
 - `brain list`：列出当前仓库里的 memory
 - `brain stats`：按类型和重要度查看统计
 - `brain status`：查看最近一次注入的 memories，以及最近沉淀的 memories
+  同时会显示 Claude Code / Codex 的 steering rules 是否已配置；如果两者都不存在，会给出补充配置提示。
 - `brain review`：列出等待审批的 candidate memories
 - `brain approve`：将单条 candidate memory、全部 candidates，或仅 `--safe` 的低风险 candidates 提升为 active
 - `brain dismiss`：将单条 candidate memory，或全部 candidates，标记为 stale

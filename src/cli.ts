@@ -18,6 +18,7 @@ import { reinforceMemories } from "./reinforce.js";
 import { reviewCandidateMemories, reviewCandidateMemory } from "./reviewer.js";
 import { buildSharePlan } from "./share.js";
 import { setupRepoBrain } from "./setup.js";
+import { getSteeringRulesStatus, writeSteeringRules } from "./steering-rules.js";
 import { buildSkillShortlist, renderSkillShortlist } from "./suggest-skills.js";
 import {
   applySweepAuto,
@@ -59,6 +60,12 @@ program
   .action(async () => {
     const projectRoot = process.cwd();
     await initBrain(projectRoot);
+    output.write("已初始化 .brain/ 目录。\n");
+    const steeringChoice = await promptSteeringRulesChoice();
+    const writtenPaths = await writeSteeringRules(projectRoot, steeringChoice);
+    if (writtenPaths.length > 0) {
+      output.write(`已生成 steering rules: ${writtenPaths.join(", ")}\n`);
+    }
     output.write(`Initialized Project Brain in ${projectRoot}\n`);
   });
 
@@ -250,6 +257,7 @@ program
     const projectRoot = process.cwd();
     const memories = await loadAllMemories(projectRoot);
     const activity = await loadActivityState(projectRoot);
+    const steeringRules = await getSteeringRulesStatus(projectRoot);
     const recentCapturedMemories = memories.slice(0, 5);
     const candidateCount = memories.filter((memory) => getMemoryStatus(memory) === "candidate").length;
 
@@ -258,6 +266,15 @@ program
     output.write(`Pending review: ${candidateCount}\n`);
     output.write(`Last updated: ${memories[0]?.date ?? "N/A"}\n`);
     output.write(`Last injected: ${activity.lastInjectedAt ?? "N/A"}\n`);
+    if (steeringRules.claudeConfigured) {
+      output.write("✓ Claude Code steering rules 已配置\n");
+    }
+    if (steeringRules.codexConfigured) {
+      output.write("✓ Codex steering rules 已配置\n");
+    }
+    if (!steeringRules.claudeConfigured && !steeringRules.codexConfigured) {
+      output.write("⚠ 未配置 steering rules，运行 brain init 可生成（建议配置后 Agent 会自动使用记忆）\n");
+    }
     output.write("Recent loaded memories:\n");
     output.write(`${formatMemoryList(activity.recentLoadedMemories)}\n`);
     output.write("Recent captured memories:\n");
@@ -868,6 +885,41 @@ async function runSweepInteractive(projectRoot: string, config: BrainConfig): Pr
   } finally {
     rl.close();
     terminal.close();
+  }
+}
+
+async function promptSteeringRulesChoice(): Promise<"claude" | "codex" | "both" | "skip"> {
+  const rl = createInterface({
+    input,
+    output,
+  });
+
+  try {
+    output.write("? 你使用哪个 AI 编码工具？（用于生成 steering rules）\n");
+    output.write("1. Claude Code（生成 .claude/rules/brain-session.md）\n");
+    output.write("2. Codex（补充 .codex/brain-session.md）\n");
+    output.write("3. 两者都用\n");
+    output.write("4. 跳过\n");
+
+    while (true) {
+      const answer = (await rl.question("选择 [4]: ")).trim().toLowerCase();
+      if (!answer || answer === "4" || answer === "skip") {
+        return "skip";
+      }
+      if (answer === "1" || answer === "claude" || answer === "claude code") {
+        return "claude";
+      }
+      if (answer === "2" || answer === "codex") {
+        return "codex";
+      }
+      if (answer === "3" || answer === "both" || answer === "all" || answer === "两者都用") {
+        return "both";
+      }
+
+      output.write('请输入 1、2、3、4，或输入 "claude" / "codex" / "both" / "skip"。\n');
+    }
+  } finally {
+    rl.close();
   }
 }
 

@@ -29,6 +29,10 @@ export {
   setupRepoBrain,
 } from "./setup.js";
 export {
+  getSteeringRulesStatus,
+  writeSteeringRules,
+} from "./steering-rules.js";
+export {
   buildMemoryReviewContext,
   createDeterministicMemoryReviewer,
   decideCandidateMemoryReview,

@@ -285,7 +285,18 @@ brain setup
 
 `brain setup` is the fastest recommended entry point. It still initializes `.brain/` like `brain init`, and when you run it from the Git root it also installs the lightweight `post-commit` hook for richer commit-context extraction.
 
-If you only want the workspace without automation, `brain init` still works as before.
+If you only want the workspace without Git hook automation, `brain init` remains the lightweight entry point. After `.brain/` is initialized it now also offers to generate steering rules for Claude Code, Codex, or both:
+
+```text
+已初始化 .brain/ 目录。
+? 你使用哪个 AI 编码工具？（用于生成 steering rules）
+1. Claude Code（生成 .claude/rules/brain-session.md）
+2. Codex（补充 .codex/brain-session.md）
+3. 两者都用
+4. 跳过
+```
+
+Those generated Markdown files are plain-text workflow rules for your agent, so future sessions remember to run `brain inject` and extract durable memory at the right times.
 
 After setup, `.brain/` should look like this:
 
@@ -605,6 +616,7 @@ brain mcp
 ### Commands
 
 - `brain init`: create the `.brain/` workspace in the current repo
+  After initialization, RepoBrain can also generate `.claude/rules/brain-session.md` and/or `.codex/brain-session.md` steering rules for your agent workflow.
 - `brain setup`: initialize `.brain/` and install the low-risk `post-commit` Git hook when run from the Git root
 - `brain extract`: extract long-lived repo knowledge from `stdin`
   The command prints a review decision for each extracted memory before writing it.
@@ -617,6 +629,7 @@ brain mcp
 - `brain stats`: show memory counts by type and importance, including `working` and `goal`
 - `brain goal done`: mark a matching goal memory as done and refresh its `updated` date
 - `brain status`: show the most recently injected memories and most recently captured memories for the current repo
+  It also reports whether Claude Code or Codex steering rules are already configured, and warns when neither file exists yet.
 - `brain review`: list candidate memories waiting for approval
 - `brain approve`: promote one candidate, all candidates, or only `--safe` low-risk candidates to active memory
 - `brain dismiss`: mark one candidate, or all candidates, as dismissed
