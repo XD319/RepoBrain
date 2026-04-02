@@ -16,6 +16,10 @@ export {
   renderMemoryAuditResult,
 } from "./audit-memory.js";
 export {
+  buildFailureDetectionPrompt,
+  detectFailures,
+} from "./failure-detector.js";
+export {
   buildMemoryReviewContext,
   createDeterministicMemoryReviewer,
   decideCandidateMemoryReview,
@@ -37,3 +41,6 @@ export type {
   ReviewedMemoryCandidate,
   ValidatedExternalReviewInput,
 } from "./types.js";
+export type {
+  FailureEvent,
+} from "./failure-detector.js";

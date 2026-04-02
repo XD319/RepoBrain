@@ -633,12 +633,22 @@ If `BRAIN_EXTRACTOR_COMMAND` is set, RepoBrain will use that command instead of 
 
 This is the extension point for external agents, adapters, or skills that want richer semantic candidate extraction. RepoBrain Core still only consumes local process output and never embeds its own model API client.
 
+The same command contract is also reused by the exported `detectFailures(sessionLog, existingMemories)` helper in `src/failure-detector.ts`. That helper sends one small prompt containing the memory index plus the full session log and expects a strict JSON event array back. Failure detection stays best-effort on purpose: command failures or invalid JSON resolve to `[]` instead of interrupting the session flow.
+
 Contract:
 
 - RepoBrain sends the full extraction prompt to the command over `stdin`
 - The command must write strict JSON to `stdout` using the shape `{ "memories": [...] }`
 - Each memory must use a supported `type`, `importance`, and the expected string fields
 - A non-zero exit code is treated as extractor failure
+
+Failure detector contract:
+
+- RepoBrain sends one prompt over `stdin` with the memory title index (`title | type | file`) and the session log
+- The command must write strict JSON to `stdout` using the shape `[{ "kind": "...", ... }]`
+- Supported event kinds are `violated_memory` and `new_failure`
+- Supported actions are `boost_score`, `rewrite_memory`, and `extract_new`
+- If no clear failure is found, the command should return `[]`
 
 Error handling:
 

@@ -612,12 +612,22 @@ brain audit-memory --json
 
 这就是给外部 agent、adapter 或 skill 留的扩展点，用来提供更强的语义候选提炼；RepoBrain Core 仍然只消费本地进程输出，不内置自己的模型 API 客户端。
 
+同一份契约也会被导出的 `detectFailures(sessionLog, existingMemories)` 复用（实现位于 `src/failure-detector.ts`）。这个辅助函数会发送一次小 prompt，内容包含记忆索引（`title | type | file`）和 session 日志全文，并期待命令从 `stdout` 返回严格 JSON 的事件数组。失败检测是 best-effort 的：命令执行失败或返回非法 JSON 时，会静默返回 `[]`，不会中断 session。
+
 接口约定：
 
 - RepoBrain 会把完整提取 prompt 通过 `stdin` 传给命令
 - 命令必须通过 `stdout` 输出严格 JSON，格式为 `{ "memories": [...] }`
 - 每条 memory 都必须使用受支持的 `type`、`importance`，以及预期的字符串字段
 - 非 0 退出码会被视为 extractor 执行失败
+
+Failure detector 契约：
+
+- RepoBrain 会通过 `stdin` 发送一次 prompt，内容包含记忆标题索引（`title | type | file`）和 session 日志
+- 命令必须通过 `stdout` 输出严格 JSON，格式为 `[{ "kind": "...", ... }]`
+- 支持的事件类型是 `violated_memory` 和 `new_failure`
+- 支持的动作是 `boost_score`、`rewrite_memory` 和 `extract_new`
+- 如果没有明确的失败事件，命令应返回 `[]`
 
 错误处理：
 
