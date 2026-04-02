@@ -9,6 +9,7 @@ import {
 import type {
   BrainActivityState,
   Memory,
+  MemoryArea,
   MemoryActivityEntry,
   InvocationMode,
   MemorySource,
@@ -25,6 +26,7 @@ import {
   MEMORY_TYPES,
   MEMORY_SOURCES,
   MEMORY_ORIGINS,
+  MEMORY_AREAS,
   RISK_LEVELS,
 } from "./types.js";
 
@@ -33,10 +35,13 @@ const DIRECTORY_BY_TYPE: Record<MemoryType, string> = {
   gotcha: "gotchas",
   convention: "conventions",
   pattern: "patterns",
+  working: "working",
+  goal: "goals",
 };
 
 const ARRAY_FRONTMATTER_FIELDS = [
   "tags",
+  "files",
   "related",
   "path_scope",
   "recommended_skills",
@@ -57,6 +62,8 @@ const DEFAULT_MEMORY_STALE = false;
 const DEFAULT_MEMORY_SUPERSEDES: string | null = null;
 const DEFAULT_MEMORY_SUPERSEDED_BY: string | null = null;
 const DEFAULT_MEMORY_VERSION = 1;
+const DEFAULT_MEMORY_AREA: MemoryArea = "general";
+const DEFAULT_GOAL_STATUS: MemoryStatus = "active";
 
 export async function initBrain(projectRoot: string): Promise<void> {
   const brainDir = getBrainDir(projectRoot);
@@ -68,6 +75,8 @@ export async function initBrain(projectRoot: string): Promise<void> {
     mkdir(path.join(brainDir, "gotchas"), { recursive: true }),
     mkdir(path.join(brainDir, "conventions"), { recursive: true }),
     mkdir(path.join(brainDir, "patterns"), { recursive: true }),
+    mkdir(path.join(brainDir, "working"), { recursive: true }),
+    mkdir(path.join(brainDir, "goals"), { recursive: true }),
   ]);
 
   if (!existedBeforeInit) {
@@ -405,6 +414,12 @@ function validateMemory(memory: Memory, context = "Memory"): void {
     );
   }
 
+  if (memory.area && !MEMORY_AREAS.includes(memory.area)) {
+    throw new Error(
+      `${context} has unsupported area "${memory.area}". Expected one of: ${MEMORY_AREAS.join(", ")}.`,
+    );
+  }
+
   if (!memory.title.trim() || !memory.summary.trim() || !memory.detail.trim()) {
     throw new Error(`${context} requires non-empty title, summary, and detail.`);
   }
@@ -425,11 +440,24 @@ function validateMemory(memory: Memory, context = "Memory"): void {
     throw new Error(`${context} has invalid created_at "${memory.created_at}". Expected an ISO date string.`);
   }
 
+  if (memory.created !== undefined && !isIsoDateOnly(memory.created)) {
+    throw new Error(`${context} has invalid created "${memory.created}". Expected YYYY-MM-DD.`);
+  }
+
+  if (memory.updated !== undefined && !isIsoDateOnly(memory.updated)) {
+    throw new Error(`${context} has invalid updated "${memory.updated}". Expected YYYY-MM-DD.`);
+  }
+
+  if (memory.expires !== undefined && !isIsoDateOnly(memory.expires)) {
+    throw new Error(`${context} has invalid expires "${memory.expires}". Expected YYYY-MM-DD.`);
+  }
+
   if (typeof memory.stale !== "boolean") {
     throw new Error(`${context} has invalid stale "${memory.stale}". Expected a boolean.`);
   }
 
   validateStringArray(memory.tags, "tags", context);
+  validateStringArray(memory.files ?? [], "files", context);
   validateNullableRelativeBrainPath(memory.supersedes ?? DEFAULT_MEMORY_SUPERSEDES, "supersedes", context);
   validateNullableRelativeBrainPath(memory.superseded_by ?? DEFAULT_MEMORY_SUPERSEDED_BY, "superseded_by", context);
   validateVersion(memory.version ?? DEFAULT_MEMORY_VERSION, context);
@@ -456,6 +484,8 @@ function serializeMemory(memory: Memory): string {
     `hit_count: ${normalizedMemory.hit_count}`,
     `last_used: ${quoteYamlNullable(normalizedMemory.last_used)}`,
     `created_at: ${quoteYaml(normalizedMemory.created_at)}`,
+    `created: ${quoteYaml(normalizedMemory.created ?? isoDateOnlyFromKnownDate(normalizedMemory.created_at))}`,
+    `updated: ${quoteYaml(normalizedMemory.updated ?? isoDateOnlyFromKnownDate(normalizedMemory.date))}`,
     `stale: ${normalizedMemory.stale ? "true" : "false"}`,
     `supersedes: ${quoteYamlNullable(normalizedMemory.supersedes ?? DEFAULT_MEMORY_SUPERSEDES)}`,
     `superseded_by: ${quoteYamlNullable(normalizedMemory.superseded_by ?? DEFAULT_MEMORY_SUPERSEDED_BY)}`,
@@ -477,11 +507,18 @@ function serializeMemory(memory: Memory): string {
 
   appendArrayField(frontmatterLines, "related", normalizedMemory.related ?? []);
   appendArrayField(frontmatterLines, "path_scope", normalizedMemory.path_scope ?? []);
+  appendArrayField(frontmatterLines, "files", normalizedMemory.files ?? []);
   appendArrayField(frontmatterLines, "recommended_skills", normalizedMemory.recommended_skills ?? []);
   appendArrayField(frontmatterLines, "required_skills", normalizedMemory.required_skills ?? []);
   appendArrayField(frontmatterLines, "suppressed_skills", normalizedMemory.suppressed_skills ?? []);
   appendArrayField(frontmatterLines, "skill_trigger_paths", normalizedMemory.skill_trigger_paths ?? []);
   appendArrayField(frontmatterLines, "skill_trigger_tasks", normalizedMemory.skill_trigger_tasks ?? []);
+  if (normalizedMemory.area) {
+    frontmatterLines.push(`area: ${quoteYaml(normalizedMemory.area)}`);
+  }
+  if (normalizedMemory.expires) {
+    frontmatterLines.push(`expires: ${quoteYaml(normalizedMemory.expires)}`);
+  }
   frontmatterLines.push(`invocation_mode: ${quoteYaml(normalizedMemory.invocation_mode ?? DEFAULT_INVOCATION_MODE)}`);
   frontmatterLines.push(`risk_level: ${quoteYaml(normalizedMemory.risk_level ?? DEFAULT_RISK_LEVEL)}`);
   frontmatterLines.push("---", "", normalizedMemory.detail.trim(), "");
@@ -530,6 +567,7 @@ function parseMemory(content: string, filePath: string): Memory {
     supersedes: frontmatter.supersedes ?? DEFAULT_MEMORY_SUPERSEDES,
     superseded_by: frontmatter.superseded_by ?? DEFAULT_MEMORY_SUPERSEDED_BY,
     version: frontmatter.version ?? DEFAULT_MEMORY_VERSION,
+    files: frontmatter.files,
     related: frontmatter.related,
     path_scope: frontmatter.path_scope,
     recommended_skills: frontmatter.recommended_skills,
@@ -537,6 +575,10 @@ function parseMemory(content: string, filePath: string): Memory {
     suppressed_skills: frontmatter.suppressed_skills,
     skill_trigger_paths: frontmatter.skill_trigger_paths,
     skill_trigger_tasks: frontmatter.skill_trigger_tasks,
+    ...(frontmatter.created ? { created: frontmatter.created } : {}),
+    ...(frontmatter.updated ? { updated: frontmatter.updated } : {}),
+    ...(frontmatter.area ? { area: frontmatter.area as MemoryArea } : {}),
+    ...(frontmatter.expires ? { expires: frontmatter.expires } : {}),
   };
 
   if (frontmatter.invocation_mode) {
@@ -570,6 +612,7 @@ function parseFrontmatter(raw: string): {
   title?: string;
   summary?: string;
   tags: string[];
+  files: string[];
   related: string[];
   path_scope: string[];
   recommended_skills: string[];
@@ -583,6 +626,8 @@ function parseFrontmatter(raw: string): {
   hit_count?: number;
   last_used?: string | null;
   created_at?: string;
+  created?: string;
+  updated?: string;
   stale?: boolean | string;
   supersedes?: string | null;
   superseded_by?: string | null;
@@ -592,12 +637,15 @@ function parseFrontmatter(raw: string): {
   origin?: string;
   invocation_mode?: string;
   risk_level?: string;
+  area?: string;
+  expires?: string;
 } {
   const result: {
     type?: string;
     title?: string;
     summary?: string;
     tags: string[];
+    files: string[];
     related: string[];
     path_scope: string[];
     recommended_skills: string[];
@@ -611,6 +659,8 @@ function parseFrontmatter(raw: string): {
     hit_count?: number;
     last_used?: string | null;
     created_at?: string;
+    created?: string;
+    updated?: string;
     stale?: boolean | string;
     supersedes?: string | null;
     superseded_by?: string | null;
@@ -620,8 +670,11 @@ function parseFrontmatter(raw: string): {
     origin?: string;
     invocation_mode?: string;
     risk_level?: string;
+    area?: string;
+    expires?: string;
   } = {
     tags: [],
+    files: [],
     related: [],
     path_scope: [],
     recommended_skills: [],
@@ -660,11 +713,15 @@ function parseFrontmatter(raw: string): {
       case "importance":
       case "date":
       case "created_at":
+      case "created":
+      case "updated":
       case "source":
       case "status":
       case "origin":
       case "invocation_mode":
       case "risk_level":
+      case "area":
+      case "expires":
         result[key] = unquoteYaml(value);
         break;
       case "score":
@@ -777,9 +834,15 @@ function parseYamlBoolean(value: string): boolean | string | undefined {
 }
 
 function normalizeMemory(memory: Memory): Memory {
+  const created = normalizeOptionalIsoDateOnly(memory.created ?? isoDateOnlyFromKnownDate(memory.created_at ?? memory.date));
+  const updated = normalizeOptionalIsoDateOnly(memory.updated ?? isoDateOnlyFromKnownDate(memory.date));
+  const expires = normalizeOptionalIsoDateOnly(memory.expires);
+  const status = normalizeMemoryStatus(memory.type, memory.status);
+
   return {
     ...memory,
     tags: normalizeStringArray(memory.tags),
+    files: normalizeStringArray(memory.files ?? []),
     related: normalizeStringArray(memory.related ?? []),
     path_scope: normalizeStringArray(memory.path_scope ?? []),
     recommended_skills: normalizeStringArray(memory.recommended_skills ?? []),
@@ -791,6 +854,8 @@ function normalizeMemory(memory: Memory): Memory {
     hit_count: memory.hit_count ?? DEFAULT_MEMORY_HIT_COUNT,
     last_used: memory.last_used ?? DEFAULT_MEMORY_LAST_USED,
     created_at: memory.created_at ?? memory.date,
+    created: created ?? isoDateOnlyFromKnownDate(memory.created_at ?? memory.date),
+    updated: updated ?? created ?? isoDateOnlyFromKnownDate(memory.date),
     stale: memory.stale ?? DEFAULT_MEMORY_STALE,
     supersedes: normalizeNullableBrainRelativePath(memory.supersedes ?? DEFAULT_MEMORY_SUPERSEDES),
     superseded_by: normalizeNullableBrainRelativePath(
@@ -799,11 +864,44 @@ function normalizeMemory(memory: Memory): Memory {
     version: memory.version ?? DEFAULT_MEMORY_VERSION,
     invocation_mode: memory.invocation_mode ?? DEFAULT_INVOCATION_MODE,
     risk_level: memory.risk_level ?? DEFAULT_RISK_LEVEL,
+    ...(memory.area ? { area: memory.area } : {}),
+    ...(expires ? { expires } : {}),
+    ...(status ? { status } : {}),
   };
 }
 
 function normalizeStringArray(values: string[]): string[] {
   return values.map((value) => value.trim()).filter(Boolean);
+}
+
+function normalizeOptionalIsoDateOnly(value: string | undefined): string | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return undefined;
+  }
+
+  if (isIsoDateOnly(trimmed)) {
+    return trimmed;
+  }
+
+  const parsed = Date.parse(trimmed);
+  if (Number.isNaN(parsed)) {
+    return trimmed;
+  }
+
+  return new Date(parsed).toISOString().slice(0, 10);
+}
+
+function normalizeMemoryStatus(type: MemoryType, status: MemoryStatus | undefined): MemoryStatus | undefined {
+  if (type === "goal") {
+    return status ?? DEFAULT_GOAL_STATUS;
+  }
+
+  return status;
 }
 
 function validateStringArray(values: unknown, fieldName: string, context: string): void {
@@ -881,6 +979,10 @@ function titleForType(type: MemoryType): string {
       return "Conventions";
     case "pattern":
       return "Patterns";
+    case "working":
+      return "Working";
+    case "goal":
+      return "Goals";
   }
 }
 
@@ -1109,6 +1211,15 @@ function parseActivityEntry(value: unknown): MemoryActivityEntry | null {
 
 function isNonEmptyIsoDateString(value: string): boolean {
   return Boolean(value.trim()) && !Number.isNaN(Date.parse(value));
+}
+
+function isIsoDateOnly(value: string): boolean {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value);
+}
+
+function isoDateOnlyFromKnownDate(value: string): string {
+  const normalized = normalizeOptionalIsoDateOnly(value);
+  return normalized ?? value.slice(0, 10);
 }
 
 async function touchFile(filePath: string): Promise<void> {

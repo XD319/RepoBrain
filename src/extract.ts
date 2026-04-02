@@ -11,6 +11,8 @@ Only extract these categories:
 2. GOTCHA: known pitfalls, limitations, or "do not do X because Y"
 3. CONVENTION: naming, directory layout, code style, or collaboration conventions
 4. PATTERN: reusable implementation or workflow patterns
+5. WORKING: temporary but still useful working context that should expire soon
+6. GOAL: durable project goals or migration targets worth tracking across sessions
 
 Extraction rules:
 - Only keep knowledge that is still useful in future sessions
@@ -28,7 +30,13 @@ Return strict JSON only:
       "detail": "Markdown detail with background, decision or limitation, and scope",
       "tags": ["tag1", "tag2"],
       "importance": "high|medium|low",
-      "source": "session"
+      "source": "session",
+      "created": "YYYY-MM-DD",
+      "updated": "YYYY-MM-DD",
+      "area": "auth|api|db|infra|ui|testing|general",
+      "files": ["src/auth/**"],
+      "expires": "YYYY-MM-DD",
+      "status": "active|done|stale"
     }
   ]
 }
@@ -183,13 +191,33 @@ function normalizeMemory(value: unknown): Memory | null {
     hit_count: 0,
     last_used: null,
     created_at: createdAt,
+    created: asOptionalIsoDateOnly(candidate.created) ?? createdAt,
+    updated: asOptionalIsoDateOnly(candidate.updated) ?? createdAt,
     stale: false,
     status: "active",
+    files: Array.isArray(candidate.files)
+      ? candidate.files.map((file) => String(file).trim()).filter(Boolean)
+      : [],
   };
 
   const source = normalizeSource(candidate.source);
   if (source) {
     memory.source = source;
+  }
+
+  const area = asNonEmptyString(candidate.area);
+  if (area) {
+    memory.area = area as NonNullable<Memory["area"]>;
+  }
+
+  const expires = asOptionalIsoDateOnly(candidate.expires);
+  if (expires) {
+    memory.expires = expires;
+  }
+
+  const status = asNonEmptyString(candidate.status);
+  if (status) {
+    memory.status = status as NonNullable<Memory["status"]>;
   }
 
   return memory;
@@ -220,7 +248,7 @@ function blockToMemory(block: string, config: BrainConfig): Memory | null {
   }
 
   const prefixMatch = firstLine.match(
-    /^(?:[-*]\s*)?(decision|gotcha|convention|pattern)\s*[:\-]\s*(.+)$/i,
+    /^(?:[-*]\s*)?(decision|gotcha|convention|pattern|working|goal)\s*[:\-]\s*(.+)$/i,
   );
   if (!prefixMatch) {
     return null;
@@ -260,7 +288,7 @@ function blockToMemory(block: string, config: BrainConfig): Memory | null {
 function summarizeBlock(lines: string[], language: string): string {
   const headline = lines
     .at(0)
-    ?.replace(/^(?:[-*]\s*)?(decision|gotcha|convention|pattern)\s*[:\-]\s*/i, "")
+    ?.replace(/^(?:[-*]\s*)?(decision|gotcha|convention|pattern|working|goal)\s*[:\-]\s*/i, "")
     .trim();
   if (headline) {
     return headline.slice(0, 120);
@@ -327,6 +355,14 @@ function getInitialExtractedMemoryScore(
     return 55;
   }
 
+  if (type === "working") {
+    return 45;
+  }
+
+  if (type === "goal") {
+    return 58;
+  }
+
   return 50;
 }
 
@@ -354,6 +390,24 @@ function dedupeByTitle(memories: Memory[]): Memory[] {
     seen.add(key);
     return true;
   });
+}
+
+function asOptionalIsoDateOnly(value: unknown): string | undefined {
+  const raw = asNonEmptyString(value);
+  if (!raw) {
+    return undefined;
+  }
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+    return raw;
+  }
+
+  const parsed = Date.parse(raw);
+  if (Number.isNaN(parsed)) {
+    return undefined;
+  }
+
+  return new Date(parsed).toISOString().slice(0, 10);
 }
 
 function buildJsonParseErrorMessage(raw: string): string {

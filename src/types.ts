@@ -1,11 +1,12 @@
-export const MEMORY_TYPES = ["decision", "gotcha", "convention", "pattern"] as const;
+export const MEMORY_TYPES = ["decision", "gotcha", "convention", "pattern", "working", "goal"] as const;
 export const IMPORTANCE_LEVELS = ["high", "medium", "low"] as const;
 export const MEMORY_SOURCES = ["session", "git-commit", "manual", "pr"] as const;
-export const MEMORY_STATUSES = ["active", "candidate", "stale", "superseded"] as const;
+export const MEMORY_STATUSES = ["active", "candidate", "done", "stale", "superseded"] as const;
 export const MEMORY_ORIGINS = ["failure"] as const;
 export const EXTRACT_MODES = ["manual", "suggest", "auto"] as const;
 export const INVOCATION_MODES = ["required", "prefer", "optional", "suppress"] as const;
 export const RISK_LEVELS = ["high", "medium", "low"] as const;
+export const MEMORY_AREAS = ["auth", "api", "db", "infra", "ui", "testing", "general"] as const;
 export const MEMORY_REVIEW_DECISIONS = ["accept", "merge", "supersede", "reject"] as const;
 export const MEMORY_REVIEW_REASONS = [
   "novel_memory",
@@ -25,6 +26,7 @@ export type MemoryOrigin = (typeof MEMORY_ORIGINS)[number];
 export type ExtractMode = (typeof EXTRACT_MODES)[number];
 export type InvocationMode = (typeof INVOCATION_MODES)[number];
 export type RiskLevel = (typeof RISK_LEVELS)[number];
+export type MemoryArea = (typeof MEMORY_AREAS)[number];
 export type MemoryReviewDecision = (typeof MEMORY_REVIEW_DECISIONS)[number];
 export type MemoryReviewReason = (typeof MEMORY_REVIEW_REASONS)[number];
 export type MemoryAuditIssueType = (typeof MEMORY_AUDIT_ISSUE_TYPES)[number];
@@ -41,6 +43,8 @@ export interface Memory {
   hit_count: number;
   last_used: string | null;
   created_at: string;
+  created?: string;
+  updated?: string;
   stale: boolean;
   supersedes?: string | null;
   superseded_by?: string | null;
@@ -57,6 +61,9 @@ export interface Memory {
   skill_trigger_tasks?: string[];
   invocation_mode?: InvocationMode;
   risk_level?: RiskLevel;
+  area?: MemoryArea;
+  files?: string[];
+  expires?: string;
 }
 
 export interface BrainConfig {

@@ -409,6 +409,10 @@ function directoryByType(type) {
       return "conventions";
     case "pattern":
       return "patterns";
+    case "working":
+      return "working";
+    case "goal":
+      return "goals";
     default:
       throw new Error(`Unsupported memory type: ${type}`);
   }

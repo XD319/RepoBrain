@@ -341,6 +341,13 @@ When TypeScript is already enforcing unused locals, enabling both rules creates 
 
 这里最值得关注的 frontmatter 字段有：
 
+- `created`：日期格式的创建时间（`YYYY-MM-DD`），默认取 `created_at` 的日期部分
+- `updated`：日期格式的最后更新时间（`YYYY-MM-DD`），默认等于 `created`
+- `area`：可选功能域，比如 `auth`、`api`、`db`、`infra`、`ui`、`testing`、`general`
+- `files`：可选的相关文件 glob，例如 `src/auth/**`
+- `expires`：可选过期日期，主要给短期 `working` memory 使用
+- `status`：goal 的状态，比如 `active`、`done`、`stale`；需要时也继续兼容现有的 `candidate`、`superseded`
+
 - `type`：这条 durable knowledge 属于哪一类
 - `importance`：它在注入阶段应该占多高优先级
 - `tags`：帮助后续快速扫描和 review 的关键词
@@ -369,6 +376,8 @@ When TypeScript is already enforcing unused locals, enabling both rules creates 
 - `risk_level`：只能是 `high`、`medium` 或 `low`
 
 如果这些字段缺省，RepoBrain 会保持旧条目兼容：所有列表字段默认是 `[]`，`invocation_mode` 默认是 `optional`，`risk_level` 默认是 `low`，`score` 默认是 `60`，`hit_count` 默认是 `0`，`last_used` 默认是 `null`，`created_at` 默认沿用 memory 的 `date`，`stale` 默认是 `false`，`supersedes` 默认是 `null`，`superseded_by` 默认是 `null`，`version` 默认是 `1`，`related` 默认是 `[]`，`origin` 默认不设置。
+
+新增字段里，`created` 默认取 `created_at` 的日期部分，`updated` 默认等于 `created`，`files` 默认是 `[]`，`goal` 的 `status` 默认是 `active`。
 
 最小示例：
 
@@ -565,6 +574,12 @@ brain mcp
 ```
 
 ### 命令说明
+
+- `brain extract --type working`：强制把本次提取结果保存成 `working` memory；如果没有显式给 `expires`，会自动写成“今天 + 7 天”
+- `brain extract --type goal`：强制把本次提取结果保存成 `goal` memory，并默认写入 `status: active`
+- `brain list --type goal`：按类型过滤 memory，`working` / `goal` 等新类型都支持
+- `brain list --goals`：列出所有 goal memory，并按 `status` 分组
+- `brain goal done <keyword>`：按标题关键字查找 goal memory，标记成 `done` 并刷新 `updated`
 
 - `brain init`：初始化当前仓库的 `.brain/`
 - `brain setup`：初始化 `.brain/`，并在 Git 根目录执行时安装低风险的 `post-commit` Git hook

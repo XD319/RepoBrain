@@ -344,6 +344,8 @@ tags:
   - typescript
   - nounusedlocals
 importance: "medium"
+created: "2026-04-01"
+updated: "2026-04-01"
 date: "2026-04-01T12:34:56.000Z"
 source: "session"
 status: "active"
@@ -365,12 +367,18 @@ The important frontmatter fields are:
 - `hit_count`: how many times the memory has been injected, defaults to `0`
 - `last_used`: ISO timestamp for the latest injection, defaults to `null`
 - `created_at`: ISO timestamp for when the memory was first created, defaults to the memory `date`
+- `created`: date-only creation marker (`YYYY-MM-DD`), defaults to the date part of `created_at`
+- `updated`: date-only freshness marker (`YYYY-MM-DD`), defaults to `created`
 - `stale`: whether the memory has been marked stale in metadata, defaults to `false`
 - `supersedes`: optional `.brain/`-relative file path for the older memory this entry replaces, defaults to `null`
 - `superseded_by`: optional `.brain/`-relative file path for the newer memory that replaces this entry, defaults to `null`
 - `version`: version number for the same decision lineage, defaults to `1`
 - `related`: optional `.brain/`-relative file path list for related memories that do not replace this one, defaults to `[]`
 - `origin`: optional origin marker for special write paths such as failure reinforcement
+- `area`: optional functional area tag such as `auth`, `api`, `db`, `infra`, `ui`, `testing`, or `general`
+- `files`: optional related file globs such as `src/auth/**`
+- `expires`: optional expiry date used by short-lived `working` memories
+- `status`: goal state such as `active`, `done`, or `stale`; workflow states like `candidate` and `superseded` still remain backward compatible when needed
 
 ### Skill Routing Fields
 
@@ -385,7 +393,7 @@ If you want a memory to help downstream agent or skill routing, add these option
 - `invocation_mode`: one of `required`, `prefer`, `optional`, or `suppress`
 - `risk_level`: one of `high`, `medium`, or `low`
 
-When these fields are omitted, RepoBrain keeps old entries compatible by defaulting each list to `[]`, `invocation_mode` to `optional`, `risk_level` to `low`, `score` to `60`, `hit_count` to `0`, `last_used` to `null`, `created_at` to the memory `date`, `stale` to `false`, `supersedes` to `null`, `superseded_by` to `null`, `version` to `1`, `related` to `[]`, and `origin` to unset.
+When these fields are omitted, RepoBrain keeps old entries compatible by defaulting each list to `[]`, `invocation_mode` to `optional`, `risk_level` to `low`, `score` to `60`, `hit_count` to `0`, `last_used` to `null`, `created_at` to the memory `date`, `created` to the date part of `created_at`, `updated` to `created`, `stale` to `false`, `supersedes` to `null`, `superseded_by` to `null`, `version` to `1`, `related` to `[]`, `files` to `[]`, `status` to `active` for `goal`, and `origin` to unset.
 
 Minimal example:
 
@@ -562,10 +570,14 @@ See [docs/team-workflow.md](./docs/team-workflow.md) for the full workflow and `
 brain init
 brain setup
 brain extract < session-summary.txt
+brain extract --type working < session-summary.txt
 brain extract-commit
 brain inject
 brain list
+brain list --type goal
+brain list --goals
 brain stats
+brain goal done <keyword>
 brain status
 brain review
 brain approve --safe
@@ -588,11 +600,13 @@ brain mcp
 - `brain setup`: initialize `.brain/` and install the low-risk `post-commit` Git hook when run from the Git root
 - `brain extract`: extract long-lived repo knowledge from `stdin`
   The command prints a review decision for each extracted memory before writing it.
+  Use `--type working` or `--type goal` when you want to force the extracted memory type.
 - `brain extract-commit`: extract from a richer git commit context that includes commit metadata, changed files, and diff stat
 - `brain inject`: build a compact memory block for the next session, optionally ranked by `--task`, `--path`, and `--module`
   When candidate memories are waiting for review, the injected footer now reminds you to run `brain review`.
-- `brain list`: list stored memories
-- `brain stats`: show memory counts by type and importance
+- `brain list`: list stored memories; use `--type <memory-type>` to filter or `--goals` to group goal memories by status
+- `brain stats`: show memory counts by type and importance, including `working` and `goal`
+- `brain goal done`: mark a matching goal memory as done and refresh its `updated` date
 - `brain status`: show the most recently injected memories and most recently captured memories for the current repo
 - `brain review`: list candidate memories waiting for approval
 - `brain approve`: promote one candidate, all candidates, or only `--safe` low-risk candidates to active memory

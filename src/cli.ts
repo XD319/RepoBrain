@@ -26,13 +26,15 @@ import {
   loadActivityState,
   loadAllMemories,
   loadStoredMemoryRecords,
+  overwriteStoredMemory,
   saveMemory,
   supersedeMemoryPair,
   updateIndex,
   updateStoredMemoryStatus,
 } from "./store.js";
 import type { FailureEvent } from "./failure-detector.js";
-import type { BrainConfig, CandidateMemoryReviewResult, Memory, MemoryActivityEntry, StoredMemoryRecord } from "./types.js";
+import type { BrainConfig, CandidateMemoryReviewResult, Memory, MemoryActivityEntry, StoredMemoryRecord, MemoryType } from "./types.js";
+import { MEMORY_TYPES } from "./types.js";
 
 const program = new Command();
 
@@ -71,8 +73,9 @@ program
   .command("extract")
   .description("Extract long-lived repo knowledge from stdin and save it into .brain.")
   .option("--source <source>", "Memory source label", "session")
+  .option("--type <type>", "Force a memory type for extracted entries.", parseMemoryTypeOption)
   .option("--candidate", "Save extracted memories as candidates for later review.")
-  .action(async (options: { source: Memory["source"]; candidate?: boolean }) => {
+  .action(async (options: { source: Memory["source"]; type?: MemoryType; candidate?: boolean }) => {
     const projectRoot = process.cwd();
     await initBrain(projectRoot);
 
@@ -130,21 +133,33 @@ program
 program
   .command("list")
   .description("List all stored memories in the current project.")
-  .action(async () => {
+  .option("--type <type>", "Filter memories by type.", parseMemoryTypeOption)
+  .option("--goals", "List goal memories grouped by status.")
+  .action(async (options: { type?: MemoryType; goals?: boolean }) => {
     const projectRoot = process.cwd();
     const memories = await loadAllMemories(projectRoot);
+    const filteredMemories = options.goals
+      ? memories.filter((memory) => memory.type === "goal")
+      : options.type
+        ? memories.filter((memory) => memory.type === options.type)
+        : memories;
 
-    if (memories.length === 0) {
+    if (options.goals && options.type && options.type !== "goal") {
+      throw new Error('Use "--type goal" with "--goals", or omit "--type".');
+    }
+
+    if (filteredMemories.length === 0) {
       output.write("No memories found.\n");
       return;
     }
 
-    for (const memory of memories) {
-      const tags = memory.tags.length > 0 ? ` [${memory.tags.join(", ")}]` : "";
-      const status = getMemoryStatus(memory);
-      output.write(
-        `${memory.date} | ${memory.type} | ${memory.importance} | ${status} | ${memory.title}${tags}\n`,
-      );
+    if (options.goals) {
+      output.write(`${renderGoalList(filteredMemories)}\n`);
+      return;
+    }
+
+    for (const memory of filteredMemories) {
+      output.write(`${formatMemoryListLine(memory)}\n`);
     }
   });
 
@@ -154,7 +169,7 @@ program
   .action(async () => {
     const projectRoot = process.cwd();
     const memories = await loadAllMemories(projectRoot);
-    const byType = new Map<string, number>();
+    const byType = new Map<string, number>(MEMORY_TYPES.map((type) => [type, 0]));
     const byImportance = new Map<string, number>();
     const byStatus = new Map<string, number>();
 
@@ -191,6 +206,56 @@ program
     output.write(`${formatMemoryList(activity.recentLoadedMemories)}\n`);
     output.write("Recent captured memories:\n");
     output.write(`${formatMemoryList(recentCapturedMemories)}\n`);
+  });
+
+const goalProgram = program
+  .command("goal")
+  .description("Manage goal memories in the current project.");
+
+goalProgram
+  .command("done <keyword>")
+  .description("Mark a goal memory as done by matching a title keyword.")
+  .action(async (keyword: string) => {
+    const projectRoot = process.cwd();
+    const records = await loadStoredMemoryRecords(projectRoot);
+    const query = keyword.trim().toLowerCase();
+
+    if (!query) {
+      throw new Error("Provide a keyword to match a goal title.");
+    }
+
+    const matches = records.filter((entry) =>
+      entry.memory.type === "goal" && entry.memory.title.toLowerCase().includes(query),
+    );
+
+    if (matches.length === 0) {
+      throw new Error(`No goal memory matched "${keyword}".`);
+    }
+
+    if (matches.length > 1) {
+      const suggestions = matches.map((entry) => `- ${getStoredMemoryId(entry)} (${entry.memory.title})`);
+      throw new Error(
+        [`Multiple goal memories matched "${keyword}". Use a more specific keyword:`, ...suggestions].join("\n"),
+      );
+    }
+
+    const [match] = matches;
+    if (!match) {
+      throw new Error(`No goal memory matched "${keyword}".`);
+    }
+
+    const today = getTodayDate();
+    await overwriteStoredMemory({
+      ...match,
+      memory: {
+        ...match.memory,
+        status: "done",
+        updated: today,
+      },
+    });
+
+    await updateIndex(projectRoot);
+    output.write(`Marked goal as done: ${match.memory.title} (${getStoredMemoryId(match)})\n`);
   });
 
 program
@@ -546,10 +611,12 @@ async function runExtractionWorkflow(
   rawInput: string,
   options: {
     source: Memory["source"];
+    type?: MemoryType;
     candidate?: boolean;
   },
 ): Promise<void> {
-  const memories = await extractMemories(rawInput, config, projectRoot);
+  const memories = (await extractMemories(rawInput, config, projectRoot))
+    .map((memory) => applyExtractedMemoryDefaults(memory, options.type));
   const existingRecords = await loadStoredMemoryRecords(projectRoot);
   const reviewedCandidates = reviewCandidateMemories(memories, existingRecords);
   const savedPaths: string[] = [];
@@ -643,11 +710,99 @@ function collectValues(value: string, previous: string[]): string[] {
   ];
 }
 
+function parseMemoryTypeOption(value: string): MemoryType {
+  const normalized = value.trim().toLowerCase();
+  if (MEMORY_TYPES.includes(normalized as MemoryType)) {
+    return normalized as MemoryType;
+  }
+
+  throw new Error(`Unsupported memory type "${value}". Expected one of: ${MEMORY_TYPES.join(", ")}.`);
+}
+
+function applyExtractedMemoryDefaults(memory: Memory, forcedType?: MemoryType): Memory {
+  const type = forcedType ?? memory.type;
+  const today = getTodayDate();
+  const nextMemory: Memory = {
+    ...memory,
+    type,
+    created: memory.created ?? today,
+    updated: today,
+  };
+
+  if (type === "working" && !nextMemory.expires) {
+    nextMemory.expires = addDays(today, 7);
+  }
+
+  if (type === "goal" && !nextMemory.status) {
+    nextMemory.status = "active";
+  }
+
+  return nextMemory;
+}
+
+function getTodayDate(now: Date = new Date()): string {
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function addDays(dateOnly: string, days: number): string {
+  const base = new Date(`${dateOnly}T00:00:00`);
+  base.setDate(base.getDate() + days);
+  return getTodayDate(base);
+}
+
 function formatCountMap(map: Map<string, number>): string {
   return Array.from(map.entries())
     .sort(([left], [right]) => left.localeCompare(right))
     .map(([key, value]) => `${key}=${value}`)
     .join(", ");
+}
+
+function formatMemoryListLine(memory: Memory): string {
+  const tags = memory.tags.length > 0 ? ` [${memory.tags.join(", ")}]` : "";
+  const status = getMemoryStatus(memory);
+  return `${memory.date} | ${memory.type} | ${memory.importance} | ${status} | ${memory.title}${tags}`;
+}
+
+function renderGoalList(memories: Memory[]): string {
+  const grouped = new Map<string, Memory[]>();
+
+  for (const memory of memories) {
+    const status = getMemoryStatus(memory);
+    const bucket = grouped.get(status) ?? [];
+    bucket.push(memory);
+    grouped.set(status, bucket);
+  }
+
+  return Array.from(grouped.entries())
+    .sort(([leftStatus], [rightStatus]) => compareGoalStatus(leftStatus, rightStatus))
+    .map(([status, entries]) => {
+      const lines = entries.map((memory) => `- ${formatMemoryListLine(memory)}`);
+      return [`[${status}]`, ...lines].join("\n");
+    })
+    .join("\n");
+}
+
+function compareGoalStatus(left: string, right: string): number {
+  const order = ["active", "done", "stale", "candidate", "superseded"];
+  const leftIndex = order.indexOf(left);
+  const rightIndex = order.indexOf(right);
+
+  if (leftIndex !== -1 || rightIndex !== -1) {
+    if (leftIndex === -1) {
+      return 1;
+    }
+
+    if (rightIndex === -1) {
+      return -1;
+    }
+
+    return leftIndex - rightIndex;
+  }
+
+  return left.localeCompare(right);
 }
 
 function formatMemoryList(memories: Array<Memory | MemoryActivityEntry>): string {

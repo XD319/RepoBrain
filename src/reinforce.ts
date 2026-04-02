@@ -290,7 +290,7 @@ async function findMemoryFile(memoriesDir: string, fileName: string): Promise<st
     return null;
   }
 
-  for (const directory of ["decisions", "gotchas", "conventions", "patterns"]) {
+  for (const directory of ["decisions", "gotchas", "conventions", "patterns", "working", "goals"]) {
     try {
       const entries = await readdir(path.join(memoriesDir, directory), { withFileTypes: true });
       const match = entries.find((entry) => entry.isFile() && entry.name.toLowerCase() === normalizedTarget);

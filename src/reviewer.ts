@@ -408,10 +408,12 @@ function getStatusWeight(status: MemoryStatus): number {
       return 3;
     case "candidate":
       return 2;
-    case "stale":
+    case "done":
       return 1;
-    case "superseded":
+    case "stale":
       return 0;
+    case "superseded":
+      return -1;
   }
 }
 

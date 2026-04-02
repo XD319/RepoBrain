@@ -832,6 +832,201 @@ await runTest("cli extract writes initial memory metadata with legal frontmatter
   });
 });
 
+await runTest("working and goal frontmatter fields round-trip with backward-compatible defaults", async () => {
+  await withTempRepo(async (projectRoot) => {
+    await saveMemory(
+      {
+        type: "working",
+        title: "Temporary auth migration checklist",
+        summary: "Keep a short-lived migration checklist for the auth rollout.",
+        detail: "## WORKING\n\nTrack the auth migration checklist until the rollout is complete.",
+        tags: ["auth", "migration"],
+        importance: "medium",
+        date: "2026-04-02T09:00:00.000Z",
+        created: "2026-04-02",
+        updated: "2026-04-03",
+        area: "auth",
+        files: ["src/auth/**"],
+        expires: "2026-04-09",
+        status: "active",
+      },
+      projectRoot,
+    );
+
+    await saveMemory(
+      {
+        type: "goal",
+        title: "Finish DB connection pooling cleanup",
+        summary: "Track the durable cleanup goal across sessions.",
+        detail: "## GOAL\n\nFinish the DB connection pooling cleanup and remove the legacy path.",
+        tags: ["db"],
+        importance: "high",
+        date: "2026-04-02T10:00:00.000Z",
+        created: "2026-04-02",
+        updated: "2026-04-02",
+        area: "db",
+        files: ["src/db/**"],
+      },
+      projectRoot,
+    );
+
+    const records = await loadStoredMemoryRecords(projectRoot);
+    const working = records.find((entry) => entry.memory.type === "working")?.memory;
+    const goal = records.find((entry) => entry.memory.type === "goal")?.memory;
+
+    assert.ok(working);
+    assert.equal(working.created, "2026-04-02");
+    assert.equal(working.updated, "2026-04-03");
+    assert.equal(working.area, "auth");
+    assert.deepEqual(working.files, ["src/auth/**"]);
+    assert.equal(working.expires, "2026-04-09");
+
+    assert.ok(goal);
+    assert.equal(goal.created, "2026-04-02");
+    assert.equal(goal.updated, "2026-04-02");
+    assert.equal(goal.area, "db");
+    assert.deepEqual(goal.files, ["src/db/**"]);
+    assert.equal(goal.status, "active");
+  });
+});
+
+await runTest("cli extract --type working fills created updated and default expires", async () => {
+  await withTempRepo(async (projectRoot) => {
+    const today = new Date();
+    const expectedCreated = formatDateOnly(today);
+    const expectedExpires = formatDateOnly(new Date(today.getFullYear(), today.getMonth(), today.getDate() + 7));
+
+    const result = await runNodeProcess(
+      [path.join(repoRoot, "dist", "cli.js"), "extract", "--source", "session", "--type", "working"],
+      projectRoot,
+      [
+        "decision: Keep the auth rollout checklist in RepoBrain while the migration is active",
+        "",
+        "Always track the remaining auth rollout checklist in RepoBrain until every entrypoint has moved to the new middleware.",
+      ].join("\n"),
+    );
+
+    assert.equal(result.code, 0);
+
+    const records = await loadStoredMemoryRecords(projectRoot);
+    assert.equal(records.length, 1);
+    const stored = records[0]?.memory;
+    assert.ok(stored);
+    assert.equal(stored.type, "working");
+    assert.equal(stored.created, expectedCreated);
+    assert.equal(stored.updated, expectedCreated);
+    assert.equal(stored.expires, expectedExpires);
+
+    const raw = await readFile(records[0].filePath, "utf8");
+    assert.match(raw, new RegExp(`created: "${expectedCreated}"`));
+    assert.match(raw, new RegExp(`updated: "${expectedCreated}"`));
+    assert.match(raw, new RegExp(`expires: "${expectedExpires}"`));
+  });
+});
+
+await runTest("brain list supports type filters, goal grouping, and stats include working and goal counts", async () => {
+  await withTempRepo(async (projectRoot) => {
+    await saveMemory(
+      {
+        type: "working",
+        title: "Short-lived UI cleanup",
+        summary: "Track the UI cleanup while the refactor is in flight.",
+        detail: "## WORKING\n\nTrack the UI cleanup while the refactor is in flight.",
+        tags: ["ui"],
+        importance: "medium",
+        date: "2026-04-02T09:00:00.000Z",
+        expires: "2026-04-09",
+      },
+      projectRoot,
+    );
+
+    await saveMemory(
+      {
+        type: "goal",
+        title: "Retire legacy auth middleware",
+        summary: "Finish retiring the legacy auth middleware.",
+        detail: "## GOAL\n\nRetire the legacy auth middleware.",
+        tags: ["auth"],
+        importance: "high",
+        date: "2026-04-02T10:00:00.000Z",
+        status: "active",
+      },
+      projectRoot,
+    );
+
+    await saveMemory(
+      {
+        type: "goal",
+        title: "Document the DB migration",
+        summary: "Wrap up the DB migration documentation.",
+        detail: "## GOAL\n\nDocument the DB migration.",
+        tags: ["db"],
+        importance: "medium",
+        date: "2026-04-02T11:00:00.000Z",
+        status: "done",
+      },
+      projectRoot,
+    );
+
+    const listByType = await runNodeProcess(
+      [path.join(repoRoot, "dist", "cli.js"), "list", "--type", "working"],
+      projectRoot,
+    );
+    assert.equal(listByType.code, 0);
+    assert.match(listByType.stdout, /\| working \|/);
+    assert.doesNotMatch(listByType.stdout, /\| goal \|/);
+
+    const goalsResult = await runNodeProcess(
+      [path.join(repoRoot, "dist", "cli.js"), "list", "--goals"],
+      projectRoot,
+    );
+    assert.equal(goalsResult.code, 0);
+    assert.match(goalsResult.stdout, /\[active\][\s\S]*Retire legacy auth middleware/);
+    assert.match(goalsResult.stdout, /\[done\][\s\S]*Document the DB migration/);
+    assert.ok(goalsResult.stdout.indexOf("[active]") < goalsResult.stdout.indexOf("[done]"));
+
+    const statsResult = await runNodeProcess(
+      [path.join(repoRoot, "dist", "cli.js"), "stats"],
+      projectRoot,
+    );
+    assert.equal(statsResult.code, 0);
+    assert.match(statsResult.stdout, /By type: .*goal=2.*working=1/);
+  });
+});
+
+await runTest("brain goal done updates matching goal status and updated date", async () => {
+  await withTempRepo(async (projectRoot) => {
+    await saveMemory(
+      {
+        type: "goal",
+        title: "Retire legacy auth middleware",
+        summary: "Finish the migration away from the legacy auth middleware.",
+        detail: "## GOAL\n\nFinish the migration away from the legacy auth middleware.",
+        tags: ["auth"],
+        importance: "high",
+        date: "2026-04-02T10:00:00.000Z",
+        status: "active",
+        updated: "2026-04-02",
+      },
+      projectRoot,
+    );
+
+    const result = await runNodeProcess(
+      [path.join(repoRoot, "dist", "cli.js"), "goal", "done", "legacy auth"],
+      projectRoot,
+    );
+
+    assert.equal(result.code, 0);
+    assert.match(result.stdout, /Marked goal as done: Retire legacy auth middleware/);
+
+    const records = await loadStoredMemoryRecords(projectRoot);
+    const goal = records.find((entry) => entry.memory.type === "goal")?.memory;
+    assert.ok(goal);
+    assert.equal(goal.status, "done");
+    assert.equal(goal.updated, formatDateOnly(new Date()));
+  });
+});
+
 console.log("All store schema tests passed.");
 
 async function withTempRepo(callback) {
@@ -885,4 +1080,11 @@ async function runNodeProcess(args, cwd, stdinText = "") {
 
     child.stdin.end(stdinText);
   });
+}
+
+function formatDateOnly(value) {
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, "0");
+  const day = String(value.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }

@@ -84,13 +84,13 @@ const TOOLS: ToolDefinition[] = [
   {
     name: "brain_add_memory",
     title: "Add Repo Memory",
-    description: "Save a new decision, gotcha, convention, or pattern into .brain.",
+    description: "Save a new decision, gotcha, convention, pattern, working memory, or goal into .brain.",
     inputSchema: {
       type: "object",
       properties: {
         type: {
           type: "string",
-          enum: ["decision", "gotcha", "convention", "pattern"],
+          enum: ["decision", "gotcha", "convention", "pattern", "working", "goal"],
         },
         title: {
           type: "string",
@@ -163,7 +163,7 @@ async function handleRequest(
         },
         serverInfo: SERVER_INFO,
         instructions:
-          "Use brain_get_context to load repo memory before coding. Use brain_add_memory to save durable decisions, gotchas, conventions, or patterns back into .brain.",
+          "Use brain_get_context to load repo memory before coding. Use brain_add_memory to save durable decisions, gotchas, conventions, patterns, working memories, or goals back into .brain.",
       };
     case "notifications/initialized":
       return undefined;
@@ -232,7 +232,7 @@ async function handleAddMemory(
   args: Record<string, unknown>,
   projectRoot: string,
 ): Promise<Record<string, unknown>> {
-  const type = asRequiredEnum(args.type, ["decision", "gotcha", "convention", "pattern"], "type");
+  const type = asRequiredEnum(args.type, ["decision", "gotcha", "convention", "pattern", "working", "goal"], "type");
   const title = asRequiredString(args.title, "title");
   const content = asRequiredString(args.content, "content");
   const importance = asEnum(args.importance, ["high", "medium", "low"]) ?? "medium";
