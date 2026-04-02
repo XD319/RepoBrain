@@ -58,7 +58,7 @@ await runTest("inject sorts memories by computed injection priority", async () =
       injection.indexOf("Higher priority gotcha") < injection.indexOf("Lower priority decision"),
       "expected inject to follow computeInjectPriority ordering",
     );
-    assert.match(injection, /\[RepoBrain\] 已注入 2\/2 条记忆/);
+    assert.match(injection, /\[RepoBrain\] injected 2\/2 eligible memories\./);
   });
 });
 
@@ -195,8 +195,8 @@ await runTest("inject skips stale memories, reports them, and updates usage meta
     const injection = await buildInjection(projectRoot, DEFAULT_BRAIN_CONFIG);
     assert.doesNotMatch(injection, /Skip stale memory/);
     assert.match(injection, /Inject active memory/);
-    assert.match(injection, /\[RepoBrain\] 已注入 1\/1 条记忆/);
-    assert.match(injection, /⚠ 有 1 条记忆已标记为过期，运行 brain score 查看/);
+    assert.match(injection, /\[RepoBrain\] injected 1\/1 eligible memories\./);
+    assert.match(injection, /Note: 1 stale memory is currently excluded\. Run "brain score" to review them\./);
 
     const records = await loadStoredMemoryRecords(projectRoot);
     const staleRecord = records.find((entry) => entry.memory.title === "Skip stale memory");
@@ -252,7 +252,7 @@ await runTest("inject filters superseded lineage entries and prefixes newer vers
     );
 
     const injection = await buildInjection(projectRoot, DEFAULT_BRAIN_CONFIG);
-    assert.match(injection, /\[更新 v2\] Use the new deploy gate/);
+    assert.match(injection, /\[Updated v2\] Use the new deploy gate/);
     assert.match(injection, /Only the new deploy gate should be injected/);
     assert.doesNotMatch(injection, /Use the old deploy gate/);
     assert.match(injection, /\[RepoBrain\].*1\/1/);
@@ -298,9 +298,45 @@ await runTest("inject warns when supersedes lineage is not fully linked back", a
     assert.equal(result.code, 0);
     assert.match(
       result.stderr,
-      /⚠ \[brain\] 血缘不一致: decisions\/2026-04-01-old-cache-guidance-080000000\.md 应设置 superseded_by: decisions\//,
+      /\[brain\] lineage warning: decisions\/2026-04-01-old-cache-guidance-080000000\.md should set superseded_by: decisions\//,
     );
-    assert.match(result.stdout, /\[更新 v2\] New cache guidance/);
+    assert.match(result.stdout, /\[Updated v2\] New cache guidance/);
+  });
+});
+
+await runTest("inject reminds the user when candidate memories are waiting for review", async () => {
+  await withTempRepo(async (projectRoot) => {
+    await saveMemory(
+      {
+        type: "decision",
+        title: "Inject active memory",
+        summary: "This active memory should be injected.",
+        detail: "## DECISION\n\nInject this memory as usual.",
+        tags: ["active"],
+        importance: "medium",
+        date: "2026-04-01T09:00:00.000Z",
+        status: "active",
+      },
+      projectRoot,
+    );
+
+    await saveMemory(
+      {
+        type: "gotcha",
+        title: "Review this candidate",
+        summary: "This candidate should stay out of inject.",
+        detail: "## GOTCHA\n\nKeep this candidate pending review.",
+        tags: ["candidate"],
+        importance: "medium",
+        date: "2026-04-01T10:00:00.000Z",
+        status: "candidate",
+      },
+      projectRoot,
+    );
+
+    const injection = await buildInjection(projectRoot, DEFAULT_BRAIN_CONFIG);
+    assert.match(injection, /Pending review: 1 candidate memory\. Run "brain review" to inspect them\./);
+    assert.doesNotMatch(injection, /Review this candidate/);
   });
 });
 

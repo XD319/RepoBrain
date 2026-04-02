@@ -35,7 +35,7 @@ The recommended flow is simple:
 # After the first public npm release
 npm install -g repobrain
 
-brain init
+brain setup
 brain inject
 ```
 
@@ -280,10 +280,14 @@ If you prefer not to link globally, replace `brain` in the commands below with `
 Create the local RepoBrain workspace in the current repository:
 
 ```bash
-brain init
+brain setup
 ```
 
-After initialization, `.brain/` should look like this:
+`brain setup` is the fastest recommended entry point. It still initializes `.brain/` like `brain init`, and when you run it from the Git root it also installs the lightweight `post-commit` hook for commit-message extraction.
+
+If you only want the workspace without automation, `brain init` still works as before.
+
+After setup, `.brain/` should look like this:
 
 ```text
 .brain/
@@ -556,6 +560,7 @@ See [docs/team-workflow.md](./docs/team-workflow.md) for the full workflow and `
 
 ```bash
 brain init
+brain setup
 brain extract < session-summary.txt
 brain inject
 brain list
@@ -578,9 +583,11 @@ brain mcp
 ### Commands
 
 - `brain init`: create the `.brain/` workspace in the current repo
+- `brain setup`: initialize `.brain/` and install the low-risk `post-commit` Git hook when run from the Git root
 - `brain extract`: extract long-lived repo knowledge from `stdin`
   The command prints a review decision for each extracted memory before writing it.
 - `brain inject`: build a compact memory block for the next session, optionally ranked by `--task`, `--path`, and `--module`
+  When candidate memories are waiting for review, the injected footer now reminds you to run `brain review`.
 - `brain list`: list stored memories
 - `brain stats`: show memory counts by type and importance
 - `brain status`: show the most recently injected memories and most recently captured memories for the current repo

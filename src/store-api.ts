@@ -24,6 +24,9 @@ export {
   reinforceMemories,
 } from "./reinforce.js";
 export {
+  setupRepoBrain,
+} from "./setup.js";
+export {
   buildMemoryReviewContext,
   createDeterministicMemoryReviewer,
   decideCandidateMemoryReview,

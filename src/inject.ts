@@ -5,9 +5,8 @@ import {
   normalizeSelectionOptions,
   scoreMemoryForSelection,
 } from "./memory-relevance.js";
-import type { BrainConfig, Memory } from "./types.js";
 import type { MemorySelectionOptions } from "./memory-relevance.js";
-import type { StoredMemoryRecord } from "./types.js";
+import type { BrainConfig, Memory, StoredMemoryRecord } from "./types.js";
 
 interface RankedMemory {
   memory: Memory;
@@ -30,6 +29,7 @@ export async function buildInjection(
   const allRecords = await loadStoredMemoryRecords(projectRoot);
   const allMemories = allRecords.map((entry) => entry.memory);
   const activeRecords = allRecords.filter((entry) => getMemoryStatus(entry.memory) === "active");
+  const candidateCount = allRecords.filter((entry) => getMemoryStatus(entry.memory) === "candidate").length;
   emitLineageWarnings(activeRecords);
   const staleCount = activeRecords.filter((entry) => entry.memory.stale).length;
   const options = normalizeSelectionOptions(rawOptions);
@@ -56,13 +56,16 @@ export async function buildInjection(
     "",
     "---",
     `Source: .brain/ (${allMemories.length} records, last updated: ${lastUpdated})`,
-    `[RepoBrain] 已注入 ${selected.length}/${selection.eligibleCount} 条记忆`,
+    `[RepoBrain] injected ${selected.length}/${selection.eligibleCount} eligible memories.`,
+    ...(candidateCount > 0
+      ? [`Pending review: ${candidateCount} candidate memor${candidateCount === 1 ? "y" : "ies"}. Run "brain review" to inspect them.`]
+      : []),
     "Requirements:",
     "- Understand these memories before choosing an implementation plan",
     "- If you need to conflict with a high-priority memory, explain why first",
     "- Do not suggest approaches that have already been ruled out",
     ...(selection.staleCount > 0
-      ? [`⚠ 有 ${selection.staleCount} 条记忆已标记为过期，运行 brain score 查看`]
+      ? [`Note: ${selection.staleCount} stale memor${selection.staleCount === 1 ? "y is" : "ies are"} currently excluded. Run "brain score" to review them.`]
       : []),
   ].join("\n");
 }
@@ -117,7 +120,7 @@ function selectWithinTokenBudget(
       "## Injected Memories (Priority Order)",
       taskAware ? "Selection mode: task-aware" : "",
       "---",
-      "[RepoBrain] 已注入 0/0 条记忆",
+      "[RepoBrain] injected 0/0 eligible memories.",
     ].join("\n"),
   );
 
@@ -168,7 +171,7 @@ function renderGroup(memories: RankedMemory[], taskAware: boolean): string {
 
 function renderRankedMemory(entry: RankedMemory, taskAware: boolean): string {
   const tags = entry.memory.tags.length > 0 ? ` | tags: ${entry.memory.tags.join(", ")}` : "";
-  const titlePrefix = entry.memory.version && entry.memory.version >= 2 ? `[更新 v${entry.memory.version}] ` : "";
+  const titlePrefix = entry.memory.version && entry.memory.version >= 2 ? `[Updated v${entry.memory.version}] ` : "";
   const lines = [
     `- [${entry.memory.type} | ${entry.memory.importance}] ${titlePrefix}${entry.memory.title}`,
     `  ${entry.memory.summary}`,
@@ -260,7 +263,7 @@ function emitLineageWarnings(activeRecords: StoredMemoryRecord[]): void {
     }
 
     process.stderr.write(
-      `⚠ [brain] 血缘不一致: ${supersededPath} 应设置 superseded_by: ${toBrainRelativePath(entry.relativePath)}\n`,
+      `[brain] lineage warning: ${supersededPath} should set superseded_by: ${toBrainRelativePath(entry.relativePath)}\n`,
     );
   }
 }

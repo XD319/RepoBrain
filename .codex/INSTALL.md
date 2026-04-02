@@ -28,8 +28,10 @@ node dist/cli.js <command>
 Create the local `.brain/` workspace for this repository:
 
 ```bash
-brain init
+brain setup
 ```
+
+`brain setup` also installs the lightweight `post-commit` hook when you run it from the Git root. If you only want the workspace without automation, `brain init` still works.
 
 ## 3. Load repo context before a new Codex session
 
@@ -50,6 +52,8 @@ To let Project Brain extract from the latest commit message after each commit:
 ```bash
 sh scripts/setup-git-hooks.sh
 ```
+
+If you already ran `brain setup` from the Git root, you can skip this step.
 
 The installed `post-commit` hook stays lightweight:
 

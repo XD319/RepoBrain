@@ -34,7 +34,7 @@
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch",
-    "test": "npm run build && node test/store.test.mjs && node test/memory-priority.test.mjs && node test/reviewer.test.mjs && node test/suggest-skills.test.mjs && node test/inject.test.mjs && node test/audit-memory.test.mjs && node test/failure-detector.test.mjs && node test/reinforce.test.mjs && node test/reinforce-command.test.mjs && node test/session-end-hook.test.mjs && node test/score.test.mjs && node test/integrations.test.mjs",
+    "test": "npm run build && node test/store.test.mjs && node test/memory-priority.test.mjs && node test/reviewer.test.mjs && node test/suggest-skills.test.mjs && node test/inject.test.mjs && node test/setup-command.test.mjs && node test/audit-memory.test.mjs && node test/failure-detector.test.mjs && node test/reinforce.test.mjs && node test/reinforce-command.test.mjs && node test/session-end-hook.test.mjs && node test/score.test.mjs && node test/integrations.test.mjs",
     "typecheck": "tsc --noEmit",
     "mcp": "node dist/mcp/server.js"
   },

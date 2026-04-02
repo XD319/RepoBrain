@@ -16,6 +16,7 @@ import { runMcpServer } from "./mcp/server.js";
 import { reinforceMemories } from "./reinforce.js";
 import { reviewCandidateMemories } from "./reviewer.js";
 import { buildSharePlan } from "./share.js";
+import { setupRepoBrain } from "./setup.js";
 import { buildSkillShortlist, renderSkillShortlist } from "./suggest-skills.js";
 import {
   approveCandidateMemory,
@@ -46,6 +47,23 @@ program
     const projectRoot = process.cwd();
     await initBrain(projectRoot);
     output.write(`Initialized Project Brain in ${projectRoot}\n`);
+  });
+
+program
+  .command("setup")
+  .description("Initialize RepoBrain and install low-risk automation for the current project.")
+  .option("--no-git-hook", "Skip installing the post-commit Git hook.")
+  .action(async (options: { gitHook?: boolean }) => {
+    const projectRoot = process.cwd();
+    const result = await setupRepoBrain(
+      projectRoot,
+      options.gitHook === undefined ? {} : { gitHook: options.gitHook },
+    );
+
+    output.write(`Initialized RepoBrain in ${projectRoot}\n`);
+    output.write(`- Brain directory: ${result.brainDir}\n`);
+    output.write(`- ${result.gitHook.message}\n`);
+    output.write('- Next step: run "brain inject" at session start, or wire it into your agent hook.\n');
   });
 
 program
