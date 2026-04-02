@@ -552,6 +552,7 @@ brain mcp
 - `brain review`: list candidate memories waiting for approval
 - `brain approve`: promote one candidate, or all candidates, to active memory
 - `brain dismiss`: mark one candidate, or all candidates, as dismissed
+- `brain score`: review low-quality or outdated memories and interactively mark stale, delete, or keep them
 - `brain audit-memory`: audit stored memories for stale, conflict, low-signal, and overscoped entries
 - `brain suggest-skills`: build a skill shortlist from task text, changed paths, and matched active memories
 - `brain share`: suggest the next `git add` and `git commit` commands for one memory or all active memories

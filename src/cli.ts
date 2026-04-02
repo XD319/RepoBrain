@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 
+import { rm } from "node:fs/promises";
 import path from "node:path";
 import { stdin as input, stdout as output } from "node:process";
+import { createInterface } from "node:readline/promises";
 import { Command } from "commander";
 
 import { loadConfig, renderConfigWarnings } from "./config.js";
@@ -324,6 +326,64 @@ program
   });
 
 program
+  .command("score")
+  .description("Review low-quality or outdated memories and optionally mark them stale or delete them.")
+  .action(async () => {
+    const projectRoot = process.cwd();
+    const records = await loadStoredMemoryRecords(projectRoot);
+    const candidates = buildScoreCandidates(records);
+
+    if (candidates.length === 0) {
+      output.write("No memories matched the current score review rules.\n");
+      return;
+    }
+
+    output.write(`${renderScoreTable(candidates)}\n`);
+    const promptAction = await createScoreActionPrompter();
+
+    let marked = 0;
+    let deleted = 0;
+    let skipped = 0;
+    let quit = false;
+
+    try {
+      for (const candidate of candidates) {
+        const action = await promptAction(path.basename(candidate.record.filePath));
+        if (action === "q") {
+          quit = true;
+          break;
+        }
+
+        if (action === "s") {
+          await updateStoredMemoryStatus(candidate.record, "stale");
+          marked += 1;
+          continue;
+        }
+
+        if (action === "d") {
+          await rm(candidate.record.filePath, { force: true });
+          deleted += 1;
+          continue;
+        }
+
+        skipped += 1;
+      }
+    } finally {
+      await promptAction.close();
+    }
+
+    if (marked > 0 || deleted > 0) {
+      await updateIndex(projectRoot);
+    }
+
+    if (quit) {
+      output.write("Score review exited early.\n");
+    }
+
+    output.write(`Summary: marked=${marked}, deleted=${deleted}, skipped=${skipped}\n`);
+  });
+
+program
   .command("mcp")
   .description("Run RepoBrain as a minimal MCP stdio server.")
   .action(async () => {
@@ -445,4 +505,139 @@ function getStoredMemoryId(entry: StoredMemoryRecord): string {
 
 function normalizeIdentifier(value: string): string {
   return value.toLowerCase().replace(/[^a-z0-9\u4e00-\u9fa5]+/g, "-");
+}
+
+type ScoreAction = "s" | "d" | "k" | "q";
+
+interface ScoreCandidate {
+  record: StoredMemoryRecord;
+  triggers: string[];
+}
+
+function buildScoreCandidates(
+  records: StoredMemoryRecord[],
+  now: Date = new Date(),
+): ScoreCandidate[] {
+  return records
+    .map((record) => ({
+      record,
+      triggers: getScoreTriggers(record.memory, now),
+    }))
+    .filter((entry) => entry.triggers.length > 0)
+    .sort((left, right) => left.record.relativePath.localeCompare(right.record.relativePath));
+}
+
+function getScoreTriggers(memory: Memory, now: Date): string[] {
+  const triggers: string[] = [];
+  const nowTime = now.getTime();
+
+  if (memory.last_used) {
+    const lastUsedTime = Date.parse(memory.last_used);
+    if (!Number.isNaN(lastUsedTime)) {
+      const ageInDays = (nowTime - lastUsedTime) / (1000 * 60 * 60 * 24);
+      if (ageInDays > 180) {
+        triggers.push("A:last_used>180d");
+      }
+    }
+  }
+
+  if (memory.score < 30) {
+    triggers.push("B:score<30");
+  }
+
+  if (memory.hit_count > 5 && memory.score < 50) {
+    triggers.push("C:high-hit-low-score");
+  }
+
+  return triggers;
+}
+
+function renderScoreTable(candidates: ScoreCandidate[]): string {
+  const headers = ["File", "Type", "Score", "Hit Count", "Last Used", "Trigger"];
+  const rows = candidates.map((candidate) => [
+    path.basename(candidate.record.filePath),
+    candidate.record.memory.type,
+    String(candidate.record.memory.score),
+    String(candidate.record.memory.hit_count),
+    candidate.record.memory.last_used ?? "-",
+    candidate.triggers.join(", "),
+  ]);
+  const widths = headers.map((header, index) =>
+    Math.max(
+      header.length,
+      ...rows.map((row) => truncateTableValue(row[index] ?? "").length),
+    ),
+  );
+
+  return [
+    formatTableRow(headers, widths),
+    formatTableRow(widths.map((width) => "-".repeat(width)), widths),
+    ...rows.map((row) => formatTableRow(row, widths)),
+  ].join("\n");
+}
+
+function formatTableRow(values: string[], widths: number[]): string {
+  return values
+    .map((value, index) => truncateTableValue(value).padEnd(widths[index] ?? value.length))
+    .join(" | ");
+}
+
+function truncateTableValue(value: string, maxLength: number = 40): string {
+  if (value.length <= maxLength) {
+    return value;
+  }
+
+  return `${value.slice(0, maxLength - 3)}...`;
+}
+
+async function promptScoreAction(
+  rl: ReturnType<typeof createInterface>,
+  fileName: string,
+): Promise<ScoreAction> {
+  while (true) {
+    const answer = (await rl.question(`Action for ${fileName} [s/d/k/q]: `)).trim().toLowerCase();
+    if (answer === "s" || answer === "d" || answer === "k" || answer === "q") {
+      return answer;
+    }
+
+    output.write('Choose one of "s", "d", "k", or "q".\n');
+  }
+}
+
+async function createScoreActionPrompter(): Promise<{
+  (fileName: string): Promise<ScoreAction>;
+  close(): Promise<void>;
+}> {
+  if (!input.isTTY) {
+    const queuedAnswers = (await readStdin())
+      .split(/\r?\n/)
+      .map((line) => line.trim().toLowerCase())
+      .filter(Boolean);
+    let index = 0;
+
+    const prompter = async (_fileName: string): Promise<ScoreAction> => {
+      while (index < queuedAnswers.length) {
+        const answer = queuedAnswers[index];
+        index += 1;
+        if (answer === "s" || answer === "d" || answer === "k" || answer === "q") {
+          return answer;
+        }
+      }
+
+      return "q";
+    };
+
+    prompter.close = async () => undefined;
+    return prompter;
+  }
+
+  const rl = createInterface({
+    input,
+    output,
+  });
+  const prompter = (fileName: string) => promptScoreAction(rl, fileName);
+  prompter.close = async () => {
+    rl.close();
+  };
+  return prompter;
 }
