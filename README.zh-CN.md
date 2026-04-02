@@ -437,7 +437,7 @@ cat task.txt | brain suggest-skills --path src/cli.ts --path test/store.test.mjs
 - `brain inject`：更适合 session 开始前、方案实现前、风险较高的改动前，用来先看 repo 级上下文和历史约束
 - `brain suggest-skills`：更适合任务已经明确之后，决定该交给哪个 skill 或执行流来处理
 
-`brain inject` 现在会按综合注入优先级对 `active` memories 排序，跳过 frontmatter 中 `stale: true` 或 `superseded_by` 非空的条目；当 `version >= 2` 时，会在标题前加上 `[更新 vN]` 前缀；如果 `supersedes` 指向的旧文件没有正确回填 `superseded_by`，inject 还会在终端输出警告。成功注入后，RepoBrain 仍会以原子方式回写更高的 `hit_count` 和最新的 `last_used` 日期。如果你传入任务信号，RepoBrain 仍会给出简短的命中原因，主要包括：
+`brain inject` 现在会按综合注入优先级对 `active` memories 排序，跳过 frontmatter 中 `stale: true` 或 `superseded_by` 非空的条目；当 `version >= 2` 时，会在标题前加上 `[更新 vN]` 前缀；如果 `supersedes` 指向的旧文件没有正确回填 `superseded_by`，inject 还会在终端输出警告。成功注入后，RepoBrain 仍会以原子方式回写更高的 `hit_count` 和最新的 `last_used` 日期。默认情况下，它还会读取当前 Git 分支名和 `git diff --name-only HEAD`，对 `files`、`area`、`tags` 能命中当前改动上下文的 memories 额外加分；如果当前不在 Git 仓库中，或者旧 memories 没有填写 `files` 和 `area`，则会自动退回旧的排序逻辑。如果你传入任务信号，RepoBrain 仍会给出简短的命中原因，主要包括：
 
 - `skill_trigger_tasks` 的任务短语命中
 - `path_scope` 和 `skill_trigger_paths` 的路径命中
@@ -464,6 +464,14 @@ brain inject --task "refactor config loading for the CLI" --path src/config.ts -
 ```bash
 brain inject --task "fix refund transaction bug before release" --path src/payments/refund.ts --module payments --module ledger
 ```
+
+常用 flag：
+
+- `--no-context`：关闭 Git 上下文打分，强制使用旧排序逻辑
+- `--include-working`：把 `active` 状态的 `working` memory 也纳入注入
+- `--explain`：在输出末尾追加 HTML 注释，打印每条注入 memory 的 Git 上下文得分
+
+`active` 状态的 `goal` memory 会始终优先注入，不受普通 token 截断影响。
 
 生成出来的 block 会按类别分组，并在末尾附带几条简短要求。输出大致如下：
 

@@ -118,7 +118,17 @@ program
     collectValues,
     [] as string[],
   )
-  .action(async (options: { task?: string; path: string[]; module: string[] }) => {
+  .option("--no-context", "Skip Git-context scoring and use the legacy injection ordering.")
+  .option("--explain", "Append per-memory Git-context scores as an HTML comment.")
+  .option("--include-working", "Include active working memories in the injected output.")
+  .action(async (options: {
+    task?: string;
+    path: string[];
+    module: string[];
+    context?: boolean;
+    explain?: boolean;
+    includeWorking?: boolean;
+  }) => {
     const projectRoot = process.cwd();
     const config = await loadConfig(projectRoot);
     renderConfigWarnings(config).forEach((warning) => process.stderr.write(`[repobrain] ${warning}\n`));
@@ -126,6 +136,9 @@ program
       ...(options.task?.trim() ? { task: options.task.trim() } : {}),
       paths: options.path,
       modules: options.module,
+      ...(options.context === false ? { noContext: true } : {}),
+      ...(options.explain ? { explain: true } : {}),
+      ...(options.includeWorking ? { includeWorking: true } : {}),
     });
     output.write(`${injection}\n`);
   });

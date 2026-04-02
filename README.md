@@ -453,7 +453,7 @@ Use `brain inject` when the agent needs a compact, durable repo context block be
 - `brain inject`: best for session start, implementation planning, risky edits, and avoiding old repo-specific mistakes
 - `brain suggest-skills`: best for deciding which skill or workflow should own the task once you already know the target work
 
-`brain inject` now sorts active memories by computed injection priority, skips memories whose frontmatter sets `stale: true` or `superseded_by` to a newer `.brain/` file, prefixes versioned entries with `[更新 vN]` when `version >= 2`, warns on broken supersede back-links during inject, and atomically writes back a higher `hit_count` plus a fresh `last_used` date for injected memories. When you provide task signals, RepoBrain still shows short rationale hints based on:
+`brain inject` now sorts active memories by computed injection priority, skips memories whose frontmatter sets `stale: true` or `superseded_by` to a newer `.brain/` file, prefixes versioned entries with `[更新 vN]` when `version >= 2`, warns on broken supersede back-links during inject, and atomically writes back a higher `hit_count` plus a fresh `last_used` date for injected memories. By default, it also inspects the current Git branch plus `git diff --name-only HEAD` and boosts memories whose `files`, `area`, or `tags` match the worktree context. If Git context is unavailable, or older memories do not define `files` and `area`, RepoBrain automatically falls back to the legacy ordering. When you provide task signals, RepoBrain still shows short rationale hints based on:
 
 - task phrase matches from `skill_trigger_tasks`
 - path matches from `path_scope` and `skill_trigger_paths`
@@ -480,6 +480,14 @@ For higher-risk work, pass the risky area explicitly so RepoBrain can surface st
 ```bash
 brain inject --task "fix refund transaction bug before release" --path src/payments/refund.ts --module payments --module ledger
 ```
+
+Useful flags:
+
+- `--no-context`: disable Git-context scoring and use the legacy ordering
+- `--include-working`: include active `working` memories in the injected block
+- `--explain`: append an HTML comment with each injected memory's Git-context score for debugging
+
+Active `goal` memories are always injected ahead of the normal token-budget cutoff.
 
 The injected block will group memories by category and end with a short set of requirements. The output will look like this:
 

@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { spawn } from "node:child_process";
 import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -294,13 +293,12 @@ await runTest("inject warns when supersedes lineage is not fully linked back", a
       projectRoot,
     );
 
-    const result = await runNodeProcess([path.join(process.cwd(), "dist", "cli.js"), "inject"], projectRoot);
-    assert.equal(result.code, 0);
+    const { stderr, result } = await captureStderr(() => buildInjection(projectRoot, DEFAULT_BRAIN_CONFIG));
     assert.match(
-      result.stderr,
+      stderr,
       /\[brain\] lineage warning: decisions\/2026-04-01-old-cache-guidance-080000000\.md should set superseded_by: decisions\//,
     );
-    assert.match(result.stdout, /\[Updated v2\] New cache guidance/);
+    assert.match(result, /\[Updated v2\] New cache guidance/);
   });
 });
 
@@ -340,6 +338,171 @@ await runTest("inject reminds the user when candidate memories are waiting for r
   });
 });
 
+await runTest("inject boosts memories that match changed git files and explains the score", async () => {
+  await withTempRepo(async (projectRoot) => {
+    await saveMemory(
+      {
+        type: "decision",
+        title: "JWT auth changes must update the shared guard",
+        summary: "Auth JWT edits should revisit the shared guard path.",
+        detail: "## DECISION\n\nJWT auth edits must update the shared guard path.",
+        tags: ["auth", "jwt"],
+        importance: "low",
+        date: "2026-04-01T09:00:00.000Z",
+        status: "active",
+        files: ["src/auth/*.ts"],
+        area: "auth",
+      },
+      projectRoot,
+    );
+
+    await saveMemory(
+      {
+        type: "gotcha",
+        title: "General release checklist",
+        summary: "A high-priority generic memory that should lose to the auth-specific one.",
+        detail: "## GOTCHA\n\nGeneric release checklist.",
+        tags: ["release"],
+        importance: "high",
+        date: "2026-04-01T10:00:00.000Z",
+        status: "active",
+      },
+      projectRoot,
+    );
+
+    const injection = await buildInjection(projectRoot, DEFAULT_BRAIN_CONFIG, {
+      explain: true,
+      gitContext: {
+        changedFiles: ["src/auth/jwt.ts"],
+        branchName: "feature/auth-jwt",
+      },
+    });
+
+    assert.ok(
+      injection.indexOf("JWT auth changes must update the shared guard") < injection.indexOf("General release checklist"),
+      "expected the git-matched memory to rank ahead of the generic one",
+    );
+    assert.match(
+      injection,
+      /<!-- brain-inject-scores: .*decisions\/2026-04-01-jwt-auth-changes-must-update-the-shared-guard-090000000\.md=85, .*gotchas\/2026-04-01-general-release-checklist-100000000\.md=15 -->/,
+    );
+  });
+});
+
+await runTest("inject can disable git-context scoring with --no-context", async () => {
+  await withTempRepo(async (projectRoot) => {
+    await saveMemory(
+      {
+        type: "decision",
+        title: "JWT auth changes must update the shared guard",
+        summary: "This would normally win from file and area matching.",
+        detail: "## DECISION\n\nJWT auth edits must update the shared guard path.",
+        tags: ["auth", "jwt"],
+        importance: "low",
+        date: "2026-04-01T09:00:00.000Z",
+        status: "active",
+        files: ["src/auth/*.ts"],
+        area: "auth",
+      },
+      projectRoot,
+    );
+
+    await saveMemory(
+      {
+        type: "gotcha",
+        title: "General release checklist",
+        summary: "Higher computed priority should win when Git context is disabled.",
+        detail: "## GOTCHA\n\nGeneric release checklist.",
+        tags: ["release"],
+        importance: "high",
+        date: "2026-04-01T10:00:00.000Z",
+        status: "active",
+      },
+      projectRoot,
+    );
+
+    const result = await buildInjection(projectRoot, DEFAULT_BRAIN_CONFIG, {
+      noContext: true,
+      gitContext: {
+        changedFiles: ["src/auth/jwt.ts"],
+        branchName: "feature/auth-jwt",
+      },
+    });
+    assert.ok(
+      result.indexOf("General release checklist") < result.indexOf("JWT auth changes must update the shared guard"),
+      "expected legacy ordering when --no-context is used",
+    );
+    assert.doesNotMatch(result, /brain-inject-scores/);
+  });
+});
+
+await runTest("inject skips working memories unless --include-working is set", async () => {
+  await withTempRepo(async (projectRoot) => {
+    await saveMemory(
+      {
+        type: "working",
+        title: "Temporary migration notes",
+        summary: "This should stay out of default inject output.",
+        detail: "## WORKING\n\nTemporary migration notes.",
+        tags: ["migration"],
+        importance: "high",
+        date: "2026-04-01T09:00:00.000Z",
+        status: "active",
+      },
+      projectRoot,
+    );
+
+    const defaultInjection = await buildInjection(projectRoot, DEFAULT_BRAIN_CONFIG);
+    assert.doesNotMatch(defaultInjection, /Temporary migration notes/);
+
+    const includedInjection = await buildInjection(projectRoot, DEFAULT_BRAIN_CONFIG, {
+      includeWorking: true,
+    });
+    assert.match(includedInjection, /Temporary migration notes/);
+  });
+});
+
+await runTest("inject always includes active goals even when the token budget is tiny", async () => {
+  await withTempRepo(async (projectRoot) => {
+    await saveMemory(
+      {
+        type: "goal",
+        title: "Finish auth rollout",
+        summary: "This active goal must always appear.",
+        detail: "## GOAL\n\nFinish the auth rollout before the release cut.",
+        tags: ["auth"],
+        importance: "low",
+        date: "2026-04-01T09:00:00.000Z",
+        status: "active",
+      },
+      projectRoot,
+    );
+
+    await saveMemory(
+      {
+        type: "decision",
+        title: "Secondary decision",
+        summary: "A normal memory that can be dropped by the token budget.",
+        detail: "## DECISION\n\nA normal memory that may not fit.",
+        tags: ["secondary"],
+        importance: "high",
+        date: "2026-04-01T10:00:00.000Z",
+        status: "active",
+      },
+      projectRoot,
+    );
+
+    const injection = await buildInjection(projectRoot, {
+      ...DEFAULT_BRAIN_CONFIG,
+      maxInjectTokens: 30,
+    });
+
+    assert.match(injection, /Finish auth rollout/);
+    assert.doesNotMatch(injection, /Secondary decision/);
+    assert.match(injection, /\[RepoBrain\] injected 1\/2 eligible memories\./);
+  });
+});
+
 console.log("All inject tests passed.");
 
 async function withTempRepo(callback) {
@@ -363,36 +526,26 @@ async function runTest(name, callback) {
   }
 }
 
-async function runNodeProcess(args, cwd, stdinText = "") {
-  return new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, args, {
-      cwd,
-      stdio: ["pipe", "pipe", "pipe"],
-      env: process.env,
-    });
+async function captureStderr(callback) {
+  const originalWrite = process.stderr.write.bind(process.stderr);
+  let stderr = "";
 
-    let stdout = "";
-    let stderr = "";
-
-    child.stdout.on("data", (chunk) => {
-      stdout += chunk.toString("utf8");
-    });
-
-    child.stderr.on("data", (chunk) => {
-      stderr += chunk.toString("utf8");
-    });
-
-    child.on("error", reject);
-    child.on("close", (code) => {
-      resolve({
-        code,
-        stdout,
-        stderr,
-      });
-    });
-
-    child.stdin.end(stdinText);
+  process.stderr.write = ((chunk, encoding, next) => {
+    stderr += typeof chunk === "string" ? chunk : chunk.toString(typeof encoding === "string" ? encoding : "utf8");
+    if (typeof encoding === "function") {
+      encoding();
+    } else if (typeof next === "function") {
+      next();
+    }
+    return true;
   });
+
+  try {
+    const result = await callback();
+    return { stderr, result };
+  } finally {
+    process.stderr.write = originalWrite;
+  }
 }
 
 function buildExpectedBrainRelativePath(type, title, date) {
