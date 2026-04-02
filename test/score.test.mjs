@@ -70,7 +70,7 @@ await runTest("brain score reviews stale and low-quality memories interactively"
     const result = await runCliProcess(
       ["score"],
       projectRoot,
-      ["k", "s", "d"].join("\n"),
+      ["k", "d", "s"].join("\n"),
     );
 
     assert.equal(result.code, 0);
@@ -79,6 +79,16 @@ await runTest("brain score reviews stale and low-quality memories interactively"
     assert.match(result.stdout, /B:score<30/);
     assert.match(result.stdout, /C:high-hit-low-score/);
     assert.match(result.stdout, /Summary: marked=1, deleted=1, skipped=1/);
+    assert.ok(
+      result.stdout.indexOf("2026-01-03-frequently-used-but-fuzzy") <
+        result.stdout.indexOf("2026-01-02-low-score-memory"),
+      "expected condition C entries to rank ahead of condition B entries",
+    );
+    assert.ok(
+      result.stdout.indexOf("2026-01-02-low-score-memory") <
+        result.stdout.indexOf("2026-01-01-old-memory"),
+      "expected condition B entries to rank ahead of condition A entries",
+    );
 
     const records = await loadStoredMemoryRecords(projectRoot);
     assert.equal(records.length, 2);
@@ -119,6 +129,98 @@ await runTest("brain score exits cleanly when nothing matches", async () => {
     const result = await runCliProcess(["score"], projectRoot);
     assert.equal(result.code, 0);
     assert.match(result.stdout, /No memories matched the current score review rules/);
+  });
+});
+
+await runTest("brain score supports --mark-all for matched memories", async () => {
+  await withTempRepo(async (projectRoot) => {
+    await saveMemory(
+      {
+        type: "gotcha",
+        title: "Mark all candidate",
+        summary: "This should be marked stale.",
+        detail: "## GOTCHA\n\nThis entry should be marked stale.",
+        tags: ["score"],
+        importance: "low",
+        date: "2026-01-02T08:00:00.000Z",
+        score: 20,
+        hit_count: 1,
+        last_used: null,
+        created_at: "2026-01-02",
+        stale: false,
+        status: "active",
+      },
+      projectRoot,
+    );
+
+    const result = await runCliProcess(["score", "--mark-all"], projectRoot);
+    assert.equal(result.code, 0);
+    assert.match(result.stdout, /Summary: marked=1, deleted=0, skipped=0/);
+
+    const records = await loadStoredMemoryRecords(projectRoot);
+    assert.equal(records[0]?.memory.stale, true);
+  });
+});
+
+await runTest("brain score supports --delete-all for matched memories", async () => {
+  await withTempRepo(async (projectRoot) => {
+    await saveMemory(
+      {
+        type: "gotcha",
+        title: "Delete all candidate",
+        summary: "This should be deleted.",
+        detail: "## GOTCHA\n\nThis entry should be deleted.",
+        tags: ["score"],
+        importance: "low",
+        date: "2026-01-02T08:00:00.000Z",
+        score: 20,
+        hit_count: 1,
+        last_used: null,
+        created_at: "2026-01-02",
+        stale: false,
+        status: "active",
+      },
+      projectRoot,
+    );
+
+    const result = await runCliProcess(["score", "--delete-all"], projectRoot);
+    assert.equal(result.code, 0);
+    assert.match(result.stdout, /Summary: marked=0, deleted=1, skipped=0/);
+
+    const records = await loadStoredMemoryRecords(projectRoot);
+    assert.equal(records.length, 0);
+  });
+});
+
+await runTest("brain score supports --json without prompting", async () => {
+  await withTempRepo(async (projectRoot) => {
+    await saveMemory(
+      {
+        type: "gotcha",
+        title: "Json candidate",
+        summary: "This should appear in JSON output.",
+        detail: "## GOTCHA\n\nThis entry should appear in JSON output.",
+        tags: ["score"],
+        importance: "low",
+        date: "2026-01-02T08:00:00.000Z",
+        score: 20,
+        hit_count: 1,
+        last_used: null,
+        created_at: "2026-01-02",
+        stale: false,
+        status: "active",
+      },
+      projectRoot,
+    );
+
+    const result = await runCliProcess(["score", "--json"], projectRoot);
+    assert.equal(result.code, 0);
+
+    const parsed = JSON.parse(result.stdout);
+    assert.equal(Array.isArray(parsed), true);
+    assert.equal(parsed.length, 1);
+    assert.equal(parsed[0]?.type, "gotcha");
+    assert.deepEqual(parsed[0]?.triggers, ["B:score<30"]);
   });
 });
 

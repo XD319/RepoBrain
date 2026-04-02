@@ -328,23 +328,58 @@ program
 program
   .command("score")
   .description("Review low-quality or outdated memories and optionally mark them stale or delete them.")
-  .action(async () => {
+  .option("--mark-all", "Mark all matched memories as stale without prompting.")
+  .option("--delete-all", "Delete all matched memories without prompting.")
+  .option("--json", "Print matched memories as JSON and do not prompt.")
+  .action(async (options: { markAll?: boolean; deleteAll?: boolean; json?: boolean }) => {
     const projectRoot = process.cwd();
     const records = await loadStoredMemoryRecords(projectRoot);
     const candidates = buildScoreCandidates(records);
 
     if (candidates.length === 0) {
-      output.write("No memories matched the current score review rules.\n");
+      output.write(options.json ? `${JSON.stringify([], null, 2)}\n` : "No memories matched the current score review rules.\n");
+      return;
+    }
+
+    if (options.markAll && options.deleteAll) {
+      throw new Error('Choose only one of "--mark-all" or "--delete-all".');
+    }
+
+    if (options.json) {
+      output.write(`${JSON.stringify(candidates.map(toScoreCandidateJson), null, 2)}\n`);
       return;
     }
 
     output.write(`${renderScoreTable(candidates)}\n`);
-    const promptAction = await createScoreActionPrompter();
 
     let marked = 0;
     let deleted = 0;
     let skipped = 0;
     let quit = false;
+
+    if (options.markAll) {
+      for (const candidate of candidates) {
+        await updateStoredMemoryStatus(candidate.record, "stale");
+        marked += 1;
+      }
+
+      await updateIndex(projectRoot);
+      output.write(`Summary: marked=${marked}, deleted=${deleted}, skipped=${skipped}\n`);
+      return;
+    }
+
+    if (options.deleteAll) {
+      for (const candidate of candidates) {
+        await rm(candidate.record.filePath, { force: true });
+        deleted += 1;
+      }
+
+      await updateIndex(projectRoot);
+      output.write(`Summary: marked=${marked}, deleted=${deleted}, skipped=${skipped}\n`);
+      return;
+    }
+
+    const promptAction = await createScoreActionPrompter();
 
     try {
       for (const candidate of candidates) {
@@ -514,6 +549,15 @@ interface ScoreCandidate {
   triggers: string[];
 }
 
+interface ScoreCandidateJson {
+  file: string;
+  type: Memory["type"];
+  score: number;
+  hit_count: number;
+  last_used: string | null;
+  triggers: string[];
+}
+
 function buildScoreCandidates(
   records: StoredMemoryRecord[],
   now: Date = new Date(),
@@ -524,7 +568,7 @@ function buildScoreCandidates(
       triggers: getScoreTriggers(record.memory, now),
     }))
     .filter((entry) => entry.triggers.length > 0)
-    .sort((left, right) => left.record.relativePath.localeCompare(right.record.relativePath));
+    .sort(compareScoreCandidates);
 }
 
 function getScoreTriggers(memory: Memory, now: Date): string[] {
@@ -576,6 +620,53 @@ function renderScoreTable(candidates: ScoreCandidate[]): string {
   ].join("\n");
 }
 
+function compareScoreCandidates(left: ScoreCandidate, right: ScoreCandidate): number {
+  const severityDiff = getScoreSeverity(right) - getScoreSeverity(left);
+  if (severityDiff !== 0) {
+    return severityDiff;
+  }
+
+  const scoreDiff = left.record.memory.score - right.record.memory.score;
+  if (scoreDiff !== 0) {
+    return scoreDiff;
+  }
+
+  const leftLastUsed = Date.parse(left.record.memory.last_used ?? "");
+  const rightLastUsed = Date.parse(right.record.memory.last_used ?? "");
+  const leftHasLastUsed = !Number.isNaN(leftLastUsed);
+  const rightHasLastUsed = !Number.isNaN(rightLastUsed);
+
+  if (leftHasLastUsed && rightHasLastUsed && leftLastUsed !== rightLastUsed) {
+    return leftLastUsed - rightLastUsed;
+  }
+
+  if (leftHasLastUsed !== rightHasLastUsed) {
+    return leftHasLastUsed ? -1 : 1;
+  }
+
+  return left.record.relativePath.localeCompare(right.record.relativePath);
+}
+
+function getScoreSeverity(candidate: ScoreCandidate): number {
+  const weights = candidate.triggers.map((trigger) => {
+    if (trigger.startsWith("C:")) {
+      return 3;
+    }
+
+    if (trigger.startsWith("B:")) {
+      return 2;
+    }
+
+    if (trigger.startsWith("A:")) {
+      return 1;
+    }
+
+    return 0;
+  });
+
+  return weights.length > 0 ? Math.max(...weights) : 0;
+}
+
 function formatTableRow(values: string[], widths: number[]): string {
   return values
     .map((value, index) => truncateTableValue(value).padEnd(widths[index] ?? value.length))
@@ -588,6 +679,17 @@ function truncateTableValue(value: string, maxLength: number = 40): string {
   }
 
   return `${value.slice(0, maxLength - 3)}...`;
+}
+
+function toScoreCandidateJson(candidate: ScoreCandidate): ScoreCandidateJson {
+  return {
+    file: path.basename(candidate.record.filePath),
+    type: candidate.record.memory.type,
+    score: candidate.record.memory.score,
+    hit_count: candidate.record.memory.hit_count,
+    last_used: candidate.record.memory.last_used,
+    triggers: candidate.triggers,
+  };
 }
 
 async function promptScoreAction(
