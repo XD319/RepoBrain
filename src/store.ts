@@ -1,4 +1,4 @@
-import { mkdir, readdir, readFile, appendFile, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, appendFile, writeFile, rename, rm } from "node:fs/promises";
 import path from "node:path";
 
 import { getBrainDir, hasBrain, writeDefaultConfig } from "./config.js";
@@ -216,6 +216,15 @@ function isMissingDirectoryError(error: unknown): boolean {
   );
 }
 
+async function pathExists(targetPath: string): Promise<boolean> {
+  try {
+    await readFile(targetPath, "utf8");
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export async function appendErrorLog(projectRoot: string, message: string): Promise<void> {
   const brainDir = getBrainDir(projectRoot);
   await mkdir(brainDir, { recursive: true });
@@ -232,29 +241,28 @@ export async function recordInjectedMemories(
 ): Promise<void> {
   const brainDir = getBrainDir(projectRoot);
   await mkdir(brainDir, { recursive: true });
-  const injectedAt = new Date().toISOString();
+  const injectedAt = new Date().toISOString().slice(0, 10);
+  const activityStatePath = getActivityStatePath(projectRoot);
 
+  const operations: AtomicWriteOperation[] = [];
   if (memories.length > 0) {
     const touchedKeys = new Set(memories.map((memory) => getMemoryKey(memory)));
     const existingRecords = await loadStoredMemories(projectRoot);
 
-    await Promise.all(
-      existingRecords.map(async (entry) => {
-        if (!touchedKeys.has(getMemoryKey(entry.memory))) {
-          return;
-        }
+    for (const entry of existingRecords) {
+      if (!touchedKeys.has(getMemoryKey(entry.memory))) {
+        continue;
+      }
 
-        await overwriteStoredMemory({
-          ...entry,
-          memory: {
-            ...entry.memory,
-            hit_count: entry.memory.hit_count + 1,
-            last_used: injectedAt,
-            stale: false,
-          },
-        });
-      }),
-    );
+      const normalizedMemory = normalizeMemory({
+        ...entry.memory,
+        hit_count: entry.memory.hit_count + 1,
+        last_used: injectedAt,
+        stale: false,
+      });
+      validateMemory(normalizedMemory);
+      operations.push(createAtomicWriteOperation(entry.filePath, serializeMemory(normalizedMemory)));
+    }
   }
 
   const state: BrainActivityState = {
@@ -262,7 +270,8 @@ export async function recordInjectedMemories(
     recentLoadedMemories: memories.slice(0, 5).map(toActivityEntry),
   };
 
-  await writeFile(getActivityStatePath(projectRoot), JSON.stringify(state, null, 2), "utf8");
+  operations.push(createAtomicWriteOperation(activityStatePath, JSON.stringify(state, null, 2)));
+  await commitAtomicWriteOperations(operations);
 }
 
 export async function loadActivityState(projectRoot: string): Promise<BrainActivityState> {
@@ -759,6 +768,76 @@ function isFileAlreadyExistsError(error: unknown): boolean {
 
 function getActivityStatePath(projectRoot: string): string {
   return path.join(getBrainDir(projectRoot), "activity.json");
+}
+
+interface AtomicWriteOperation {
+  targetPath: string;
+  tempPath: string;
+  backupPath: string;
+  content: string;
+  existed: boolean;
+}
+
+function createAtomicWriteOperation(targetPath: string, content: string): AtomicWriteOperation {
+  const stamp = `${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  return {
+    targetPath,
+    tempPath: `${targetPath}.tmp-${stamp}`,
+    backupPath: `${targetPath}.bak-${stamp}`,
+    content,
+    existed: false,
+  };
+}
+
+async function commitAtomicWriteOperations(operations: AtomicWriteOperation[]): Promise<void> {
+  if (operations.length === 0) {
+    return;
+  }
+
+  const prepared: AtomicWriteOperation[] = [];
+  const movedToBackup: AtomicWriteOperation[] = [];
+  const committed: AtomicWriteOperation[] = [];
+
+  try {
+    for (const operation of operations) {
+      operation.existed = await pathExists(operation.targetPath);
+      await writeFile(operation.tempPath, operation.content, "utf8");
+      prepared.push(operation);
+    }
+
+    for (const operation of operations) {
+      if (operation.existed) {
+        await rename(operation.targetPath, operation.backupPath);
+        movedToBackup.push(operation);
+      }
+
+      await rename(operation.tempPath, operation.targetPath);
+      committed.push(operation);
+    }
+
+    await Promise.all(
+      movedToBackup.map((operation) => rm(operation.backupPath, { force: true })),
+    );
+    await Promise.all(
+      prepared.map((operation) => rm(operation.tempPath, { force: true })),
+    );
+  } catch (error) {
+    for (const operation of committed.reverse()) {
+      await rm(operation.targetPath, { force: true }).catch(() => undefined);
+    }
+
+    for (const operation of movedToBackup.reverse()) {
+      await rename(operation.backupPath, operation.targetPath).catch(() => undefined);
+    }
+
+    await Promise.all(
+      prepared.flatMap((operation) => [
+        rm(operation.tempPath, { force: true }).catch(() => undefined),
+        rm(operation.backupPath, { force: true }).catch(() => undefined),
+      ]),
+    );
+    throw error;
+  }
 }
 
 async function supersedeMatchingActiveMemories(

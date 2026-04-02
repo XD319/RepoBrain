@@ -145,7 +145,7 @@ await runTest("inject updates usage metadata on selected memories", async () => 
         hit_count: 1,
         last_used: null,
         created_at: "2026-04-01T08:00:00.000Z",
-        stale: true,
+        stale: false,
         status: "active",
       },
       projectRoot,

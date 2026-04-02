@@ -1,23 +1,24 @@
 import { getMemoryStatus, loadAllMemories, recordInjectedMemories } from "./store.js";
+import { computeInjectPriority } from "./memory-priority.js";
 import {
   hasSelectionContext,
   normalizeSelectionOptions,
   scoreMemoryForSelection,
 } from "./memory-relevance.js";
-import type { BrainConfig, Memory, MemoryType } from "./types.js";
+import type { BrainConfig, Memory } from "./types.js";
 import type { MemorySelectionOptions } from "./memory-relevance.js";
-
-const TYPE_ORDER: MemoryType[] = ["decision", "gotcha", "convention", "pattern"];
-const IMPORTANCE_SCORE: Record<Memory["importance"], number> = {
-  high: 3,
-  medium: 2,
-  low: 1,
-};
 
 interface RankedMemory {
   memory: Memory;
-  score: number;
+  relevanceScore: number;
+  injectPriority: number;
   reasons: string[];
+}
+
+interface SelectionResult {
+  selected: RankedMemory[];
+  staleCount: number;
+  eligibleCount: number;
 }
 
 export async function buildInjection(
@@ -30,16 +31,14 @@ export async function buildInjection(
   const options = normalizeSelectionOptions(rawOptions);
   const taskAware = hasSelectionContext(options);
   const ranked = rankMemories(activeMemories, options, taskAware);
-  const selected = selectWithinTokenBudget(ranked, config.maxInjectTokens, taskAware);
+  const selection = selectWithinTokenBudget(ranked, config.maxInjectTokens, taskAware);
+  const selected = selection.selected;
 
   await recordInjectedMemories(
     projectRoot,
     selected.map((entry) => entry.memory),
   );
 
-  const grouped = new Map<MemoryType, RankedMemory[]>(
-    TYPE_ORDER.map((type) => [type, selected.filter((entry) => entry.memory.type === type)]),
-  );
   const lastUpdated = allMemories[0]?.date ?? "N/A";
 
   return [
@@ -48,24 +47,19 @@ export async function buildInjection(
     "Before starting the current task, review the project knowledge below. It captures repo decisions, limits, and conventions that should be followed unless you have a clear reason to deviate.",
     ...(taskAware ? ["", renderSelectionSummary(options)] : []),
     "",
-    "## High-priority decisions",
-    renderGroup(grouped.get("decision") ?? [], taskAware),
-    "",
-    "## Known gotchas and limits",
-    renderGroup(grouped.get("gotcha") ?? [], taskAware),
-    "",
-    "## Repo conventions",
-    renderGroup(grouped.get("convention") ?? [], taskAware),
-    "",
-    "## Reusable patterns",
-    renderGroup(grouped.get("pattern") ?? [], taskAware),
+    "## Injected Memories (Priority Order)",
+    renderGroup(selected, taskAware),
     "",
     "---",
     `Source: .brain/ (${allMemories.length} records, last updated: ${lastUpdated})`,
+    `[RepoBrain] 已注入 ${selected.length}/${selection.eligibleCount} 条记忆`,
     "Requirements:",
     "- Understand these memories before choosing an implementation plan",
     "- If you need to conflict with a high-priority memory, explain why first",
     "- Do not suggest approaches that have already been ruled out",
+    ...(selection.staleCount > 0
+      ? [`⚠ 有 ${selection.staleCount} 条记忆已标记为过期，运行 brain score 查看`]
+      : []),
   ].join("\n");
 }
 
@@ -79,7 +73,8 @@ function rankMemories(
       const match = taskAware ? scoreMemoryForSelection(memory, options) : { score: 0, reasons: [] };
       return {
         memory,
-        score: match.score,
+        relevanceScore: match.score,
+        injectPriority: computeInjectPriority(memory),
         reasons: match.reasons,
       };
     })
@@ -87,44 +82,40 @@ function rankMemories(
 }
 
 function compareRankedMemories(left: RankedMemory, right: RankedMemory, taskAware: boolean): number {
+  const priorityDiff = right.injectPriority - left.injectPriority;
+  if (priorityDiff !== 0) {
+    return priorityDiff;
+  }
+
   if (taskAware) {
-    const scoreDiff = right.score - left.score;
+    const scoreDiff = right.relevanceScore - left.relevanceScore;
     if (scoreDiff !== 0) {
       return scoreDiff;
     }
   }
 
-  return compareMemories(left.memory, right.memory);
-}
-
-function compareMemories(left: Memory, right: Memory): number {
-  const importanceDiff = IMPORTANCE_SCORE[right.importance] - IMPORTANCE_SCORE[left.importance];
-  if (importanceDiff !== 0) {
-    return importanceDiff;
-  }
-
-  return right.date.localeCompare(left.date);
+  return right.memory.date.localeCompare(left.memory.date);
 }
 
 function selectWithinTokenBudget(
   rankedMemories: RankedMemory[],
   maxTokens: number,
   taskAware: boolean,
-): RankedMemory[] {
+): SelectionResult {
   const selected: RankedMemory[] = [];
+  const staleCount = rankedMemories.filter((entry) => entry.memory.stale).length;
+  const eligibleMemories = rankedMemories.filter((entry) => !entry.memory.stale);
   let usedTokens = approximateTokens(
     [
       "# Project Brain: Repo Knowledge Context",
-      "## High-priority decisions",
-      "## Known gotchas and limits",
-      "## Repo conventions",
-      "## Reusable patterns",
+      "## Injected Memories (Priority Order)",
       taskAware ? "Selection mode: task-aware" : "",
       "---",
+      "[RepoBrain] 已注入 0/0 条记忆",
     ].join("\n"),
   );
 
-  for (const entry of rankedMemories) {
+  for (const entry of eligibleMemories) {
     const rendered = renderRankedMemory(entry, taskAware);
     const renderedTokens = approximateTokens(rendered);
 
@@ -136,7 +127,11 @@ function selectWithinTokenBudget(
     usedTokens += renderedTokens;
   }
 
-  return selected;
+  return {
+    selected,
+    staleCount,
+    eligibleCount: eligibleMemories.length,
+  };
 }
 
 function renderSelectionSummary(options: MemorySelectionOptions): string {
@@ -154,7 +149,7 @@ function renderSelectionSummary(options: MemorySelectionOptions): string {
     parts.push(`modules=${options.modules?.join(", ")}`);
   }
 
-  return `Selection mode: task-aware (${parts.join(" | ")}). Relevance is ranked ahead of recency.`;
+  return `Selection mode: task-aware (${parts.join(" | ")}). Memories are selected by injection priority.`;
 }
 
 function renderGroup(memories: RankedMemory[], taskAware: boolean): string {
@@ -168,7 +163,7 @@ function renderGroup(memories: RankedMemory[], taskAware: boolean): string {
 function renderRankedMemory(entry: RankedMemory, taskAware: boolean): string {
   const tags = entry.memory.tags.length > 0 ? ` | tags: ${entry.memory.tags.join(", ")}` : "";
   const lines = [
-    `- [${entry.memory.importance}] ${entry.memory.title}`,
+    `- [${entry.memory.type} | ${entry.memory.importance}] ${entry.memory.title}`,
     `  ${entry.memory.summary}`,
     `  Scope: ${extractScope(entry.memory.detail)}${tags}`,
   ];

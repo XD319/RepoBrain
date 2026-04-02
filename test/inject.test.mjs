@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 
 import { buildInjection } from "../dist/inject.js";
-import { initBrain, saveMemory } from "../dist/store-api.js";
+import { initBrain, loadStoredMemoryRecords, saveMemory } from "../dist/store-api.js";
 
 const DEFAULT_BRAIN_CONFIG = {
   maxInjectTokens: 1200,
@@ -12,47 +12,56 @@ const DEFAULT_BRAIN_CONFIG = {
   language: "zh-CN",
 };
 
-await runTest("inject keeps legacy ordering when no task context is provided", async () => {
+await runTest("inject sorts memories by computed injection priority", async () => {
   await withTempRepo(async (projectRoot) => {
     await saveMemory(
       {
         type: "decision",
-        title: "Older high priority memory",
-        summary: "This should still win when inject runs without task context.",
-        detail: "## DECISION\n\nKeep the original importance-first ordering when no task signals are provided.",
-        tags: ["legacy"],
+        title: "Lower priority decision",
+        summary: "This entry has lower computed priority.",
+        detail: "## DECISION\n\nThis entry should appear after the higher-priority gotcha.",
+        tags: ["priority"],
         importance: "high",
         date: "2026-04-01T08:00:00.000Z",
+        score: 55,
+        hit_count: 0,
+        last_used: null,
+        created_at: "2026-04-01",
         status: "active",
+        stale: false,
       },
       projectRoot,
     );
 
     await saveMemory(
       {
-        type: "decision",
-        title: "Newer medium memory",
-        summary: "This should stay below the high importance entry without task context.",
-        detail: "## DECISION\n\nThis memory is newer but less important.",
-        tags: ["legacy"],
+        type: "gotcha",
+        title: "Higher priority gotcha",
+        summary: "This entry should win because its computed priority is higher.",
+        detail: "## GOTCHA\n\nThis entry should appear first after sorting by injection priority.",
+        tags: ["priority"],
         importance: "medium",
         date: "2026-04-01T09:00:00.000Z",
+        score: 80,
+        hit_count: 4,
+        last_used: null,
+        created_at: "2026-04-01",
         status: "active",
+        stale: false,
       },
       projectRoot,
     );
 
     const injection = await buildInjection(projectRoot, DEFAULT_BRAIN_CONFIG);
     assert.ok(
-      injection.indexOf("Older high priority memory") < injection.indexOf("Newer medium memory"),
-      "expected inject to keep the old importance-first order",
+      injection.indexOf("Higher priority gotcha") < injection.indexOf("Lower priority decision"),
+      "expected inject to follow computeInjectPriority ordering",
     );
-    assert.doesNotMatch(injection, /Selection mode: task-aware/);
-    assert.doesNotMatch(injection, /Why now:/);
+    assert.match(injection, /\[RepoBrain\] 已注入 2\/2 条记忆/);
   });
 });
 
-await runTest("inject prioritizes task-relevant memories and includes a short rationale", async () => {
+await runTest("inject keeps task-aware rationale in the rendered output", async () => {
   await withTempRepo(async (projectRoot) => {
     await saveMemory(
       {
@@ -94,11 +103,6 @@ await runTest("inject prioritizes task-relevant memories and includes a short ra
       modules: ["payments"],
     });
 
-    assert.ok(
-      injection.indexOf("Payments writes must stay inside the transaction wrapper") <
-        injection.indexOf("General release checklist"),
-      "expected task-aware inject to prioritize the matched payments memory",
-    );
     assert.match(injection, /Selection mode: task-aware/);
     assert.match(injection, /Why now: task trigger: fix refund transaction bug;/);
     assert.match(injection, /task trigger: fix refund transaction bug/);
@@ -144,6 +148,66 @@ await runTest("inject still excludes superseded memories during task-aware selec
 
     assert.match(injection, /Latest guidance for auth retry handling/);
     assert.doesNotMatch(injection, /The newer auth retry wrapper should supersede the old guidance/);
+  });
+});
+
+await runTest("inject skips stale memories, reports them, and updates usage metadata atomically", async () => {
+  await withTempRepo(async (projectRoot) => {
+    await saveMemory(
+      {
+        type: "gotcha",
+        title: "Skip stale memory",
+        summary: "This should not be injected.",
+        detail: "## GOTCHA\n\nStale memory should be skipped.",
+        tags: ["stale"],
+        importance: "high",
+        date: "2026-04-01T08:00:00.000Z",
+        score: 95,
+        hit_count: 7,
+        last_used: "2026-04-01",
+        created_at: "2026-04-01",
+        status: "active",
+        stale: true,
+      },
+      projectRoot,
+    );
+
+    await saveMemory(
+      {
+        type: "decision",
+        title: "Inject active memory",
+        summary: "This should be injected and updated.",
+        detail: "## DECISION\n\nActive memory should be injected and usage metadata should update.",
+        tags: ["active"],
+        importance: "medium",
+        date: "2026-04-01T09:00:00.000Z",
+        score: 65,
+        hit_count: 1,
+        last_used: null,
+        created_at: "2026-04-01",
+        status: "active",
+        stale: false,
+      },
+      projectRoot,
+    );
+
+    const injection = await buildInjection(projectRoot, DEFAULT_BRAIN_CONFIG);
+    assert.doesNotMatch(injection, /Skip stale memory/);
+    assert.match(injection, /Inject active memory/);
+    assert.match(injection, /\[RepoBrain\] 已注入 1\/1 条记忆/);
+    assert.match(injection, /⚠ 有 1 条记忆已标记为过期，运行 brain score 查看/);
+
+    const records = await loadStoredMemoryRecords(projectRoot);
+    const staleRecord = records.find((entry) => entry.memory.title === "Skip stale memory");
+    const activeRecord = records.find((entry) => entry.memory.title === "Inject active memory");
+
+    assert.ok(staleRecord);
+    assert.ok(activeRecord);
+    assert.equal(staleRecord.memory.hit_count, 7);
+    assert.equal(staleRecord.memory.last_used, "2026-04-01");
+    assert.equal(activeRecord.memory.hit_count, 2);
+    assert.match(activeRecord.memory.last_used ?? "", /^\d{4}-\d{2}-\d{2}$/);
+    assert.equal(activeRecord.memory.stale, false);
   });
 });
 

@@ -419,7 +419,7 @@ cat task.txt | brain suggest-skills --path src/cli.ts --path test/store.test.mjs
 - `brain inject`：更适合 session 开始前、方案实现前、风险较高的改动前，用来先看 repo 级上下文和历史约束
 - `brain suggest-skills`：更适合任务已经明确之后，决定该交给哪个 skill 或执行流来处理
 
-task-aware `inject` 仍然保持向后兼容：如果不传任务信号，就回退到旧的 importance + 时间排序；如果传了任务信号，RepoBrain 会按一套可解释的规则打分，主要包括：
+`brain inject` 现在会按综合注入优先级对 `active` memories 排序，跳过 frontmatter 中 `stale: true` 的条目，并在成功注入后以原子方式回写更高的 `hit_count` 和最新的 `last_used` 日期。如果你传入任务信号，RepoBrain 仍会给出简短的命中原因，主要包括：
 
 - `skill_trigger_tasks` 的任务短语命中
 - `path_scope` 和 `skill_trigger_paths` 的路径命中
@@ -435,7 +435,7 @@ brain inject
 brain status
 ```
 
-如果你已经知道当前任务，可以直接把任务信息传给 `inject`，让它按相关性优先选 memory，而不是只看 importance 和时间：
+如果你已经知道当前任务，仍然可以把任务信息传给 `inject`，让输出里带上更明确的命中原因：
 
 ```bash
 brain inject --task "refactor config loading for the CLI" --path src/config.ts --path src/cli.ts --module cli

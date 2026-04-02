@@ -436,7 +436,7 @@ Use `brain inject` when the agent needs a compact, durable repo context block be
 - `brain inject`: best for session start, implementation planning, risky edits, and avoiding old repo-specific mistakes
 - `brain suggest-skills`: best for deciding which skill or workflow should own the task once you already know the target work
 
-Task-aware `inject` stays backward compatible. If you provide no task signals, it falls back to the older importance-and-recency ordering. If you do provide signals, RepoBrain scores memories with an explainable mix of:
+`brain inject` now sorts active memories by computed injection priority, skips memories whose frontmatter sets `stale: true`, and atomically writes back a higher `hit_count` plus a fresh `last_used` date for injected memories. When you provide task signals, RepoBrain still shows short rationale hints based on:
 
 - task phrase matches from `skill_trigger_tasks`
 - path matches from `path_scope` and `skill_trigger_paths`
@@ -452,7 +452,7 @@ brain inject
 brain status
 ```
 
-If you already know the task, you can ask `inject` to rank memories by relevance instead of relying only on importance and time:
+If you already know the task, you can still pass task context to help explain why a memory appeared:
 
 ```bash
 brain inject --task "refactor config loading for the CLI" --path src/config.ts --path src/cli.ts --module cli
