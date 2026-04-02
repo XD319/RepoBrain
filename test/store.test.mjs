@@ -51,6 +51,11 @@ await runTest("legacy .brain entries load with safe skill routing defaults", asy
     assert.deepEqual(memory.suppressed_skills, []);
     assert.deepEqual(memory.skill_trigger_paths, []);
     assert.deepEqual(memory.skill_trigger_tasks, []);
+    assert.equal(memory.score, 60);
+    assert.equal(memory.hit_count, 0);
+    assert.equal(memory.last_used, null);
+    assert.equal(memory.created_at, "2026-03-31T08:00:00.000Z");
+    assert.equal(memory.stale, false);
     assert.equal(memory.invocation_mode, "optional");
     assert.equal(memory.risk_level, "low");
   });
@@ -78,6 +83,11 @@ await runTest("new skill routing fields round-trip through save and load", async
       suppressed_skills: ["imagegen"],
       skill_trigger_paths: ["tests/e2e/", "playwright.config.ts"],
       skill_trigger_tasks: ["debug flaky browser tests"],
+      score: 82,
+      hit_count: 4,
+      last_used: "2026-04-01T18:30:00.000Z",
+      created_at: "2026-04-01T10:00:00.000Z",
+      stale: true,
       invocation_mode: "prefer",
       risk_level: "medium",
     };
@@ -91,6 +101,11 @@ await runTest("new skill routing fields round-trip through save and load", async
     assert.match(raw, /suppressed_skills:/);
     assert.match(raw, /skill_trigger_paths:/);
     assert.match(raw, /skill_trigger_tasks:/);
+    assert.match(raw, /score: 82/);
+    assert.match(raw, /hit_count: 4/);
+    assert.match(raw, /last_used: "2026-04-01T18:30:00.000Z"/);
+    assert.match(raw, /created_at: "2026-04-01T10:00:00.000Z"/);
+    assert.match(raw, /stale: true/);
     assert.match(raw, /invocation_mode: "prefer"/);
     assert.match(raw, /risk_level: "medium"/);
 
@@ -105,8 +120,49 @@ await runTest("new skill routing fields round-trip through save and load", async
     assert.deepEqual(stored.suppressed_skills, ["imagegen"]);
     assert.deepEqual(stored.skill_trigger_paths, ["tests/e2e/", "playwright.config.ts"]);
     assert.deepEqual(stored.skill_trigger_tasks, ["debug flaky browser tests"]);
+    assert.equal(stored.score, 82);
+    assert.equal(stored.hit_count, 4);
+    assert.equal(stored.last_used, "2026-04-01T18:30:00.000Z");
+    assert.equal(stored.created_at, "2026-04-01T10:00:00.000Z");
+    assert.equal(stored.stale, true);
     assert.equal(stored.invocation_mode, "prefer");
     assert.equal(stored.risk_level, "medium");
+  });
+});
+
+await runTest("inject updates usage metadata on selected memories", async () => {
+  await withTempRepo(async (projectRoot) => {
+    await saveMemory(
+      {
+        type: "decision",
+        title: "Track injection usage metadata",
+        summary: "Injected memories should update hit_count and last_used.",
+        detail: "## DECISION\n\nTrack usage metadata when a memory is injected.",
+        tags: ["metrics"],
+        importance: "medium",
+        date: "2026-04-01T08:00:00.000Z",
+        score: 60,
+        hit_count: 1,
+        last_used: null,
+        created_at: "2026-04-01T08:00:00.000Z",
+        stale: true,
+        status: "active",
+      },
+      projectRoot,
+    );
+
+    const result = await runNodeProcess(
+      [path.join(repoRoot, "dist", "cli.js"), "inject"],
+      projectRoot,
+    );
+
+    assert.equal(result.code, 0);
+
+    const memories = await loadAllMemories(projectRoot);
+    assert.equal(memories.length, 1);
+    assert.equal(memories[0]?.hit_count, 2);
+    assert.equal(memories[0]?.stale, false);
+    assert.ok(memories[0]?.last_used);
   });
 });
 
@@ -211,6 +267,43 @@ await runTest("invalid risk_level is rejected during save with a clear validatio
         assert.ok(error instanceof Error);
         assert.match(error.message, /unsupported risk_level "urgent"/);
         assert.match(error.message, /high, medium, low/);
+        return true;
+      },
+    );
+  });
+});
+
+await runTest("invalid score in stored memory fails with a clear parse error", async () => {
+  await withTempRepo(async (projectRoot) => {
+    const invalidPath = path.join(projectRoot, ".brain", "decisions", "2026-04-01-invalid-score.md");
+    await writeFile(
+      invalidPath,
+      [
+        "---",
+        'type: "decision"',
+        'title: "Broken score metadata"',
+        'summary: "This entry should fail validation."',
+        "tags:",
+        'importance: "medium"',
+        'date: "2026-04-01T09:00:00.000Z"',
+        'score: "very-good"',
+        "---",
+        "",
+        "## DECISION",
+        "",
+        "This file intentionally uses an invalid score.",
+        "",
+      ].join("\n"),
+      "utf8",
+    );
+
+    await assert.rejects(
+      async () => loadAllMemories(projectRoot),
+      (error) => {
+        assert.ok(error instanceof Error);
+        assert.match(error.message, /invalid-score\.md/);
+        assert.match(error.message, /invalid score/);
+        assert.match(error.message, /0 and 100/);
         return true;
       },
     );

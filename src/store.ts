@@ -47,6 +47,10 @@ type ArrayFrontmatterField = (typeof ARRAY_FRONTMATTER_FIELDS)[number];
 
 const DEFAULT_INVOCATION_MODE: InvocationMode = "optional";
 const DEFAULT_RISK_LEVEL: RiskLevel = "low";
+const DEFAULT_MEMORY_SCORE = 60;
+const DEFAULT_MEMORY_HIT_COUNT = 0;
+const DEFAULT_MEMORY_LAST_USED: string | null = null;
+const DEFAULT_MEMORY_STALE = false;
 
 export async function initBrain(projectRoot: string): Promise<void> {
   const brainDir = getBrainDir(projectRoot);
@@ -228,9 +232,33 @@ export async function recordInjectedMemories(
 ): Promise<void> {
   const brainDir = getBrainDir(projectRoot);
   await mkdir(brainDir, { recursive: true });
+  const injectedAt = new Date().toISOString();
+
+  if (memories.length > 0) {
+    const touchedKeys = new Set(memories.map((memory) => getMemoryKey(memory)));
+    const existingRecords = await loadStoredMemories(projectRoot);
+
+    await Promise.all(
+      existingRecords.map(async (entry) => {
+        if (!touchedKeys.has(getMemoryKey(entry.memory))) {
+          return;
+        }
+
+        await overwriteStoredMemory({
+          ...entry,
+          memory: {
+            ...entry.memory,
+            hit_count: entry.memory.hit_count + 1,
+            last_used: injectedAt,
+            stale: false,
+          },
+        });
+      }),
+    );
+  }
 
   const state: BrainActivityState = {
-    lastInjectedAt: new Date().toISOString(),
+    lastInjectedAt: injectedAt,
     recentLoadedMemories: memories.slice(0, 5).map(toActivityEntry),
   };
 
@@ -265,6 +293,7 @@ export async function approveCandidateMemory(
   const promotedMemory: Memory = {
     ...record.memory,
     status: "active",
+    stale: false,
   };
 
   await supersedeMatchingActiveMemories(promotedMemory, projectRoot, record.filePath);
@@ -283,6 +312,7 @@ export async function updateStoredMemoryStatus(
     memory: {
       ...record.memory,
       status,
+      stale: status === "stale" ? true : record.memory.stale,
     },
   });
 }
@@ -326,6 +356,26 @@ function validateMemory(memory: Memory, context = "Memory"): void {
     throw new Error(`${context} requires non-empty title, summary, and detail.`);
   }
 
+  if (!Number.isFinite(memory.score) || memory.score < 0 || memory.score > 100) {
+    throw new Error(`${context} has invalid score "${memory.score}". Expected a number between 0 and 100.`);
+  }
+
+  if (!Number.isInteger(memory.hit_count) || memory.hit_count < 0) {
+    throw new Error(`${context} has invalid hit_count "${memory.hit_count}". Expected a non-negative integer.`);
+  }
+
+  if (memory.last_used !== null && !isNonEmptyIsoDateString(memory.last_used)) {
+    throw new Error(`${context} has invalid last_used "${memory.last_used}". Expected an ISO date string or null.`);
+  }
+
+  if (!isNonEmptyIsoDateString(memory.created_at)) {
+    throw new Error(`${context} has invalid created_at "${memory.created_at}". Expected an ISO date string.`);
+  }
+
+  if (typeof memory.stale !== "boolean") {
+    throw new Error(`${context} has invalid stale "${memory.stale}". Expected a boolean.`);
+  }
+
   validateStringArray(memory.tags, "tags", context);
   validateStringArray(memory.path_scope ?? [], "path_scope", context);
   validateStringArray(memory.recommended_skills ?? [], "recommended_skills", context);
@@ -346,6 +396,11 @@ function serializeMemory(memory: Memory): string {
     ...normalizedMemory.tags.map((tag) => `  - ${quoteYaml(tag)}`),
     `importance: ${quoteYaml(normalizedMemory.importance)}`,
     `date: ${quoteYaml(normalizedMemory.date)}`,
+    `score: ${normalizedMemory.score}`,
+    `hit_count: ${normalizedMemory.hit_count}`,
+    `last_used: ${quoteYamlNullable(normalizedMemory.last_used)}`,
+    `created_at: ${quoteYaml(normalizedMemory.created_at)}`,
+    `stale: ${normalizedMemory.stale ? "true" : "false"}`,
   ];
 
   if (normalizedMemory.source) {
@@ -401,6 +456,11 @@ function parseMemory(content: string, filePath: string): Memory {
     tags: frontmatter.tags,
     importance: importance as Memory["importance"],
     date: frontmatter.date,
+    score: frontmatter.score ?? DEFAULT_MEMORY_SCORE,
+    hit_count: frontmatter.hit_count ?? DEFAULT_MEMORY_HIT_COUNT,
+    last_used: frontmatter.last_used ?? DEFAULT_MEMORY_LAST_USED,
+    created_at: frontmatter.created_at ?? frontmatter.date,
+    stale: (frontmatter.stale ?? DEFAULT_MEMORY_STALE) as Memory["stale"],
     path_scope: frontmatter.path_scope,
     recommended_skills: frontmatter.recommended_skills,
     required_skills: frontmatter.required_skills,
@@ -444,6 +504,11 @@ function parseFrontmatter(raw: string): {
   skill_trigger_tasks: string[];
   importance?: string;
   date?: string;
+  score?: number;
+  hit_count?: number;
+  last_used?: string | null;
+  created_at?: string;
+  stale?: boolean | string;
   source?: string;
   status?: string;
   invocation_mode?: string;
@@ -462,6 +527,11 @@ function parseFrontmatter(raw: string): {
     skill_trigger_tasks: string[];
     importance?: string;
     date?: string;
+    score?: number;
+    hit_count?: number;
+    last_used?: string | null;
+    created_at?: string;
+    stale?: boolean | string;
     source?: string;
     status?: string;
     invocation_mode?: string;
@@ -504,12 +574,37 @@ function parseFrontmatter(raw: string): {
       case "summary":
       case "importance":
       case "date":
+      case "created_at":
       case "source":
       case "status":
       case "invocation_mode":
       case "risk_level":
         result[key] = unquoteYaml(value);
         break;
+      case "score":
+      case "hit_count": {
+        const parsed = parseYamlNumber(value);
+        if (parsed !== undefined) {
+          result[key] = parsed;
+        }
+        break;
+      }
+      case "last_used":
+      {
+        const parsed = parseYamlNullableString(value);
+        if (parsed !== undefined) {
+          result.last_used = parsed;
+        }
+        break;
+      }
+      case "stale":
+      {
+        const parsed = parseYamlBoolean(value);
+        if (parsed !== undefined) {
+          result.stale = parsed;
+        }
+        break;
+      }
       default:
         break;
     }
@@ -520,6 +615,10 @@ function parseFrontmatter(raw: string): {
 
 function quoteYaml(value: string): string {
   return JSON.stringify(value);
+}
+
+function quoteYamlNullable(value: string | null): string {
+  return value === null ? "null" : quoteYaml(value);
 }
 
 function unquoteYaml(value: string): string {
@@ -539,6 +638,42 @@ function unquoteYaml(value: string): string {
   return trimmed;
 }
 
+function parseYamlNumber(value: string): number | undefined {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return undefined;
+  }
+
+  const parsed = Number(trimmed);
+  return Number.isFinite(parsed) ? parsed : Number.NaN;
+}
+
+function parseYamlNullableString(value: string): string | null | undefined {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return undefined;
+  }
+
+  if (trimmed === "null") {
+    return null;
+  }
+
+  return unquoteYaml(trimmed);
+}
+
+function parseYamlBoolean(value: string): boolean | string | undefined {
+  const trimmed = value.trim();
+  if (trimmed === "true") {
+    return true;
+  }
+
+  if (trimmed === "false") {
+    return false;
+  }
+
+  return trimmed ? trimmed : undefined;
+}
+
 function normalizeMemory(memory: Memory): Memory {
   return {
     ...memory,
@@ -549,6 +684,11 @@ function normalizeMemory(memory: Memory): Memory {
     suppressed_skills: normalizeStringArray(memory.suppressed_skills ?? []),
     skill_trigger_paths: normalizeStringArray(memory.skill_trigger_paths ?? []),
     skill_trigger_tasks: normalizeStringArray(memory.skill_trigger_tasks ?? []),
+    score: memory.score ?? DEFAULT_MEMORY_SCORE,
+    hit_count: memory.hit_count ?? DEFAULT_MEMORY_HIT_COUNT,
+    last_used: memory.last_used ?? DEFAULT_MEMORY_LAST_USED,
+    created_at: memory.created_at ?? memory.date,
+    stale: memory.stale ?? DEFAULT_MEMORY_STALE,
     invocation_mode: memory.invocation_mode ?? DEFAULT_INVOCATION_MODE,
     risk_level: memory.risk_level ?? DEFAULT_RISK_LEVEL,
   };
@@ -661,6 +801,10 @@ export function buildMemoryIdentity(memory: Memory): string {
   return getMemoryIdentity(memory);
 }
 
+function getMemoryKey(memory: Pick<Memory, "type" | "title" | "date">): string {
+  return `${memory.type}|${memory.title}|${memory.date}`;
+}
+
 function toActivityEntry(memory: Memory): MemoryActivityEntry {
   return {
     type: memory.type,
@@ -731,6 +875,10 @@ function parseActivityEntry(value: unknown): MemoryActivityEntry | null {
     importance: importance as Memory["importance"],
     date,
   };
+}
+
+function isNonEmptyIsoDateString(value: string): boolean {
+  return Boolean(value.trim()) && !Number.isNaN(Date.parse(value));
 }
 
 async function touchFile(filePath: string): Promise<void> {

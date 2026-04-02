@@ -340,6 +340,11 @@ When TypeScript is already enforcing unused locals, enabling both rules creates 
 - `type`：这条 durable knowledge 属于哪一类
 - `importance`：它在注入阶段应该占多高优先级
 - `tags`：帮助后续快速扫描和 review 的关键词
+- `score`：记忆质量分，范围 `0` 到 `100`，默认 `60`
+- `hit_count`：这条 memory 被注入使用的次数，默认 `0`
+- `last_used`：最后一次被注入的 ISO 时间戳，默认 `null`
+- `created_at`：这条 memory 首次创建时的 ISO 时间戳，默认沿用 `date`
+- `stale`：这条 memory 的元数据是否已标记为过期，默认 `false`
 
 ### Skill Routing 字段
 
@@ -354,7 +359,7 @@ When TypeScript is already enforcing unused locals, enabling both rules creates 
 - `invocation_mode`：只能是 `required`、`prefer`、`optional` 或 `suppress`
 - `risk_level`：只能是 `high`、`medium` 或 `low`
 
-如果这些字段缺省，RepoBrain 会保持旧条目兼容：所有列表字段默认是 `[]`，`invocation_mode` 默认是 `optional`，`risk_level` 默认是 `low`。
+如果这些字段缺省，RepoBrain 会保持旧条目兼容：所有列表字段默认是 `[]`，`invocation_mode` 默认是 `optional`，`risk_level` 默认是 `low`，`score` 默认是 `60`，`hit_count` 默认是 `0`，`last_used` 默认是 `null`，`created_at` 默认沿用 memory 的 `date`，`stale` 默认是 `false`。
 
 最小示例：
 

@@ -5,6 +5,9 @@ export {
   saveMemory,
 } from "./store.js";
 export {
+  computeInjectPriority,
+} from "./memory-priority.js";
+export {
   loadConfig,
   renderConfigWarnings,
 } from "./config.js";

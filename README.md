@@ -357,6 +357,11 @@ The important frontmatter fields are:
 - `type`: what kind of durable repo knowledge this is
 - `importance`: how strongly it should compete for injection space
 - `tags`: quick keywords that make the memory easier to scan and review later
+- `score`: memory quality score from `0` to `100`, defaults to `60`
+- `hit_count`: how many times the memory has been injected, defaults to `0`
+- `last_used`: ISO timestamp for the latest injection, defaults to `null`
+- `created_at`: ISO timestamp for when the memory was first created, defaults to the memory `date`
+- `stale`: whether the memory has been marked stale in metadata, defaults to `false`
 
 ### Skill Routing Fields
 
@@ -371,7 +376,7 @@ If you want a memory to help downstream agent or skill routing, add these option
 - `invocation_mode`: one of `required`, `prefer`, `optional`, or `suppress`
 - `risk_level`: one of `high`, `medium`, or `low`
 
-When these fields are omitted, RepoBrain keeps old entries compatible by defaulting each list to `[]`, `invocation_mode` to `optional`, and `risk_level` to `low`.
+When these fields are omitted, RepoBrain keeps old entries compatible by defaulting each list to `[]`, `invocation_mode` to `optional`, `risk_level` to `low`, `score` to `60`, `hit_count` to `0`, `last_used` to `null`, `created_at` to the memory `date`, and `stale` to `false`.
 
 Minimal example:
 

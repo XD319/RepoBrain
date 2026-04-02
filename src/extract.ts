@@ -166,6 +166,8 @@ function normalizeMemory(value: unknown): Memory | null {
     return null;
   }
 
+  const now = new Date().toISOString();
+
   const memory: Memory = {
     type: type as MemoryType,
     title,
@@ -175,7 +177,12 @@ function normalizeMemory(value: unknown): Memory | null {
       ? candidate.tags.map((tag) => String(tag).trim()).filter(Boolean)
       : [],
     importance: importance as Memory["importance"],
-    date: new Date().toISOString(),
+    date: now,
+    score: 60,
+    hit_count: 0,
+    last_used: null,
+    created_at: now,
+    stale: false,
     status: "active",
   };
 
@@ -228,6 +235,8 @@ function blockToMemory(block: string, config: BrainConfig): Memory | null {
   const title = rawHeadline.trim().slice(0, 80);
   const summary = summarizeBlock(lines, config.language);
 
+  const now = new Date().toISOString();
+
   return {
     type,
     title,
@@ -235,7 +244,12 @@ function blockToMemory(block: string, config: BrainConfig): Memory | null {
     detail: buildDetail(type, block),
     tags: deriveTags(block),
     importance: deriveImportance(block),
-    date: new Date().toISOString(),
+    date: now,
+    score: 60,
+    hit_count: 0,
+    last_used: null,
+    created_at: now,
+    stale: false,
     source: "session",
     status: "active",
   };

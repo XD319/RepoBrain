@@ -35,6 +35,11 @@ export interface Memory {
   tags: string[];
   importance: Importance;
   date: string;
+  score: number;
+  hit_count: number;
+  last_used: string | null;
+  created_at: string;
+  stale: boolean;
   source?: MemorySource;
   status?: MemoryStatus;
   path_scope?: string[];

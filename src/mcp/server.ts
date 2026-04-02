@@ -238,6 +238,7 @@ async function handleAddMemory(
   const importance = asEnum(args.importance, ["high", "medium", "low"]) ?? "medium";
 
   await initBrain(projectRoot);
+  const now = new Date().toISOString();
 
   const memory: Memory = {
     type,
@@ -246,7 +247,12 @@ async function handleAddMemory(
     detail: `## ${type.toUpperCase()}\n\n${content}`,
     tags: deriveTagsFromText(`${title}\n${content}`),
     importance,
-    date: new Date().toISOString(),
+    date: now,
+    score: 60,
+    hit_count: 0,
+    last_used: null,
+    created_at: now,
+    stale: false,
     source: "manual",
     status: "active",
   };
