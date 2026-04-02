@@ -1,0 +1,229 @@
+import assert from "node:assert/strict";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+
+import { initBrain, saveMemory } from "../dist/store-api.js";
+import { reinforceMemories } from "../dist/reinforce.js";
+
+const repoRoot = process.cwd();
+const fixturePath = path.join(repoRoot, "test", "fixtures", "reinforce-llm-fixture.mjs");
+const fixtureCommand = `"${process.execPath}" "${fixturePath}"`;
+
+await runTest("reinforceMemories boosts score and appends a session failure note", async () => {
+  await withTempRepo(async (projectRoot) => {
+    const filePath = await saveMemory(
+      {
+        type: "decision",
+        title: "Keep payment writes inside the transaction helper",
+        summary: "Route payment writes through the helper.",
+        detail: "## DECISION\n\nAlways route payment writes through the transaction helper.",
+        tags: ["payments"],
+        importance: "high",
+        date: "2026-04-01T08:00:00.000Z",
+        score: 90,
+        hit_count: 0,
+        last_used: null,
+        created_at: "2026-04-01",
+        stale: false,
+        status: "active",
+      },
+      projectRoot,
+    );
+
+    const result = await reinforceMemories(
+      [
+        {
+          kind: "violated_memory",
+          description: "The session wrote directly to payments storage.",
+          relatedMemoryFile: path.basename(filePath),
+          suggestedAction: "boost_score",
+        },
+      ],
+      path.join(projectRoot, ".brain"),
+    );
+
+    const raw = await readFile(filePath, "utf8");
+    assert.deepEqual(result.boosted, [path.basename(filePath)]);
+    assert.match(raw, /score: 100/);
+    assert.match(raw, /> ⚡ score 因 session 失败而提升，日期：\d{4}-\d{2}-\d{2}/);
+  });
+});
+
+await runTest("reinforceMemories rewrites a violated memory body and preserves frontmatter fields", async () => {
+  await withEnv(
+    {
+      BRAIN_EXTRACTOR_COMMAND: fixtureCommand,
+    },
+    async () => {
+      await withTempRepo(async (projectRoot) => {
+        const filePath = await saveMemory(
+          {
+            type: "decision",
+            title: "Keep payment writes inside the transaction helper",
+            summary: "Route payment writes through the helper.",
+            detail: "## DECISION\n\nAlways route payment writes through the transaction helper.",
+            tags: ["payments"],
+            importance: "high",
+            date: "2026-04-01T08:00:00.000Z",
+            score: 60,
+            hit_count: 2,
+            last_used: null,
+            created_at: "2026-04-01",
+            stale: false,
+            status: "active",
+          },
+          projectRoot,
+        );
+
+        const result = await reinforceMemories(
+          [
+            {
+              kind: "violated_memory",
+              description: "The session skipped the transaction helper and wrote directly to payments storage.",
+              relatedMemoryFile: path.basename(filePath),
+              suggestedAction: "rewrite_memory",
+            },
+          ],
+          path.join(projectRoot, ".brain"),
+        );
+
+        const raw = await readFile(filePath, "utf8");
+        const [, frontmatter, body] = raw.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/) ?? [];
+
+        assert.deepEqual(result.rewritten, [path.basename(filePath)]);
+        assert.match(frontmatter ?? "", /type: "decision"/);
+        assert.match(frontmatter ?? "", /hit_count: 2/);
+        assert.match(frontmatter ?? "", /score: 75/);
+        assert.match((body ?? "").trimStart(), /^⚠️/);
+        assert.ok((body ?? "").trim().length <= 150);
+      });
+    },
+  );
+});
+
+await runTest("reinforceMemories extracts a new failure memory with origin metadata", async () => {
+  await withEnv(
+    {
+      BRAIN_EXTRACTOR_COMMAND: fixtureCommand,
+    },
+    async () => {
+      await withTempRepo(async (projectRoot) => {
+        const result = await reinforceMemories(
+          [
+            {
+              kind: "new_failure",
+              description: "The session repeated flaky browser test retries without opening the trace.",
+              suggestedAction: "extract_new",
+              draftContent:
+                "gotcha: Check Playwright traces before retrying flaky browser tests\n\nOpen the saved trace first so debugging starts from captured evidence instead of repeated blind reruns.",
+            },
+          ],
+          path.join(projectRoot, ".brain"),
+        );
+
+        assert.equal(result.extracted.length, 1);
+        const createdPath = path.join(projectRoot, ".brain", "gotchas", result.extracted[0]);
+        const raw = await readFile(createdPath, "utf8");
+
+        assert.match(raw, /origin: "failure"/);
+        assert.match(raw, /score: 70/);
+        assert.match(raw, /type: "gotcha"/);
+      });
+    },
+  );
+});
+
+await runTest("reinforceMemories isolates per-event failures", async () => {
+  await withEnv(
+    {
+      BRAIN_EXTRACTOR_COMMAND: fixtureCommand,
+    },
+    async () => {
+      await withTempRepo(async (projectRoot) => {
+        const filePath = await saveMemory(
+          {
+            type: "decision",
+            title: "Keep payment writes inside the transaction helper",
+            summary: "Route payment writes through the helper.",
+            detail: "## DECISION\n\nAlways route payment writes through the transaction helper.",
+            tags: ["payments"],
+            importance: "high",
+            date: "2026-04-01T08:00:00.000Z",
+            score: 60,
+            hit_count: 0,
+            last_used: null,
+            created_at: "2026-04-01",
+            stale: false,
+            status: "active",
+          },
+          projectRoot,
+        );
+
+        const result = await reinforceMemories(
+          [
+            {
+              kind: "violated_memory",
+              description: "Missing target file should not stop later events.",
+              relatedMemoryFile: "missing.md",
+              suggestedAction: "boost_score",
+            },
+            {
+              kind: "violated_memory",
+              description: "The session wrote directly to payments storage.",
+              relatedMemoryFile: path.basename(filePath),
+              suggestedAction: "boost_score",
+            },
+          ],
+          path.join(projectRoot, ".brain"),
+        );
+
+        assert.deepEqual(result.boosted, [path.basename(filePath)]);
+      });
+    },
+  );
+});
+
+console.log("All reinforce tests passed.");
+
+async function withTempRepo(callback) {
+  const projectRoot = await mkdtemp(path.join(os.tmpdir(), "repobrain-reinforce-"));
+
+  try {
+    await initBrain(projectRoot);
+    await callback(projectRoot);
+  } finally {
+    await rm(projectRoot, { recursive: true, force: true });
+  }
+}
+
+async function withEnv(values, callback) {
+  const previous = new Map();
+
+  for (const [key, value] of Object.entries(values)) {
+    previous.set(key, process.env[key]);
+    process.env[key] = value;
+  }
+
+  try {
+    await callback();
+  } finally {
+    for (const [key, value] of previous.entries()) {
+      if (value === undefined) {
+        delete process.env[key];
+      } else {
+        process.env[key] = value;
+      }
+    }
+  }
+}
+
+async function runTest(name, callback) {
+  try {
+    await callback();
+    console.log(`ok - ${name}`);
+  } catch (error) {
+    console.error(`not ok - ${name}`);
+    throw error;
+  }
+}

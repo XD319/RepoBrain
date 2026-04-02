@@ -7,6 +7,7 @@ export default defineConfig({
     "src/failure-detector.ts",
     "src/inject.ts",
     "src/integrations.ts",
+    "src/reinforce.ts",
     "src/store-api.ts",
     "src/suggest-skills.ts",
     "src/hooks/session-start.ts",

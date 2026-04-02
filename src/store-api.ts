@@ -20,6 +20,9 @@ export {
   detectFailures,
 } from "./failure-detector.js";
 export {
+  reinforceMemories,
+} from "./reinforce.js";
+export {
   buildMemoryReviewContext,
   createDeterministicMemoryReviewer,
   decideCandidateMemoryReview,
@@ -44,3 +47,6 @@ export type {
 export type {
   FailureEvent,
 } from "./failure-detector.js";
+export type {
+  ReinforceResult,
+} from "./reinforce.js";

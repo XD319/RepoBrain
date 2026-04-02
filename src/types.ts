@@ -2,6 +2,7 @@ export const MEMORY_TYPES = ["decision", "gotcha", "convention", "pattern"] as c
 export const IMPORTANCE_LEVELS = ["high", "medium", "low"] as const;
 export const MEMORY_SOURCES = ["session", "git-commit", "manual", "pr"] as const;
 export const MEMORY_STATUSES = ["active", "candidate", "stale", "superseded"] as const;
+export const MEMORY_ORIGINS = ["failure"] as const;
 export const EXTRACT_MODES = ["manual", "suggest", "auto"] as const;
 export const INVOCATION_MODES = ["required", "prefer", "optional", "suppress"] as const;
 export const RISK_LEVELS = ["high", "medium", "low"] as const;
@@ -20,6 +21,7 @@ export type MemoryType = (typeof MEMORY_TYPES)[number];
 export type Importance = (typeof IMPORTANCE_LEVELS)[number];
 export type MemorySource = (typeof MEMORY_SOURCES)[number];
 export type MemoryStatus = (typeof MEMORY_STATUSES)[number];
+export type MemoryOrigin = (typeof MEMORY_ORIGINS)[number];
 export type ExtractMode = (typeof EXTRACT_MODES)[number];
 export type InvocationMode = (typeof INVOCATION_MODES)[number];
 export type RiskLevel = (typeof RISK_LEVELS)[number];
@@ -42,6 +44,7 @@ export interface Memory {
   stale: boolean;
   source?: MemorySource;
   status?: MemoryStatus;
+  origin?: MemoryOrigin;
   path_scope?: string[];
   recommended_skills?: string[];
   required_skills?: string[];

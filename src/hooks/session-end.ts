@@ -2,8 +2,10 @@
 
 import { stdin as input, stderr } from "node:process";
 
-import { findProjectRoot, loadConfig, renderConfigWarnings } from "../config.js";
+import { findProjectRoot, getBrainDir, loadConfig, renderConfigWarnings } from "../config.js";
 import { extractMemories } from "../extract.js";
+import { detectFailures } from "../failure-detector.js";
+import { reinforceMemories } from "../reinforce.js";
 import { reviewCandidateMemories } from "../reviewer.js";
 import { appendErrorLog, initBrain, loadStoredMemoryRecords, saveMemory, updateIndex } from "../store.js";
 import type { Memory } from "../types.js";
@@ -56,6 +58,16 @@ async function main(): Promise<void> {
       }
     }
 
+    const latestRecords = await loadStoredMemoryRecords(projectRoot);
+    const failureEvents = detectFailures(
+      summary,
+      latestRecords.map((entry) => ({
+        ...entry.memory,
+        filePath: entry.filePath,
+        relativePath: entry.relativePath,
+      })),
+    );
+    await reinforceMemories(failureEvents, getBrainDir(projectRoot));
     await updateIndex(projectRoot);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);

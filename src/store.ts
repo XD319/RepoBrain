@@ -13,6 +13,7 @@ import type {
   InvocationMode,
   MemorySource,
   MemoryStatus,
+  MemoryOrigin,
   RiskLevel,
   StoredMemoryRecord,
   MemoryType,
@@ -23,6 +24,7 @@ import {
   MEMORY_STATUSES,
   MEMORY_TYPES,
   MEMORY_SOURCES,
+  MEMORY_ORIGINS,
   RISK_LEVELS,
 } from "./types.js";
 
@@ -349,6 +351,12 @@ function validateMemory(memory: Memory, context = "Memory"): void {
     );
   }
 
+  if (memory.origin && !MEMORY_ORIGINS.includes(memory.origin)) {
+    throw new Error(
+      `${context} has unsupported origin "${memory.origin}". Expected one of: ${MEMORY_ORIGINS.join(", ")}.`,
+    );
+  }
+
   if (!INVOCATION_MODES.includes(memory.invocation_mode ?? DEFAULT_INVOCATION_MODE)) {
     throw new Error(
       `${context} has unsupported invocation_mode "${memory.invocation_mode}". Expected one of: ${INVOCATION_MODES.join(", ")}.`,
@@ -420,6 +428,10 @@ function serializeMemory(memory: Memory): string {
     frontmatterLines.push(`status: ${quoteYaml(normalizedMemory.status)}`);
   }
 
+  if (normalizedMemory.origin) {
+    frontmatterLines.push(`origin: ${quoteYaml(normalizedMemory.origin)}`);
+  }
+
   appendArrayField(frontmatterLines, "path_scope", normalizedMemory.path_scope ?? []);
   appendArrayField(frontmatterLines, "recommended_skills", normalizedMemory.recommended_skills ?? []);
   appendArrayField(frontmatterLines, "required_skills", normalizedMemory.required_skills ?? []);
@@ -450,6 +462,7 @@ function parseMemory(content: string, filePath: string): Memory {
   const importance = frontmatter.importance;
   const source = frontmatter.source;
   const status = frontmatter.status;
+  const origin = frontmatter.origin;
 
   if (!type || !importance || !frontmatter.title || !frontmatter.summary || !frontmatter.date) {
     throw new Error(
@@ -496,6 +509,10 @@ function parseMemory(content: string, filePath: string): Memory {
     memory.status = status as MemoryStatus;
   }
 
+  if (origin) {
+    memory.origin = origin as MemoryOrigin;
+  }
+
   validateMemory(memory, `Memory file "${filePath}"`);
   return memory;
 }
@@ -520,6 +537,7 @@ function parseFrontmatter(raw: string): {
   stale?: boolean | string;
   source?: string;
   status?: string;
+  origin?: string;
   invocation_mode?: string;
   risk_level?: string;
 } {
@@ -543,6 +561,7 @@ function parseFrontmatter(raw: string): {
     stale?: boolean | string;
     source?: string;
     status?: string;
+    origin?: string;
     invocation_mode?: string;
     risk_level?: string;
   } = {
@@ -586,6 +605,7 @@ function parseFrontmatter(raw: string): {
       case "created_at":
       case "source":
       case "status":
+      case "origin":
       case "invocation_mode":
       case "risk_level":
         result[key] = unquoteYaml(value);

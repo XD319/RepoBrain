@@ -345,6 +345,7 @@ When TypeScript is already enforcing unused locals, enabling both rules creates 
 - `last_used`：最后一次被注入的 ISO 时间戳，默认 `null`
 - `created_at`：这条 memory 首次创建时的 ISO 时间戳，默认沿用 `date`
 - `stale`：这条 memory 的元数据是否已标记为过期，默认 `false`
+- `origin`：可选来源标记，用于 failure reinforcement 这类特殊写入路径
 
 ### Skill Routing 字段
 
@@ -359,7 +360,7 @@ When TypeScript is already enforcing unused locals, enabling both rules creates 
 - `invocation_mode`：只能是 `required`、`prefer`、`optional` 或 `suppress`
 - `risk_level`：只能是 `high`、`medium` 或 `low`
 
-如果这些字段缺省，RepoBrain 会保持旧条目兼容：所有列表字段默认是 `[]`，`invocation_mode` 默认是 `optional`，`risk_level` 默认是 `low`，`score` 默认是 `60`，`hit_count` 默认是 `0`，`last_used` 默认是 `null`，`created_at` 默认沿用 memory 的 `date`，`stale` 默认是 `false`。
+如果这些字段缺省，RepoBrain 会保持旧条目兼容：所有列表字段默认是 `[]`，`invocation_mode` 默认是 `optional`，`risk_level` 默认是 `low`，`score` 默认是 `60`，`hit_count` 默认是 `0`，`last_used` 默认是 `null`，`created_at` 默认沿用 memory 的 `date`，`stale` 默认是 `false`，`origin` 默认不设置。
 
 最小示例：
 
@@ -575,6 +576,7 @@ language: zh-CN
 - 如果新激活的 memory 与现有 active memory 命中“同类型 + 标题归一化后相同 + scope 归一化后相同”，旧 memory 会自动标记为 `superseded`
 - `brain inject` 生成上下文时只会加载 `active` memories，所以 `superseded` memory 不会再参与正常匹配或注入基线
 - external review input 是可选附加信息；Core 会校验结构、忽略非法输入，并保留本地最终判定
+- session-end hook 现在还可以做 failure reinforcement：识别违反旧记忆或重复错误，提升或重写对应记忆，也可以额外保存一条带 `origin: failure` 的新 `gotcha`
 
 这样既保留了当前清晰的写入主路径，也允许更高层 agent 工作流围绕同一套 deterministic baseline 附加结构化建议。
 

@@ -58,6 +58,7 @@ await runTest("legacy .brain entries load with safe skill routing defaults", asy
     assert.equal(memory.stale, false);
     assert.equal(memory.invocation_mode, "optional");
     assert.equal(memory.risk_level, "low");
+    assert.equal(memory.origin, undefined);
   });
 });
 
@@ -90,6 +91,7 @@ await runTest("new skill routing fields round-trip through save and load", async
       stale: true,
       invocation_mode: "prefer",
       risk_level: "medium",
+      origin: "failure",
     };
 
     const filePath = await saveMemory(memory, projectRoot);
@@ -108,6 +110,7 @@ await runTest("new skill routing fields round-trip through save and load", async
     assert.match(raw, /stale: true/);
     assert.match(raw, /invocation_mode: "prefer"/);
     assert.match(raw, /risk_level: "medium"/);
+    assert.match(raw, /origin: "failure"/);
 
     const records = await loadStoredMemoryRecords(projectRoot);
     assert.equal(records.length, 1);
@@ -127,6 +130,7 @@ await runTest("new skill routing fields round-trip through save and load", async
     assert.equal(stored.stale, true);
     assert.equal(stored.invocation_mode, "prefer");
     assert.equal(stored.risk_level, "medium");
+    assert.equal(stored.origin, "failure");
   });
 });
 

@@ -362,6 +362,7 @@ The important frontmatter fields are:
 - `last_used`: ISO timestamp for the latest injection, defaults to `null`
 - `created_at`: ISO timestamp for when the memory was first created, defaults to the memory `date`
 - `stale`: whether the memory has been marked stale in metadata, defaults to `false`
+- `origin`: optional origin marker for special write paths such as failure reinforcement
 
 ### Skill Routing Fields
 
@@ -376,7 +377,7 @@ If you want a memory to help downstream agent or skill routing, add these option
 - `invocation_mode`: one of `required`, `prefer`, `optional`, or `suppress`
 - `risk_level`: one of `high`, `medium`, or `low`
 
-When these fields are omitted, RepoBrain keeps old entries compatible by defaulting each list to `[]`, `invocation_mode` to `optional`, `risk_level` to `low`, `score` to `60`, `hit_count` to `0`, `last_used` to `null`, `created_at` to the memory `date`, and `stale` to `false`.
+When these fields are omitted, RepoBrain keeps old entries compatible by defaulting each list to `[]`, `invocation_mode` to `optional`, `risk_level` to `low`, `score` to `60`, `hit_count` to `0`, `last_used` to `null`, `created_at` to the memory `date`, `stale` to `false`, and `origin` to unset.
 
 Minimal example:
 
@@ -596,6 +597,7 @@ RepoBrain keeps lifecycle rules intentionally small for the current MVP:
 - If a newly activated memory has the same type, normalized title, and normalized scope as an existing active memory, the older one is automatically marked `superseded`
 - `brain inject` only loads `active` memories into the generated context block, so `superseded` entries never become the baseline for normal matching or injection again
 - external review input is optional and advisory only; Core validates the structure, ignores malformed input, and keeps the local final decision
+- the session-end hook can also reinforce failures: it detects violated memories or repeated mistakes, boosts or rewrites the affected memory, and can save a new `gotcha` with `origin: failure`
 
 This keeps the current write path compatible for clear accepts while still allowing higher-level agent workflows to attach structured candidate review suggestions around the same deterministic baseline.
 
