@@ -301,6 +301,38 @@ export async function overwriteStoredMemory(record: StoredMemoryRecord): Promise
   await writeFile(record.filePath, serializeMemory(normalizedMemory), "utf8");
 }
 
+export async function supersedeMemoryPair(
+  newRecord: StoredMemoryRecord,
+  oldRecord: StoredMemoryRecord,
+): Promise<{ newVersion: number }> {
+  const newRelativePath = toBrainRelativePath(newRecord.relativePath);
+  const oldRelativePath = toBrainRelativePath(oldRecord.relativePath);
+  const nextVersion = (oldRecord.memory.version ?? DEFAULT_MEMORY_VERSION) + 1;
+
+  const updatedNewMemory = normalizeMemory({
+    ...newRecord.memory,
+    supersedes: oldRelativePath,
+    version: nextVersion,
+  });
+  const updatedOldMemory = normalizeMemory({
+    ...oldRecord.memory,
+    superseded_by: newRelativePath,
+    stale: true,
+  });
+
+  validateMemory(updatedNewMemory, `Memory file "${newRecord.filePath}"`);
+  validateMemory(updatedOldMemory, `Memory file "${oldRecord.filePath}"`);
+
+  await commitAtomicWriteOperations([
+    createAtomicWriteOperation(newRecord.filePath, serializeMemory(updatedNewMemory)),
+    createAtomicWriteOperation(oldRecord.filePath, serializeMemory(updatedOldMemory)),
+  ]);
+
+  return {
+    newVersion: nextVersion,
+  };
+}
+
 export async function approveCandidateMemory(
   record: StoredMemoryRecord,
   projectRoot: string,
@@ -997,6 +1029,10 @@ export function buildMemoryIdentity(memory: Memory): string {
 
 function getMemoryKey(memory: Pick<Memory, "type" | "title" | "date">): string {
   return `${memory.type}|${memory.title}|${memory.date}`;
+}
+
+function toBrainRelativePath(relativePath: string): string {
+  return relativePath.replace(/\\/g, "/").replace(/^\.brain\//, "");
 }
 
 function toActivityEntry(memory: Memory): MemoryActivityEntry {

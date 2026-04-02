@@ -3,6 +3,7 @@ export {
   loadAllMemories,
   loadStoredMemoryRecords,
   saveMemory,
+  supersedeMemoryPair,
 } from "./store.js";
 export {
   computeInjectPriority,

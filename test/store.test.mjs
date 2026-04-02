@@ -231,6 +231,135 @@ await runTest("same-title active memories with different scopes do not supersede
   });
 });
 
+await runTest("brain supersede links two memories and bumps the new version from the old one", async () => {
+  await withTempRepo(async (projectRoot) => {
+    const oldDate = "2026-04-01T08:00:00.000Z";
+    const newDate = "2026-04-01T09:00:00.000Z";
+
+    await saveMemory(
+      {
+        type: "decision",
+        title: "Use tsc",
+        summary: "Older build guidance.",
+        detail: "## DECISION\n\nUse tsc for builds.",
+        tags: ["build"],
+        importance: "medium",
+        date: oldDate,
+        status: "active",
+        version: 1,
+      },
+      projectRoot,
+    );
+
+    await saveMemory(
+      {
+        type: "decision",
+        title: "Use tsup",
+        summary: "Newer build guidance.",
+        detail: "## DECISION\n\nUse tsup for builds.",
+        tags: ["build"],
+        importance: "high",
+        date: newDate,
+        status: "active",
+        version: 1,
+      },
+      projectRoot,
+    );
+
+    const result = await runNodeProcess(
+      [path.join(repoRoot, "dist", "cli.js"), "supersede", "decisions/use-tsup.md", "decisions/use-tsc.md"],
+      projectRoot,
+    );
+
+    assert.equal(result.code, 0);
+    assert.match(result.stdout, /✓ \[brain\] 已建立取代关系/);
+    assert.match(result.stdout, /新记忆: decisions\/2026-04-01-use-tsup-090000000\.md  \(v2\)/);
+    assert.match(result.stdout, /旧记忆: decisions\/2026-04-01-use-tsc-080000000\.md  → 已标记为 stale/);
+
+    const records = await loadStoredMemoryRecords(projectRoot);
+    const oldRecord = records.find((entry) => entry.memory.title === "Use tsc");
+    const newRecord = records.find((entry) => entry.memory.title === "Use tsup");
+
+    assert.ok(oldRecord);
+    assert.ok(newRecord);
+    assert.equal(newRecord.memory.supersedes, "decisions/2026-04-01-use-tsc-080000000.md");
+    assert.equal(newRecord.memory.version, 2);
+    assert.equal(oldRecord.memory.superseded_by, "decisions/2026-04-01-use-tsup-090000000.md");
+    assert.equal(oldRecord.memory.stale, true);
+  });
+});
+
+await runTest("brain supersede prints a friendly error when a memory file is missing", async () => {
+  await withTempRepo(async (projectRoot) => {
+    const result = await runNodeProcess(
+      [path.join(repoRoot, "dist", "cli.js"), "supersede", "decisions/use-tsup.md", "decisions/use-tsc.md"],
+      projectRoot,
+    );
+
+    assert.equal(result.code, 1);
+    assert.match(result.stderr, /Memory file "decisions\/use-tsup\.md" was not found/);
+    assert.match(result.stderr, /Run "brain list" to inspect available memories/);
+  });
+});
+
+await runTest("brain supersede can overwrite an existing relationship with --yes", async () => {
+  await withTempRepo(async (projectRoot) => {
+    await saveMemory(
+      {
+        type: "decision",
+        title: "Use tsc",
+        summary: "Older build guidance.",
+        detail: "## DECISION\n\nUse tsc for builds.",
+        tags: ["build"],
+        importance: "medium",
+        date: "2026-04-01T08:00:00.000Z",
+        status: "active",
+        version: 1,
+        superseded_by: "decisions/2026-04-01-use-esbuild-100000000.md",
+      },
+      projectRoot,
+    );
+
+    await saveMemory(
+      {
+        type: "decision",
+        title: "Use tsup",
+        summary: "Newer build guidance.",
+        detail: "## DECISION\n\nUse tsup for builds.",
+        tags: ["build"],
+        importance: "high",
+        date: "2026-04-01T09:00:00.000Z",
+        status: "active",
+        version: 1,
+        supersedes: "decisions/2026-04-01-use-webpack-070000000.md",
+      },
+      projectRoot,
+    );
+
+    const result = await runNodeProcess(
+      [path.join(repoRoot, "dist", "cli.js"), "supersede", "--yes", "decisions/use-tsup.md", "decisions/use-tsc.md"],
+      projectRoot,
+    );
+
+    assert.equal(result.code, 0);
+    assert.match(result.stdout, /\[brain\] 当前已存在取代关系:/);
+    assert.match(result.stdout, /新记忆当前 supersedes: decisions\/2026-04-01-use-webpack-070000000\.md/);
+    assert.match(result.stdout, /旧记忆当前 superseded_by: decisions\/2026-04-01-use-esbuild-100000000\.md/);
+    assert.match(result.stdout, /✓ \[brain\] 已建立取代关系/);
+
+    const records = await loadStoredMemoryRecords(projectRoot);
+    const oldRecord = records.find((entry) => entry.memory.title === "Use tsc");
+    const newRecord = records.find((entry) => entry.memory.title === "Use tsup");
+
+    assert.ok(oldRecord);
+    assert.ok(newRecord);
+    assert.equal(newRecord.memory.supersedes, "decisions/2026-04-01-use-tsc-080000000.md");
+    assert.equal(newRecord.memory.version, 2);
+    assert.equal(oldRecord.memory.superseded_by, "decisions/2026-04-01-use-tsup-090000000.md");
+    assert.equal(oldRecord.memory.stale, true);
+  });
+});
+
 await runTest("invalid invocation_mode in stored memory fails with a clear parse error", async () => {
   await withTempRepo(async (projectRoot) => {
     const invalidPath = path.join(projectRoot, ".brain", "decisions", "2026-04-01-invalid-mode.md");

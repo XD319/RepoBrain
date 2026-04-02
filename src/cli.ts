@@ -25,6 +25,7 @@ import {
   loadAllMemories,
   loadStoredMemoryRecords,
   saveMemory,
+  supersedeMemoryPair,
   updateIndex,
   updateStoredMemoryStatus,
 } from "./store.js";
@@ -271,6 +272,54 @@ program
 
     await updateIndex(projectRoot);
     output.write(`Dismissed ${matches.length} candidate memor${matches.length === 1 ? "y" : "ies"}.\n`);
+  });
+
+program
+  .command("supersede <newMemoryFile> <oldMemoryFile>")
+  .description("Link a newer memory to an older one and mark the older memory as stale.")
+  .option("--yes", "Overwrite an existing supersede relationship without prompting.")
+  .action(async (newMemoryFile: string, oldMemoryFile: string, options: { yes?: boolean }) => {
+    const projectRoot = process.cwd();
+    const records = await loadStoredMemoryRecords(projectRoot);
+    const newRecord = resolveStoredMemoryByFile(records, newMemoryFile);
+    const oldRecord = resolveStoredMemoryByFile(records, oldMemoryFile);
+
+    if (newRecord.filePath === oldRecord.filePath) {
+      throw new Error("Choose two different memory files for supersede.");
+    }
+
+    const newRelativePath = toBrainRelativePath(newRecord.relativePath);
+    const oldRelativePath = toBrainRelativePath(oldRecord.relativePath);
+    const nextVersion = (oldRecord.memory.version ?? 1) + 1;
+    const relationshipState = describeSupersedeState(newRecord, oldRecord, newRelativePath, oldRelativePath);
+
+    if (relationshipState.alreadyLinked) {
+      output.write(
+        `[brain] 该取代关系已存在\n  新记忆: ${newRelativePath} (v${newRecord.memory.version ?? nextVersion})\n  旧记忆: ${oldRelativePath} → 已标记为 stale\n`,
+      );
+      return;
+    }
+
+    if (relationshipState.hasExistingRelationship) {
+      output.write(`[brain] 当前已存在取代关系:\n`);
+      for (const line of relationshipState.details) {
+        output.write(`  ${line}\n`);
+      }
+
+      if (!options.yes) {
+        const confirmed = await confirmSupersedeOverwrite();
+        if (!confirmed) {
+          output.write("[brain] supersede cancelled.\n");
+          return;
+        }
+      }
+    }
+
+    const result = await supersedeMemoryPair(newRecord, oldRecord);
+    await updateIndex(projectRoot);
+    output.write(
+      `✓ [brain] 已建立取代关系\n  新记忆: ${newRelativePath}  (v${result.newVersion})\n  旧记忆: ${oldRelativePath}  → 已标记为 stale\n`,
+    );
   });
 
 program
@@ -534,6 +583,104 @@ function formatMemoryList(memories: Array<Memory | MemoryActivityEntry>): string
       return `- ${memory.type} | ${memory.importance}${status} | ${memory.title} (${memory.date})`;
     })
     .join("\n");
+}
+
+function resolveStoredMemoryByFile(records: StoredMemoryRecord[], rawQuery: string): StoredMemoryRecord {
+  const query = rawQuery.trim();
+  if (!query) {
+    throw new Error('Provide a memory file path like "decisions/use-tsup.md".');
+  }
+
+  const matches = records.filter((entry) => matchesStoredMemoryFile(entry, query));
+  const firstMatch = matches[0];
+  if (matches.length === 1 && firstMatch) {
+    return firstMatch;
+  }
+
+  if (matches.length > 1) {
+    throw new Error(
+      [
+        `Multiple memory files matched "${rawQuery}".`,
+        "Use a more specific path under .brain/:",
+        ...matches.map((entry) => `- ${toBrainRelativePath(entry.relativePath)}`),
+      ].join("\n"),
+    );
+  }
+
+  throw new Error(
+    `Memory file "${rawQuery}" was not found. Run "brain list" to inspect available memories.`,
+  );
+}
+
+function matchesStoredMemoryFile(entry: StoredMemoryRecord, rawQuery: string): boolean {
+  const query = normalizeMemoryPathQuery(rawQuery);
+  const brainRelativePath = normalizeMemoryPathQuery(toBrainRelativePath(entry.relativePath));
+  const undatedRelativePath = normalizeMemoryPathQuery(toUndatedBrainRelativePath(entry.relativePath));
+  const fileName = normalizeMemoryPathQuery(path.basename(entry.relativePath));
+  const fileStem = normalizeMemoryPathQuery(path.basename(entry.relativePath, path.extname(entry.relativePath)));
+
+  return (
+    brainRelativePath === query ||
+    undatedRelativePath === query ||
+    fileName === query ||
+    fileStem === query
+  );
+}
+
+function normalizeMemoryPathQuery(value: string): string {
+  return value
+    .replace(/\\/g, "/")
+    .trim()
+    .replace(/^\.brain\//, "")
+    .replace(/^\/+/, "")
+    .toLowerCase();
+}
+
+function toBrainRelativePath(relativePath: string): string {
+  return relativePath.replace(/\\/g, "/").replace(/^\.brain\//, "");
+}
+
+function toUndatedBrainRelativePath(relativePath: string): string {
+  const normalized = toBrainRelativePath(relativePath);
+  const directory = path.posix.dirname(normalized);
+  const fileName = path.posix.basename(normalized);
+  const undecorated = fileName
+    .replace(/^\d{4}-\d{2}-\d{2}-/, "")
+    .replace(/-\d{9}(?:-\d+)?\.md$/, ".md");
+
+  return directory === "." ? undecorated : `${directory}/${undecorated}`;
+}
+
+function describeSupersedeState(
+  newRecord: StoredMemoryRecord,
+  oldRecord: StoredMemoryRecord,
+  desiredNewPath: string,
+  desiredOldPath: string,
+): {
+  alreadyLinked: boolean;
+  hasExistingRelationship: boolean;
+  details: string[];
+} {
+  const details: string[] = [];
+  const currentNewSupersedes = newRecord.memory.supersedes;
+  const currentOldSupersededBy = oldRecord.memory.superseded_by;
+
+  if (currentNewSupersedes && currentNewSupersedes !== desiredOldPath) {
+    details.push(`新记忆当前 supersedes: ${currentNewSupersedes}`);
+  }
+
+  if (currentOldSupersededBy && currentOldSupersededBy !== desiredNewPath) {
+    details.push(`旧记忆当前 superseded_by: ${currentOldSupersededBy}`);
+  }
+
+  return {
+    alreadyLinked:
+      currentNewSupersedes === desiredOldPath &&
+      currentOldSupersededBy === desiredNewPath &&
+      oldRecord.memory.stale === true,
+    hasExistingRelationship: details.length > 0,
+    details,
+  };
 }
 
 function getCandidateRecords(records: StoredMemoryRecord[]): StoredMemoryRecord[] {
@@ -825,6 +972,26 @@ async function confirmReinforcement(): Promise<boolean> {
 
   try {
     const answer = (await rl.question("Apply these reinforcement actions? [y/N]: ")).trim().toLowerCase();
+    return answer === "y" || answer === "yes";
+  } finally {
+    rl.close();
+    terminal.close();
+  }
+}
+
+async function confirmSupersedeOverwrite(): Promise<boolean> {
+  const terminal = await createPromptTerminal();
+  if (!terminal) {
+    throw new Error('Existing supersede links require confirmation. Re-run with "--yes" to overwrite without prompting.');
+  }
+
+  const rl = createInterface({
+    input: terminal.input,
+    output: terminal.output,
+  });
+
+  try {
+    const answer = (await rl.question("Overwrite the current supersede relationship? [y/N]: ")).trim().toLowerCase();
     return answer === "y" || answer === "yes";
   } finally {
     rl.close();

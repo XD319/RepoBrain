@@ -564,6 +564,7 @@ brain status
 brain review
 brain approve <memory-id>
 brain dismiss <memory-id>
+brain supersede <new-memory-file> <old-memory-file>
 brain audit-memory
 brain reinforce < session-summary.txt
 brain suggest-skills --task "debug flaky browser tests" --path tests/e2e/login.spec.ts
@@ -584,6 +585,7 @@ brain mcp
 - `brain review`: list candidate memories waiting for approval
 - `brain approve`: promote one candidate, or all candidates, to active memory
 - `brain dismiss`: mark one candidate, or all candidates, as dismissed
+- `brain supersede`: manually link a newer memory to an older memory, update `supersedes` / `superseded_by`, carry the old version forward as `old.version + 1`, and mark the older memory as stale
 - `brain score`: review low-quality or outdated memories, sorted by severity, and interactively or non-interactively mark stale, delete, keep, or export JSON
 - `brain audit-memory`: audit stored memories for stale, conflict, low-signal, and overscoped entries
 - `brain reinforce`: manually run failure analysis plus memory reinforcement from `stdin`; use `--yes` to skip confirmation for automation or CI
