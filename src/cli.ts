@@ -1,16 +1,19 @@
 #!/usr/bin/env node
 
+import { createReadStream, createWriteStream } from "node:fs";
 import { rm } from "node:fs/promises";
 import path from "node:path";
 import { stdin as input, stdout as output } from "node:process";
 import { createInterface } from "node:readline/promises";
 import { Command } from "commander";
 
-import { loadConfig, renderConfigWarnings } from "./config.js";
+import { getBrainDir, loadConfig, renderConfigWarnings } from "./config.js";
 import { buildMemoryAudit, renderMemoryAuditResult } from "./audit-memory.js";
 import { extractMemories } from "./extract.js";
+import { detectFailures } from "./failure-detector.js";
 import { buildInjection } from "./inject.js";
 import { runMcpServer } from "./mcp/server.js";
+import { reinforceMemories } from "./reinforce.js";
 import { reviewCandidateMemories } from "./reviewer.js";
 import { buildSharePlan } from "./share.js";
 import { buildSkillShortlist, renderSkillShortlist } from "./suggest-skills.js";
@@ -25,6 +28,7 @@ import {
   updateIndex,
   updateStoredMemoryStatus,
 } from "./store.js";
+import type { FailureEvent } from "./failure-detector.js";
 import type { Memory, MemoryActivityEntry, StoredMemoryRecord } from "./types.js";
 
 const program = new Command();
@@ -326,6 +330,57 @@ program
   });
 
 program
+  .command("reinforce")
+  .description("Analyze stdin for repeated failures, then reinforce affected memories.")
+  .option("--source <source>", "Input source label for analysis context", "session")
+  .option("--yes", "Skip confirmation and apply reinforcement immediately.")
+  .action(async (options: { source: "session" | "git-commit"; yes?: boolean }) => {
+    const projectRoot = process.cwd();
+    await initBrain(projectRoot);
+
+    const stdinText = await readStdin();
+    if (!stdinText.trim()) {
+      throw new Error("Provide a session summary or commit message over stdin.");
+    }
+
+    const records = await loadStoredMemoryRecords(projectRoot);
+    const analysisText =
+      options.source === "git-commit" ? `Source: git-commit\n\n${stdinText}` : stdinText;
+    const events = detectFailures(
+      analysisText,
+      records.map((entry) => ({
+        ...entry.memory,
+        filePath: entry.filePath,
+        relativePath: entry.relativePath,
+      })),
+    );
+
+    if (events.length === 0) {
+      output.write("[brain] 本次 session 未发现需要强化的记忆 ✓\n");
+      return;
+    }
+
+    output.write(`Detected ${events.length} failure event${events.length === 1 ? "" : "s"}:\n`);
+    for (const [index, event] of events.entries()) {
+      output.write(`${renderFailureEventLine(index + 1, event)}\n`);
+    }
+
+    if (!options.yes) {
+      const confirmed = await confirmReinforcement();
+      if (!confirmed) {
+        output.write("[brain] reinforcement cancelled.\n");
+        return;
+      }
+    }
+
+    const result = await reinforceMemories(events, getBrainDir(projectRoot));
+    await updateIndex(projectRoot);
+    output.write(
+      `[brain] reinforcement complete: boosted=${result.boosted.length}, rewritten=${result.rewritten.length}, extracted=${result.extracted.length}\n`,
+    );
+  });
+
+program
   .command("score")
   .description("Review low-quality or outdated memories and optionally mark them stale or delete them.")
   .option("--mark-all", "Mark all matched memories as stale without prompting.")
@@ -558,6 +613,19 @@ interface ScoreCandidateJson {
   triggers: string[];
 }
 
+function renderFailureEventLine(index: number, event: FailureEvent): string {
+  const details = [
+    `${index}. [${event.kind}] ${event.description}`,
+    `action=${event.suggestedAction}`,
+  ];
+
+  if (event.relatedMemoryFile) {
+    details.push(`file=${event.relatedMemoryFile}`);
+  }
+
+  return `- ${details.join(" | ")}`;
+}
+
 function buildScoreCandidates(
   records: StoredMemoryRecord[],
   now: Date = new Date(),
@@ -742,4 +810,58 @@ async function createScoreActionPrompter(): Promise<{
     rl.close();
   };
   return prompter;
+}
+
+async function confirmReinforcement(): Promise<boolean> {
+  const terminal = await createPromptTerminal();
+  if (!terminal) {
+    throw new Error('Interactive confirmation requires a TTY. Re-run with "--yes" to skip prompts.');
+  }
+
+  const rl = createInterface({
+    input: terminal.input,
+    output: terminal.output,
+  });
+
+  try {
+    const answer = (await rl.question("Apply these reinforcement actions? [y/N]: ")).trim().toLowerCase();
+    return answer === "y" || answer === "yes";
+  } finally {
+    rl.close();
+    terminal.close();
+  }
+}
+
+async function createPromptTerminal(): Promise<{
+  input: NodeJS.ReadableStream;
+  output: NodeJS.WritableStream;
+  close(): void;
+} | null> {
+  if (input.isTTY) {
+    return {
+      input,
+      output,
+      close() {
+        return;
+      },
+    };
+  }
+
+  const inputPath = process.platform === "win32" ? "CONIN$" : "/dev/tty";
+  const outputPath = process.platform === "win32" ? "CONOUT$" : "/dev/tty";
+
+  try {
+    const ttyInput = createReadStream(inputPath);
+    const ttyOutput = createWriteStream(outputPath);
+    return {
+      input: ttyInput,
+      output: ttyOutput,
+      close() {
+        ttyInput.destroy();
+        ttyOutput.end();
+      },
+    };
+  } catch {
+    return null;
+  }
 }

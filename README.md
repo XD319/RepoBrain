@@ -535,6 +535,7 @@ brain review
 brain approve <memory-id>
 brain dismiss <memory-id>
 brain audit-memory
+brain reinforce < session-summary.txt
 brain suggest-skills --task "debug flaky browser tests" --path tests/e2e/login.spec.ts
 brain share <memory-id>
 brain share --all-active
@@ -555,6 +556,7 @@ brain mcp
 - `brain dismiss`: mark one candidate, or all candidates, as dismissed
 - `brain score`: review low-quality or outdated memories, sorted by severity, and interactively or non-interactively mark stale, delete, keep, or export JSON
 - `brain audit-memory`: audit stored memories for stale, conflict, low-signal, and overscoped entries
+- `brain reinforce`: manually run failure analysis plus memory reinforcement from `stdin`; use `--yes` to skip confirmation for automation or CI
 - `brain suggest-skills`: build a skill shortlist from task text, changed paths, and matched active memories
 - `brain share`: suggest the next `git add` and `git commit` commands for one memory or all active memories
 - `brain mcp`: run RepoBrain as a minimal MCP stdio server

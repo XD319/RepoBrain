@@ -3,6 +3,11 @@ import { readFileSync } from "node:fs";
 const stdin = readFileSync(0, "utf8");
 
 if (stdin.includes("You are a repo failure detector.")) {
+  if (process.env.DETECT_MODE === "empty") {
+    process.stdout.write(JSON.stringify([]));
+    process.exit(0);
+  }
+
   const relatedMemoryFile =
     process.env.DETECT_RELATED_FILE ??
     "2026-04-01-keep-payment-writes-inside-the-transaction-helper.md";

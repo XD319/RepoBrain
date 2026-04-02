@@ -517,6 +517,7 @@ brain review
 brain approve <memory-id>
 brain dismiss <memory-id>
 brain audit-memory
+brain reinforce < session-summary.txt
 brain suggest-skills --task "debug flaky browser tests" --path tests/e2e/login.spec.ts
 brain share <memory-id>
 brain share --all-active
@@ -537,6 +538,7 @@ brain mcp
 - `brain dismiss`：将单条 candidate memory，或全部 candidates，标记为 stale
 - `brain score`：按严重度排序检查低质量或过旧的 memories，并支持交互式或批量标记 stale、删除、跳过或导出 JSON
 - `brain audit-memory`：审计 `.brain/` 中疑似 stale、conflict、low-signal 或 overscoped 的条目
+- `brain reinforce`：从 `stdin` 手动执行失败分析和记忆强化；自动化或 CI 场景可加 `--yes` 跳过确认
 - `brain suggest-skills`：根据任务文本、变更路径和命中的 active memories 输出一份 skill shortlist
 - `brain share`：为单条 memory 或全部 active memories 输出建议的 `git add` / `git commit` 命令
 - `brain mcp`：以最小 MCP stdio server 的形式运行 RepoBrain
