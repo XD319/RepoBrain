@@ -167,6 +167,7 @@ function normalizeMemory(value: unknown): Memory | null {
   }
 
   const now = new Date().toISOString();
+  const createdAt = toIsoDateOnly(now);
 
   const memory: Memory = {
     type: type as MemoryType,
@@ -178,10 +179,10 @@ function normalizeMemory(value: unknown): Memory | null {
       : [],
     importance: importance as Memory["importance"],
     date: now,
-    score: 60,
+    score: getInitialExtractedMemoryScore(type as MemoryType, importance as Memory["importance"]),
     hit_count: 0,
     last_used: null,
-    created_at: now,
+    created_at: createdAt,
     stale: false,
     status: "active",
   };
@@ -236,6 +237,7 @@ function blockToMemory(block: string, config: BrainConfig): Memory | null {
   const summary = summarizeBlock(lines, config.language);
 
   const now = new Date().toISOString();
+  const importance = deriveImportance(block);
 
   return {
     type,
@@ -243,12 +245,12 @@ function blockToMemory(block: string, config: BrainConfig): Memory | null {
     summary,
     detail: buildDetail(type, block),
     tags: deriveTags(block),
-    importance: deriveImportance(block),
+    importance,
     date: now,
-    score: 60,
+    score: getInitialExtractedMemoryScore(type, importance),
     hit_count: 0,
     last_used: null,
-    created_at: now,
+    created_at: toIsoDateOnly(now),
     stale: false,
     source: "session",
     status: "active",
@@ -301,6 +303,35 @@ function normalizeSource(value: unknown): Memory["source"] | null {
   }
 
   return "session";
+}
+
+function getInitialExtractedMemoryScore(
+  type: MemoryType,
+  importance: Memory["importance"],
+): number {
+  if (type === "gotcha") {
+    if (importance === "high") {
+      return 75;
+    }
+
+    if (importance === "medium") {
+      return 60;
+    }
+  }
+
+  if (type === "decision") {
+    return 65;
+  }
+
+  if (type === "convention") {
+    return 55;
+  }
+
+  return 50;
+}
+
+function toIsoDateOnly(value: string): string {
+  return value.slice(0, 10);
 }
 
 function asNonEmptyString(value: unknown): string | null {

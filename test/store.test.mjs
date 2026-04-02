@@ -376,6 +376,51 @@ await runTest("cli extract does not crash or call any remote path when legacy re
   });
 });
 
+await runTest("cli extract writes initial memory metadata with legal frontmatter ordering", async () => {
+  await withTempRepo(async (projectRoot) => {
+    const result = await runNodeProcess(
+      [path.join(repoRoot, "dist", "cli.js"), "extract", "--source", "session"],
+      projectRoot,
+      [
+        "gotcha: Never write payments outside the transaction helper",
+        "",
+        "Critical payments updates must stay inside the transaction helper or partial writes can leak into ledger sync.",
+      ].join("\n"),
+    );
+
+    assert.equal(result.code, 0);
+
+    const records = await loadStoredMemoryRecords(projectRoot);
+    assert.equal(records.length, 1);
+
+    const stored = records[0];
+    assert.ok(stored);
+    assert.equal(stored.memory.type, "gotcha");
+    assert.equal(stored.memory.importance, "high");
+    assert.equal(stored.memory.score, 75);
+    assert.equal(stored.memory.hit_count, 0);
+    assert.equal(stored.memory.last_used, null);
+    assert.equal(stored.memory.created_at?.length, 10);
+    assert.equal(stored.memory.stale, false);
+
+    const raw = await readFile(stored.filePath, "utf8");
+    const scoreIndex = raw.indexOf('score: 75');
+    const hitCountIndex = raw.indexOf('hit_count: 0');
+    const lastUsedIndex = raw.indexOf('last_used: null');
+    const createdAtIndex = raw.indexOf('created_at: "');
+    const staleIndex = raw.indexOf('stale: false');
+    const dateIndex = raw.indexOf('date: "');
+
+    assert.ok(scoreIndex > raw.indexOf('importance: "high"'));
+    assert.ok(hitCountIndex > scoreIndex);
+    assert.ok(lastUsedIndex > hitCountIndex);
+    assert.ok(createdAtIndex > lastUsedIndex);
+    assert.ok(staleIndex > createdAtIndex);
+    assert.ok(dateIndex > staleIndex);
+    assert.match(raw, /created_at: "\d{4}-\d{2}-\d{2}"/);
+  });
+});
+
 console.log("All store schema tests passed.");
 
 async function withTempRepo(callback) {

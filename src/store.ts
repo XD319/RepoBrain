@@ -395,12 +395,12 @@ function serializeMemory(memory: Memory): string {
     "tags:",
     ...normalizedMemory.tags.map((tag) => `  - ${quoteYaml(tag)}`),
     `importance: ${quoteYaml(normalizedMemory.importance)}`,
-    `date: ${quoteYaml(normalizedMemory.date)}`,
     `score: ${normalizedMemory.score}`,
     `hit_count: ${normalizedMemory.hit_count}`,
     `last_used: ${quoteYamlNullable(normalizedMemory.last_used)}`,
     `created_at: ${quoteYaml(normalizedMemory.created_at)}`,
     `stale: ${normalizedMemory.stale ? "true" : "false"}`,
+    `date: ${quoteYaml(normalizedMemory.date)}`,
   ];
 
   if (normalizedMemory.source) {
