@@ -329,6 +329,18 @@ brain list
 
 当前 baseline reviewer 是可解释的 deterministic 规则：先看 type，再看 scope 归一化后是否一致，然后结合标题相似度、摘要相似度、目标 memory 的状态和更新时间来做判定。为了避免误覆盖，`merge` 和 `supersede` 只会在“同类型 + 同归一化 scope”下触发；仅仅 scope 有重叠，还不足以自动折叠或替换 memory。程序化集成可以附带 external review input，但 Core 仍会先校验输入结构，再保留本地最终的 `accept` / `merge` / `supersede` / `reject` 判定。
 
+### 内置本地抽取器
+
+当没有设置 `BRAIN_EXTRACTOR_COMMAND` 时，RepoBrain 会使用一个完全本地可运行的 staged extractor：
+
+- `预处理 -> 片段切分 -> 候选识别 -> 类型判定 -> 字段补全 -> 质量打分 -> 去重初筛 -> deterministic review`
+- 支持的输入形态：普通 session summary、bullet 风格修复记录、中英混合笔记、长段复盘，以及 `brain extract-commit` 生成的 commit context
+- 使用的信号：显式 `decision:` 前缀、关键词、因果词、限制词、风险词、bullet 结构、changed files 和仓库路径
+- metadata 推断：会结合文本和路径上下文补全 `tags`、`importance`、`area`、`files`、`path_scope`
+- 拒绝策略：低信息量备注、debug 噪音、只修 typo 的记录、一次性的 action log 会在写入前 review 之前被过滤掉
+
+这个本地抽取器现在比旧的“只看前缀”的 heuristic 更能从混乱总结里救出有价值的 memory，但它仍然是保守策略，不是通用语义推理器。如果总结里缺少“为什么”、把多条无关结论揉在一起，或者描述过于含糊，补一两句简短因果说明仍然会明显提升提取质量。
+
 这时你应该会在 `.brain/gotchas/` 下看到一条新的 memory。实际文件名会带上当天日期和标题 slug。生成后的文件大致会长这样：
 
 ```md
@@ -709,9 +721,9 @@ brain audit-memory --json
 
 ## 外部 Extractor 契约
 
-如果设置了 `BRAIN_EXTRACTOR_COMMAND`，RepoBrain 会优先调用这个命令，而不是使用内置的启发式提取。
+如果设置了 `BRAIN_EXTRACTOR_COMMAND`，RepoBrain 会优先调用这个命令，而不是使用内置的本地 staged extractor。
 
-这就是给外部 agent、adapter 或 skill 留的扩展点，用来提供更强的语义候选提炼；RepoBrain Core 仍然只消费本地进程输出，不内置自己的模型 API 客户端。
+这就是给外部 agent、adapter 或 skill 留的扩展点，用来提供更强的语义候选提炼；RepoBrain Core 仍然只消费本地进程输出，不内置自己的模型 API 客户端。默认路径依旧是完全本地的，不要求联网调用 LLM。
 
 同一份契约也会被导出的 `detectFailures(sessionLog, existingMemories)` 复用（实现位于 `src/failure-detector.ts`）。这个辅助函数会发送一次小 prompt，内容包含记忆索引（`title | type | file`）和 session 日志全文，并期待命令从 `stdout` 返回严格 JSON 的事件数组。失败检测是 best-effort 的：命令执行失败或返回非法 JSON 时，会静默返回 `[]`，不会中断 session。
 
@@ -735,6 +747,13 @@ Failure detector 契约：
 - 如果命令执行失败，RepoBrain 会把错误写入 `.brain/errors.log`，然后回退到启发式提取
 - 如果命令输出的 JSON 非法，或 memory 条目字段不合法，RepoBrain 也会记录错误并回退到启发式提取
 - 如果没有值得保存的内容，命令应返回 `{ "memories": [] }`
+
+外部 extractor 也应该遵守和内置抽取器一致的质量门槛：
+
+- 保持当前 memory schema 不变
+- 优先提取可复用的 decision、gotcha、convention、pattern、working、goal，而不是原始变更流水账
+- 能补就补稳定 metadata，尤其是 `files`、`area`、`importance` 和简洁 summary
+- 短期 debug 噪音尽量直接拒绝，不要把清洗压力留给后续 Core review
 
 ## Roadmap
 

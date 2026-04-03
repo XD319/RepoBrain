@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const testFiles = [
   "test/store.test.mjs",
+  "test/extract.test.mjs",
   "test/memory-priority.test.mjs",
   "test/reviewer.test.mjs",
   "test/suggest-skills.test.mjs",

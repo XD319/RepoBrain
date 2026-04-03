@@ -346,6 +346,18 @@ brain list
 
 The baseline reviewer is deterministic and explainable on purpose. It looks at memory type first, then exact normalized scope, title similarity, summary similarity, target status, and target recency. `merge` and `supersede` only trigger when the candidate and target share the same normalized scope. Scope overlap by itself is treated as context, not enough to rewrite or collapse memories. Programmatic integrations may attach optional external review input, but Core still validates that input shape and makes the final local `accept` / `merge` / `supersede` / `reject` decision itself.
 
+### Built-in Local Extractor
+
+When `BRAIN_EXTRACTOR_COMMAND` is unset, RepoBrain uses a fully local staged extractor:
+
+- `preprocess -> chunk -> candidate detection -> type classification -> field completion -> quality scoring -> prescreen dedupe -> deterministic review`
+- input shapes: normal session summaries, bullet-style fix logs, mixed Chinese/English notes, long-form retrospectives, and `brain extract-commit` commit context
+- signals: explicit `decision:`-style prefixes plus keywords, rationale words, limitation and risk words, bullet structure, changed files, and repository paths
+- metadata derivation: `tags`, `importance`, `area`, `files`, and `path_scope` are inferred from both text and path context
+- rejection bias: low-information notes, debug noise, typo-only edits, and one-off action logs are filtered out before write review
+
+Quality boundaries are still intentionally conservative. The local extractor is much better at rescuing useful memories from messy summaries than the old prefix-only heuristic, but it is not a general semantic reasoner. If a summary is ambiguous, omits the "why", or mixes multiple unrelated lessons into one paragraph, adding short causal wording still improves extraction quality.
+
 You should now see a new memory under `.brain/gotchas/`. The exact filename will include the current date and a slugified title. A saved file will look similar to this:
 
 ```md
@@ -725,9 +737,9 @@ The human-readable output includes `memory_id`, issue type, reason, and suggeste
 
 ## External Extractor Contract
 
-If `BRAIN_EXTRACTOR_COMMAND` is set, RepoBrain will use that command instead of the built-in heuristic extractor.
+If `BRAIN_EXTRACTOR_COMMAND` is set, RepoBrain will use that command instead of the built-in local staged extractor.
 
-This is the extension point for external agents, adapters, or skills that want richer semantic candidate extraction. RepoBrain Core still only consumes local process output and never embeds its own model API client.
+This is the extension point for external agents, adapters, or skills that want richer semantic candidate extraction. RepoBrain Core still only consumes local process output and never embeds its own model API client. The built-in path remains fully local and does not require any networked LLM.
 
 The same command contract is also reused by the exported `detectFailures(sessionLog, existingMemories)` helper in `src/failure-detector.ts`. That helper sends one small prompt containing the memory index plus the full session log and expects a strict JSON event array back. Failure detection stays best-effort on purpose: command failures or invalid JSON resolve to `[]` instead of interrupting the session flow.
 
@@ -751,6 +763,13 @@ Error handling:
 - If the command fails, RepoBrain logs the error to `.brain/errors.log` and falls back to heuristic extraction
 - If the command returns invalid JSON or unsupported memory entries, RepoBrain logs the parse error and falls back to heuristic extraction
 - If there is nothing worth saving, the command should return `{ "memories": [] }`
+
+External extractors should preserve the same durability bar as the built-in extractor:
+
+- keep the current memory schema unchanged
+- prefer reusable decisions, gotchas, conventions, patterns, working context, and goals over raw change logs
+- include stable metadata when possible, especially `files`, `area`, `importance`, and concise summaries
+- reject short-lived debug chatter instead of passing it downstream for Core to clean up later
 
 ## Roadmap
 

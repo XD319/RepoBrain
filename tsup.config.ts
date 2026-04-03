@@ -4,6 +4,7 @@ export default defineConfig({
   entry: [
     "src/audit-memory.ts",
     "src/cli.ts",
+    "src/extract.ts",
     "src/failure-detector.ts",
     "src/inject.ts",
     "src/integrations.ts",
