@@ -47,6 +47,8 @@ npm run build
 npm link
 ```
 
+Before a public release, run `npm run smoke:package` and follow [docs/release-checklist.md](./docs/release-checklist.md).
+
 Extract memory from a session summary:
 
 ```bash
@@ -321,6 +323,8 @@ The generated `config.yaml` starts small on purpose:
 
 Use a realistic repo lesson instead of a toy example. In this walkthrough, the lesson is that ESLint's `no-unused-vars` can overlap with TypeScript's `noUnusedLocals` and create duplicate warnings.
 
+Thin one-line notes are intentionally rejected by the deterministic reviewer. Use a concrete lesson with enough repo-specific detail to still help in a later session.
+
 Create a session summary file:
 
 ```bash
@@ -583,6 +587,8 @@ The first version of `brain share` is intentionally conservative: it does not ch
 
 See [docs/team-workflow.md](./docs/team-workflow.md) for the full workflow and `.brain/` tracking guidance.
 
+For release prep and package validation, use [docs/release-checklist.md](./docs/release-checklist.md).
+
 ## CLI Reference
 
 ```bash
@@ -764,6 +770,7 @@ If you want to contribute, the most helpful things right now are:
 - extraction quality feedback
 - repo examples where the current memory model still misses useful context
 - docs improvements that make the tool easier to adopt in under five minutes
+- release-validation feedback from Windows, macOS, and Linux shells
 
 If you open a PR, keep the core idea in mind:
 

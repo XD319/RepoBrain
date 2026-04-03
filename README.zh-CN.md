@@ -47,6 +47,8 @@ npm run build
 npm link
 ```
 
+准备公开发布前，建议先运行 `npm run smoke:package`，再按 [docs/release-checklist.zh-CN.md](./docs/release-checklist.zh-CN.md) 逐项检查。
+
 从 session summary 手动提取：
 
 ```bash
@@ -304,6 +306,8 @@ brain setup
 
 不要用 toy example，直接用一个真实 repo lesson。这里我们用一个很常见的例子：ESLint 的 `no-unused-vars` 和 TypeScript 的 `noUnusedLocals` 同时开启时，容易产生重复告警。
 
+过薄的一句话提示会被 deterministic reviewer 有意拒绝；第一次体验时请尽量提供一段具体、带 repo 上下文的总结。
+
 先创建一份 session summary：
 
 ```bash
@@ -550,7 +554,7 @@ brain inject
 
 如果沉淀下来的知识确实值得跟着代码走，就把 `.brain/` 的变更和代码改动一起 review、一起提交。
 
-Total: ~25 min. What to try next -> [docs/demo-script.zh-CN.md](./docs/demo-script.zh-CN.md)
+总耗时：约 25 分钟。下一步可以直接按 [docs/demo-script.zh-CN.md](./docs/demo-script.zh-CN.md) 录一遍完整演示。
 
 ## 团队协作工作流
 
@@ -566,16 +570,22 @@ Total: ~25 min. What to try next -> [docs/demo-script.zh-CN.md](./docs/demo-scri
 
 完整说明见 [docs/team-workflow.zh-CN.md](./docs/team-workflow.zh-CN.md)。
 
+如果是在做发布准备或打包检查，再配合 [docs/release-checklist.zh-CN.md](./docs/release-checklist.zh-CN.md) 一起走。
+
 ## CLI Reference
 
 ```bash
 brain init
 brain setup
 brain extract < session-summary.txt
+brain extract --type working < session-summary.txt
 brain extract-commit
 brain inject
 brain list
+brain list --type goal
+brain list --goals
 brain stats
+brain goal done <keyword>
 brain status
 brain review
 brain approve --safe
@@ -744,6 +754,7 @@ Failure detector 契约：
 - 对提取质量的反馈
 - RepoBrain 目前还没覆盖到的 repo context 场景
 - 能让新用户 5 分钟内上手的文档改进
+- 来自 Windows、macOS、Linux shell 的发布验证反馈
 
 如果你准备提 PR，最重要的一条是别把项目带偏：
 
