@@ -683,6 +683,25 @@ brain inject
 
 如果是在做发布准备或打包检查，再配合 [docs/release-checklist.zh-CN.md](./docs/release-checklist.zh-CN.md) 一起走。
 
+### Inject Ranking Update
+
+`brain inject` 鐜板湪鏇村儚涓€涓?task-understanding-driven context builder锛屼笉鍐嶅彧鏄竴涓粦鐩掔殑 relevance score銆? 
+
+- `task phrase match`
+- `task keyword overlap`
+- `module overlap`
+- `path scope match`
+- `skill trigger path match`
+- `git changed files match`
+- `branch / tag hint`
+- `importance / risk / recency / hit_count` 淇椤?
+
+鏂扮増 inject 杩樹細鍦?token budget 鍐呭仛 diversity-aware selection锛岄伩鍏嶇浉浼肩殑 memories 鎶婇绠楀叏閮ㄦ尋鍗狅紝浼樺厛淇濈暀涓嶅悓妯″潡鍜屼笉鍚岄闄╅潰鐨?memory銆?
+
+`--explain` 浼氬湪 HTML 娉ㄩ噴閲屽睍绀烘瘡鏉?memory 鐨勫垎椤瑰緱鍒嗐€佹€诲垎锛屼互鍙?diversity-aware selection 鐨?utility锛沜EPOBRAIN_DEBUG=1` 鎴?`DEBUG=repobrain:inject` 涔熷彲鎵撳紑鍚屾牱鐨勮皟璇曟姤鍛娿€?
+
+before / after 瀵规瘮锛氬悓鏍风殑 token budget 涓嬶紝鏃ч€昏緫鏇村鏄撻€夊嚭涓や釜鍚屾ā鍧楃殑 auth memories锛涙柊閫昏緫浼氫繚鐣?auth + db 杩欑璺ㄦā鍧楄鐩栵紝璁╅噸鏋勩€佽法妯″潡浠诲姟鍜岄珮椋庨櫓淇鏇村鏄撴嬁鍒颁笉鍚岄闄╅潰鐨?context銆?
+
 ## CLI Reference
 
 ```bash
@@ -759,6 +778,8 @@ extractMode: suggest
 language: zh-CN
 staleDays: 90
 sweepOnInject: false
+injectDiversity: true
+injectExplainMaxItems: 4
 ```
 
 - `maxInjectTokens`：生成注入上下文时使用的近似 token 预算，针对中英混合内容做了更稳的估算

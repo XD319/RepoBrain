@@ -10,6 +10,10 @@ const DEFAULT_BRAIN_CONFIG = {
   maxInjectTokens: 1200,
   extractMode: "suggest",
   language: "zh-CN",
+  staleDays: 90,
+  sweepOnInject: false,
+  injectDiversity: true,
+  injectExplainMaxItems: 4,
 };
 
 await runTest("inject sorts memories by computed injection priority", async () => {
@@ -104,8 +108,8 @@ await runTest("inject keeps task-aware rationale in the rendered output", async 
     });
 
     assert.match(injection, /Selection mode: task-aware/);
-    assert.match(injection, /Why now: task trigger: fix refund transaction bug;/);
-    assert.match(injection, /task trigger: fix refund transaction bug/);
+    assert.match(injection, /Why now: Task Phrase Match: fix refund transaction bug/);
+    assert.match(injection, /Task Phrase Match: fix refund transaction bug/);
   });
 });
 
@@ -384,7 +388,7 @@ await runTest("inject boosts memories that match changed git files and explains 
     );
     assert.match(
       injection,
-      /<!-- brain-inject-scores: .*decisions\/2026-04-01-jwt-auth-changes-must-update-the-shared-guard-090000000\.md=85, .*gotchas\/2026-04-01-general-release-checklist-100000000\.md=15 -->/,
+      /<!-- brain-inject-report[\s\S]*decisions\/2026-04-01-jwt-auth-changes-must-update-the-shared-guard-090000000\.md \| total=.*git_changed_files_match=.*branch_tag_hint=.*[\s\S]*gotchas\/2026-04-01-general-release-checklist-100000000\.md \| total=.*/m,
     );
   });
 });
@@ -433,6 +437,7 @@ await runTest("inject can disable git-context scoring with --no-context", async 
       "expected legacy ordering when --no-context is used",
     );
     assert.doesNotMatch(result, /brain-inject-scores/);
+    assert.doesNotMatch(result, /brain-inject-report/);
   });
 });
 
@@ -500,6 +505,183 @@ await runTest("inject always includes active goals even when the token budget is
     assert.match(injection, /Finish auth rollout/);
     assert.doesNotMatch(injection, /Secondary decision/);
     assert.match(injection, /\[RepoBrain\] injected 1\/2 eligible memories\./);
+  });
+});
+
+await runTest("inject prefers refactor memories that understand task phrases, modules, and scoped paths", async () => {
+  await withTempRepo(async (projectRoot) => {
+    await saveMemory(
+      {
+        type: "pattern",
+        title: "Refactor CLI config loading through shared parse helpers",
+        summary: "CLI refactors should preserve parse helpers before touching command wiring.",
+        detail: "## PATTERN\n\nWhen refactoring config loading, keep parsing and command wiring decoupled.",
+        tags: ["cli", "config", "refactor"],
+        importance: "medium",
+        date: "2026-04-01T09:00:00.000Z",
+        status: "active",
+        path_scope: ["src/config/**", "src/cli.ts"],
+        skill_trigger_tasks: ["refactor config loading"],
+        skill_trigger_paths: ["src/config/**"],
+        risk_level: "medium",
+      },
+      projectRoot,
+    );
+
+    await saveMemory(
+      {
+        type: "decision",
+        title: "Release checklist for ordinary cutovers",
+        summary: "Generic release guidance.",
+        detail: "## DECISION\n\nGeneric release guidance.",
+        tags: ["release"],
+        importance: "high",
+        date: "2026-04-01T10:00:00.000Z",
+        status: "active",
+      },
+      projectRoot,
+    );
+
+    const injection = await buildInjection(projectRoot, DEFAULT_BRAIN_CONFIG, {
+      task: "refactor config loading for the CLI",
+      paths: ["src/config/loader.ts", "src/cli.ts"],
+      modules: ["cli", "config"],
+    });
+
+    assert.ok(
+      injection.indexOf("Refactor CLI config loading through shared parse helpers") <
+        injection.indexOf("Release checklist for ordinary cutovers"),
+      "expected the refactor-specific memory to rank first",
+    );
+    assert.match(injection, /Task Phrase Match: refactor config loading/);
+    assert.match(injection, /Module Overlap: cli, config/);
+  });
+});
+
+await runTest("inject uses diversity-aware selection to keep cross-module coverage under tight budget", async () => {
+  await withTempRepo(async (projectRoot) => {
+    await saveMemory(
+      {
+        type: "decision",
+        title: "Auth refactor must preserve token refresh boundary",
+        summary: "Auth refactors should keep token refresh isolated.",
+        detail: "## DECISION\n\nAuth refactors should keep token refresh isolated.",
+        tags: ["auth", "refactor"],
+        importance: "high",
+        date: "2026-04-01T08:00:00.000Z",
+        status: "active",
+        path_scope: ["src/auth/**"],
+        skill_trigger_tasks: ["refactor shared service"],
+        risk_level: "high",
+      },
+      projectRoot,
+    );
+
+    await saveMemory(
+      {
+        type: "decision",
+        title: "Auth refactor must preserve login fallback",
+        summary: "Nearby auth rule that should not crowd out another module.",
+        detail: "## DECISION\n\nAuth refactors should preserve the login fallback path.",
+        tags: ["auth", "login", "refactor"],
+        importance: "high",
+        date: "2026-04-01T08:30:00.000Z",
+        status: "active",
+        path_scope: ["src/auth/login/**"],
+        skill_trigger_tasks: ["refactor shared service"],
+        risk_level: "medium",
+      },
+      projectRoot,
+    );
+
+    await saveMemory(
+      {
+        type: "gotcha",
+        title: "DB refactor must preserve transaction envelope",
+        summary: "Database refactors need their own warning surface.",
+        detail: "## GOTCHA\n\nDatabase refactors must preserve transaction boundaries.",
+        tags: ["db", "refactor", "transaction"],
+        importance: "medium",
+        date: "2026-04-01T09:00:00.000Z",
+        status: "active",
+        path_scope: ["src/db/**"],
+        skill_trigger_tasks: ["refactor shared service"],
+        risk_level: "high",
+      },
+      projectRoot,
+    );
+
+    const injection = await buildInjection(projectRoot, {
+      ...DEFAULT_BRAIN_CONFIG,
+      maxInjectTokens: 320,
+    }, {
+      task: "refactor shared service across auth and db",
+      paths: ["src/auth/token.ts", "src/db/ledger.ts"],
+      modules: ["auth", "db"],
+      explain: true,
+    });
+
+    assert.match(injection, /Auth refactor must preserve token refresh boundary/);
+    assert.match(injection, /DB refactor must preserve transaction envelope/);
+    assert.ok(
+      injection.indexOf("DB refactor must preserve transaction envelope") <
+        injection.indexOf("Auth refactor must preserve login fallback"),
+      "expected the diversity-aware selector to choose the db memory before the second auth memory",
+    );
+    assert.match(injection, /diversity=\+/);
+  });
+});
+
+await runTest("inject elevates high-risk fix memories across modules and shows the risk contribution", async () => {
+  await withTempRepo(async (projectRoot) => {
+    await saveMemory(
+      {
+        type: "gotcha",
+        title: "Refund fixes must stay inside payments and ledger transaction boundaries",
+        summary: "Risky refund bugfixes span two modules and must keep transaction boundaries intact.",
+        detail: "## GOTCHA\n\nRefund bugfixes must keep payments writes and ledger sync inside one transaction.",
+        tags: ["payments", "ledger", "refund"],
+        importance: "medium",
+        date: "2026-04-01T09:00:00.000Z",
+        status: "active",
+        path_scope: ["src/payments/**", "src/ledger/**"],
+        skill_trigger_tasks: ["fix refund transaction bug"],
+        risk_level: "high",
+      },
+      projectRoot,
+    );
+
+    await saveMemory(
+      {
+        type: "pattern",
+        title: "General bugfix checklist",
+        summary: "Generic debugging guidance.",
+        detail: "## PATTERN\n\nGeneric debugging guidance.",
+        tags: ["bugfix"],
+        importance: "high",
+        date: "2026-04-01T10:00:00.000Z",
+        status: "active",
+      },
+      projectRoot,
+    );
+
+    const injection = await buildInjection(projectRoot, {
+      ...DEFAULT_BRAIN_CONFIG,
+      injectExplainMaxItems: 8,
+    }, {
+      task: "fix refund transaction bug before release",
+      paths: ["src/payments/refund.ts", "src/ledger/sync.ts"],
+      modules: ["payments", "ledger"],
+      explain: true,
+    });
+
+    assert.ok(
+      injection.indexOf("Refund fixes must stay inside payments and ledger transaction boundaries") <
+        injection.indexOf("General bugfix checklist"),
+      "expected the high-risk multi-module fix memory to rank first",
+    );
+    assert.match(injection, /risk_adjustment=8 \(risk=high\)/);
+    assert.match(injection, /Task Phrase Match: fix refund transaction bug/);
   });
 });
 

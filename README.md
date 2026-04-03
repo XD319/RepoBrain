@@ -582,12 +582,20 @@ The boundary stays strict:
 - `brain suggest-skills` resolves routing metadata into a plan
 - the adapter decides whether, when, and how to invoke a skill from that plan
 
-`brain inject` now sorts active memories by computed injection priority, skips memories whose frontmatter sets `stale: true` or `superseded_by` to a newer `.brain/` file, prefixes versioned entries with `[更新 vN]` when `version >= 2`, warns on broken supersede back-links during inject, and atomically writes back a higher `hit_count` plus a fresh `last_used` date for injected memories. By default, it also inspects the current Git branch plus `git diff --name-only HEAD` and boosts memories whose `files`, `area`, or `tags` match the worktree context. If Git context is unavailable, or older memories do not define `files` and `area`, RepoBrain automatically falls back to the legacy ordering. When you provide task signals, RepoBrain still shows short rationale hints based on:
+`brain inject` now behaves more like a task-understanding-driven context builder while keeping the same CLI surface. It still skips memories whose frontmatter sets `stale: true` or `superseded_by` to a newer `.brain/` file, prefixes versioned entries with `[Updated vN]` when `version >= 2`, warns on broken supersede back-links during inject, and atomically writes back a higher `hit_count` plus a fresh `last_used` date for injected memories.
 
-- task phrase matches from `skill_trigger_tasks`
-- path matches from `path_scope` and `skill_trigger_paths`
-- module keyword overlap from the task/module input against titles, summaries, tags, and scoped paths
-- small tie-break bonuses from `importance`, `risk_level`, and `invocation_mode`
+The ranking model is split into explainable components instead of one opaque relevance score:
+
+- `task phrase match`: phrase-level hits from `skill_trigger_tasks`
+- `task keyword overlap`: overlap between task words and the memory title, summary, tags, and scoped text
+- `module overlap`: overlap between `--module` input and the memory's module hints
+- `path scope match`: direct matches from `--path` against `path_scope`
+- `skill trigger path match`: direct matches from `--path` against `skill_trigger_paths`
+- `git changed files match`: worktree-aware matches from `git diff --name-only HEAD` against `files`, `path_scope`, and area path hints
+- `branch / tag hint`: branch-name tokens that line up with tags or the memory title
+- `importance / risk / recency / hit_count` adjustments: persistent corrections that keep high-signal and risky memories competitive even before task-specific matches
+
+Selection is also diversity-aware under the token budget: RepoBrain avoids letting near-duplicate memories consume the whole budget, prefers to keep different modules and risk surfaces represented, and still keeps active `goal` memories above the normal cutoff.
 
 ### Step 3: Inject And Verify
 
@@ -614,29 +622,37 @@ Useful flags:
 
 - `--no-context`: disable Git-context scoring and use the legacy ordering
 - `--include-working`: include active `working` memories in the injected block
-- `--explain`: append an HTML comment with each injected memory's Git-context score for debugging
+- `--explain`: append a scoring report as an HTML comment, including per-memory score components plus diversity-aware selection utility; `REPOBRAIN_DEBUG=1` or `DEBUG=repobrain:inject` enables the same report in debug mode
 
 Active `goal` memories are always injected ahead of the normal token-budget cutoff.
 
-The injected block will group memories by category and end with a short set of requirements. The output will look like this:
+The injected block remains compact and session-ready. The output will look like this:
 
 ```md
 # Project Brain: Repo Knowledge Context
 
-## High-priority decisions
-_None._
-
-## Known gotchas and limits
-- [medium] ESLint no-unused-vars conflicts with TypeScript noUnusedLocals
-  ESLint no-unused-vars conflicts with TypeScript noUnusedLocals
-  Scope: gotcha: ESLint no-unused-vars conflicts with TypeScript noUnusedLocals When TypeScript is already enforcing unused locals...
-
-## Repo conventions
-_None._
-
-## Reusable patterns
-_None._
+- [pattern | medium] Refactor CLI config loading through shared parse helpers
+  CLI refactors should preserve parse helpers before touching command wiring.
+  Scope: When refactoring config loading, keep parsing and command wiring decoupled. | tags: cli, config, refactor
+  Why now: Task Phrase Match: refactor config loading; Module Overlap: cli, config
+<!-- brain-inject-report
+patterns/2026-04-01-refactor-cli-config-loading-through-shared-parse-090000000.md | total=124.6 | context=88 | priority=36.6 | utility=145.6 | diversity=+21 | redundancy=-0 | task_phrase_match=26 (refactor config loading) ; path_scope_match=24 (src/config/** -> src/config/loader.ts | src/cli.ts -> src/cli.ts) ; task_keyword_overlap=16 (refactor, config, loading, cli) ; module_overlap=12 (cli, config)
+-->
 ```
+
+Before / after selection behavior under the same budget:
+
+```md
+Before:
+- Auth refactor must preserve token refresh boundary
+- Auth refactor must preserve login fallback
+
+After:
+- Auth refactor must preserve token refresh boundary
+- DB refactor must preserve transaction envelope
+```
+
+The new selection keeps broader task coverage instead of letting closely related memories from one module crowd out another risk surface.
 
 Lineage example:
 
@@ -775,6 +791,8 @@ extractMode: suggest
 language: zh-CN
 staleDays: 90
 sweepOnInject: false
+injectDiversity: true
+injectExplainMaxItems: 4
 ```
 
 - `maxInjectTokens`: approximate token budget used when building injected context, with Unicode-aware estimation for mixed English/CJK content
@@ -785,6 +803,8 @@ sweepOnInject: false
 - `language`: preferred output language for extraction prompts
 - `staleDays`: number of days before a non-goal memory becomes eligible for sweep downgrading
 - `sweepOnInject`: when `true`, `brain inject` runs `brain sweep --auto` first and prints sweep logs to `stderr` so the injected markdown stays clean
+- `injectDiversity`: when `true`, `brain inject` uses diversity-aware selection so one cluster of similar memories does not consume the entire token budget
+- `injectExplainMaxItems`: maximum number of top score components shown per memory in `--explain` / debug scoring reports
 - legacy `provider`, `model`, or `apiKey` style review settings are ignored with a deprecation warning; RepoBrain Core does not call remote review services
 
 ## Memory Lifecycle

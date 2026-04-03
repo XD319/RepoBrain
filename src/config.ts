@@ -11,6 +11,8 @@ export const DEFAULT_BRAIN_CONFIG: BrainConfig = {
   language: "zh-CN",
   staleDays: 90,
   sweepOnInject: false,
+  injectDiversity: true,
+  injectExplainMaxItems: 4,
 };
 
 const DEPRECATED_REMOTE_REVIEW_KEY_PATTERNS = [
@@ -147,6 +149,31 @@ function parseSimpleYaml(raw: string): Partial<BrainConfig> {
           `Ignoring invalid config value sweepOnInject=${value}. Expected true or false; using default ${DEFAULT_BRAIN_CONFIG.sweepOnInject}.`,
         );
       }
+      continue;
+    }
+
+    if (key === "injectDiversity") {
+      if (value.toLowerCase() === "true") {
+        result.injectDiversity = true;
+      } else if (value.toLowerCase() === "false") {
+        result.injectDiversity = false;
+      } else {
+        warnings.push(
+          `Ignoring invalid config value injectDiversity=${value}. Expected true or false; using default ${DEFAULT_BRAIN_CONFIG.injectDiversity}.`,
+        );
+      }
+      continue;
+    }
+
+    if (key === "injectExplainMaxItems") {
+      const parsed = Number(value);
+      if (Number.isInteger(parsed) && parsed > 0) {
+        result.injectExplainMaxItems = parsed;
+      } else {
+        warnings.push(
+          `Ignoring invalid config value injectExplainMaxItems=${value}. Expected a positive integer; using default ${DEFAULT_BRAIN_CONFIG.injectExplainMaxItems}.`,
+        );
+      }
     }
   }
 
@@ -175,6 +202,8 @@ function serializeSimpleYaml(config: BrainConfig): string {
     `language: ${config.language}`,
     `staleDays: ${config.staleDays}`,
     `sweepOnInject: ${config.sweepOnInject ? "true" : "false"}`,
+    `injectDiversity: ${config.injectDiversity ? "true" : "false"}`,
+    `injectExplainMaxItems: ${config.injectExplainMaxItems}`,
     "",
   ].join("\n");
 }

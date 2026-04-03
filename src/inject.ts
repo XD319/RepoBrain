@@ -1,14 +1,15 @@
 import { execSync } from "node:child_process";
 
 import { getMemoryStatus, loadStoredMemoryRecords, recordInjectedMemories } from "./store.js";
-import { computeInjectPriority } from "./memory-priority.js";
 import {
+  buildInjectScoreReport,
+  explainSelectionDecision,
+  formatCompactReasons,
   hasSelectionContext,
   normalizeSelectionOptions,
-  scoreMemoryForSelection,
-} from "./memory-relevance.js";
-import type { MemorySelectionOptions } from "./memory-relevance.js";
-import type { BrainConfig, Memory, MemoryArea, StoredMemoryRecord } from "./types.js";
+} from "./inject-ranking.js";
+import type { DiversitySelectionDecision, MemorySelectionOptions, RankedMemoryCandidate } from "./inject-ranking.js";
+import type { BrainConfig, Memory, StoredMemoryRecord } from "./types.js";
 
 export interface GitContext {
   changedFiles: string[];
@@ -25,10 +26,9 @@ export interface BuildInjectionOptions extends MemorySelectionOptions {
 interface RankedMemory {
   relativePath: string;
   memory: Memory;
-  relevanceScore: number;
-  gitContextScore: number;
-  injectPriority: number;
-  reasons: string[];
+  report: RankedMemoryCandidate["report"];
+  selectionDecision?: DiversitySelectionDecision;
+  tokenCost: number;
 }
 
 interface SelectionResult {
@@ -61,13 +61,19 @@ export async function buildInjection(
   const options = normalizeSelectionOptions(rawOptions);
   const taskAware = hasSelectionContext(options);
   const gitContext = rawOptions.noContext ? { changedFiles: [], branchName: "" } : (rawOptions.gitContext ?? getGitContext(projectRoot));
-  const gitContextEnabled = !rawOptions.noContext && shouldUseGitContext(activeRecords, gitContext);
   const ranked = rankMemories(activeRecords, options, {
-    taskAware,
     gitContext,
-    gitContextEnabled,
+    gitContextEnabled: !rawOptions.noContext && shouldUseGitContext(activeRecords, gitContext),
   });
-  const selection = selectWithinTokenBudget(ranked, config.maxInjectTokens, staleCount);
+  const selection = selectWithinTokenBudget(
+    ranked,
+    {
+      ...config,
+      injectDiversity: config.injectDiversity ?? true,
+      injectExplainMaxItems: config.injectExplainMaxItems ?? 4,
+    },
+    staleCount,
+  );
   const selected = selection.selected;
 
   await recordInjectedMemories(
@@ -81,7 +87,9 @@ export async function buildInjection(
     "# Project Brain: Repo Knowledge Context",
     "",
     "Before starting the current task, review the project knowledge below. It captures repo decisions, limits, and conventions that should be followed unless you have a clear reason to deviate.",
-    ...(taskAware || gitContextEnabled ? ["", renderSelectionSummary(options, gitContext, gitContextEnabled)] : []),
+    ...(hasSelectionContext(options) || ranked.some((entry) => entry.report.contextScore > 0)
+      ? ["", renderSelectionSummary(options, gitContext, ranked.some((entry) => hasGitContextComponent(entry)))]
+      : []),
     "",
     "## Injected Memories (Priority Order)",
     renderGroup(selected, taskAware),
@@ -99,7 +107,9 @@ export async function buildInjection(
     ...(selection.staleCount > 0
       ? [`Note: ${selection.staleCount} stale memor${selection.staleCount === 1 ? "y is" : "ies are"} currently excluded. Run "brain score" to review them.`]
       : []),
-    ...(rawOptions.explain ? [renderExplainComment(selected)] : []),
+    ...(shouldRenderExplain(rawOptions.explain)
+      ? [renderExplainComment(selected, config.injectExplainMaxItems ?? 4)]
+      : []),
   ].join("\n");
 }
 
@@ -107,7 +117,6 @@ function rankMemories(
   records: StoredMemoryRecord[],
   options: MemorySelectionOptions,
   context: {
-    taskAware: boolean;
     gitContext: GitContext;
     gitContextEnabled: boolean;
   },
@@ -116,15 +125,25 @@ function rankMemories(
     .filter((entry) => entry.memory.superseded_by === null && !entry.memory.stale)
     .map((entry) => {
       const memory = entry.memory;
-      const match = context.taskAware ? scoreMemoryForSelection(memory, options) : { score: 0, reasons: [] };
-      const gitContextScore = context.gitContextEnabled ? scoreMemory(memory, context.gitContext) : 0;
+      const report = buildInjectScoreReport(
+        memory,
+        options,
+        context.gitContextEnabled ? context.gitContext : { changedFiles: [], branchName: "" },
+      );
+      const rendered = renderRankedMemory(
+        {
+          relativePath: toBrainRelativePath(entry.relativePath),
+          memory,
+          report,
+          tokenCost: 0,
+        },
+        report.reasons.length > 0,
+      );
       return {
         relativePath: toBrainRelativePath(entry.relativePath),
         memory,
-        relevanceScore: gitContextScore + match.score,
-        gitContextScore,
-        injectPriority: computeInjectPriority(memory),
-        reasons: match.reasons,
+        report,
+        tokenCost: approximateTokens(rendered),
       };
     })
     .sort(compareRankedMemories);
@@ -136,12 +155,12 @@ function compareRankedMemories(left: RankedMemory, right: RankedMemory): number 
     return goalDiff;
   }
 
-  const scoreDiff = right.relevanceScore - left.relevanceScore;
+  const scoreDiff = right.report.totalScore - left.report.totalScore;
   if (scoreDiff !== 0) {
     return scoreDiff;
   }
 
-  const priorityDiff = right.injectPriority - left.injectPriority;
+  const priorityDiff = right.report.priorityScore - left.report.priorityScore;
   if (priorityDiff !== 0) {
     return priorityDiff;
   }
@@ -151,7 +170,7 @@ function compareRankedMemories(left: RankedMemory, right: RankedMemory): number 
 
 function selectWithinTokenBudget(
   rankedMemories: RankedMemory[],
-  maxTokens: number,
+  config: BrainConfig,
   staleCount: number,
 ): SelectionResult {
   const selected: RankedMemory[] = [];
@@ -169,21 +188,42 @@ function selectWithinTokenBudget(
   );
 
   for (const entry of requiredMemories) {
-    const renderedTokens = approximateTokens(renderRankedMemory(entry, entry.reasons.length > 0));
     selected.push(entry);
-    usedTokens += renderedTokens;
+    usedTokens += entry.tokenCost;
   }
 
-  for (const entry of optionalMemories) {
-    const rendered = renderRankedMemory(entry, entry.reasons.length > 0);
-    const renderedTokens = approximateTokens(rendered);
-
-    if (selected.length > 0 && usedTokens + renderedTokens > maxTokens) {
-      continue;
+  const remaining = [...optionalMemories];
+  while (remaining.length > 0) {
+    const fitCandidates = remaining.filter((entry) => !(selected.length > 0 && usedTokens + entry.tokenCost > config.maxInjectTokens));
+    if (fitCandidates.length === 0) {
+      break;
     }
 
-    selected.push(entry);
-    usedTokens += renderedTokens;
+    const chosen = fitCandidates
+      .map((entry) => ({
+        entry,
+        decision: config.injectDiversity ? explainSelectionDecision(entry, selected) : createPlainSelectionDecision(entry),
+      }))
+      .sort((left, right) => {
+        const utilityDiff = right.decision.utilityScore - left.decision.utilityScore;
+        if (utilityDiff !== 0) {
+          return utilityDiff;
+        }
+
+        return compareRankedMemories(left.entry, right.entry);
+      })[0];
+
+    if (!chosen) {
+      break;
+    }
+
+    chosen.entry.selectionDecision = chosen.decision;
+    selected.push(chosen.entry);
+    usedTokens += chosen.entry.tokenCost;
+    remaining.splice(
+      remaining.findIndex((entry) => entry.relativePath === chosen.entry.relativePath),
+      1,
+    );
   }
 
   return {
@@ -245,8 +285,8 @@ function renderRankedMemory(entry: RankedMemory, taskAware: boolean): string {
     `  Scope: ${extractScope(entry.memory.detail)}${tags}`,
   ];
 
-  if (taskAware && entry.reasons.length > 0) {
-    lines.push(`  Why now: ${pickDisplayReasons(entry.reasons).join("; ")}`);
+  if (taskAware && entry.report.reasons.length > 0) {
+    lines.push(`  Why now: ${formatCompactReasons(entry.report.reasons).join("; ")}`);
   }
 
   return lines.join("\n");
@@ -259,40 +299,6 @@ function extractScope(detail: string): string {
     .trim();
 
   return singleLine.slice(0, 180) || "See memory detail.";
-}
-
-function pickDisplayReasons(reasons: string[]): string[] {
-  const preferredPrefixes = [
-    "task trigger",
-    "task keywords",
-    "module scope",
-    "path scope",
-    "skill trigger path",
-  ];
-  const selected: string[] = [];
-
-  for (const prefix of preferredPrefixes) {
-    const match = reasons.find((reason) => reason.startsWith(`${prefix}:`));
-    if (match && !selected.includes(match)) {
-      selected.push(match);
-    }
-
-    if (selected.length === 2) {
-      return selected;
-    }
-  }
-
-  for (const reason of reasons) {
-    if (!selected.includes(reason)) {
-      selected.push(reason);
-    }
-
-    if (selected.length === 2) {
-      return selected;
-    }
-  }
-
-  return selected;
 }
 
 function approximateTokens(text: string): number {
@@ -344,7 +350,13 @@ function shouldUseGitContext(records: StoredMemoryRecord[], gitContext: GitConte
     return false;
   }
 
-  return records.some((entry) => (entry.memory.files ?? []).length > 0 || Boolean(entry.memory.area));
+  return records.some(
+    (entry) =>
+      (entry.memory.files ?? []).length > 0 ||
+      (entry.memory.path_scope ?? []).length > 0 ||
+      Boolean(entry.memory.area) ||
+      (entry.memory.tags ?? []).length > 0,
+  );
 }
 
 function getGitContext(projectRoot: string): GitContext {
@@ -368,112 +380,50 @@ function getGitContext(projectRoot: string): GitContext {
   }
 }
 
-function scoreMemory(memory: Memory, gitContext: GitContext): number {
-  let score = 0;
-  const importanceScore: Record<string, number> = { high: 15, medium: 10, low: 5 };
-  score += importanceScore[memory.importance] ?? 10;
-
-  const changedFiles = gitContext.changedFiles.map((value) => normalizeGitPath(value));
-  const memoryFiles = memory.files ?? [];
-
-  if (memoryFiles.length > 0 && changedFiles.length > 0) {
-    const hasMatch = memoryFiles.some((pattern) =>
-      changedFiles.some((filePath) => matchesGlob(filePath, pattern)),
-    );
-    if (hasMatch) {
-      score += 40;
-    }
-  }
-
-  if (memory.area && changedFiles.length > 0) {
-    const areaPrefix = areaToPathPrefix(memory.area);
-    if (areaPrefix && changedFiles.some((filePath) => filePath.startsWith(areaPrefix))) {
-      score += 20;
-    }
-  }
-
-  if ((memory.tags ?? []).length > 0 && gitContext.branchName) {
-    const branchWords = tokenize(gitContext.branchName);
-    if (memory.tags.some((tag) => branchWords.includes(normalizeToken(tag)))) {
-      score += 20;
-    }
-  }
-
-  return score;
-}
-
-function matchesGlob(filePath: string, pattern: string): boolean {
-  const normalizedPath = normalizeGitPath(filePath);
-  const normalizedPattern = normalizeGitPath(pattern);
-  if (!normalizedPattern) {
-    return false;
-  }
-
-  if (!normalizedPattern.includes("*")) {
-    return normalizedPath === normalizedPattern;
-  }
-
-  let regexSource = "^";
-  for (let index = 0; index < normalizedPattern.length; index += 1) {
-    const character = normalizedPattern[index];
-    const nextCharacter = normalizedPattern[index + 1];
-
-    if (character === "*" && nextCharacter === "*") {
-      regexSource += ".*";
-      index += 1;
-      continue;
-    }
-
-    if (character === "*") {
-      regexSource += "[^/]*";
-      continue;
-    }
-
-    regexSource += escapeRegExp(character ?? "");
-  }
-  regexSource += "$";
-
-  return new RegExp(regexSource).test(normalizedPath);
-}
-
-function areaToPathPrefix(area: MemoryArea): string {
-  const areaPrefixes: Record<MemoryArea, string> = {
-    auth: "src/auth",
-    api: "src/api",
-    db: "src/db",
-    infra: "infra",
-    ui: "src/ui",
-    testing: "test",
-    general: "",
-  };
-
-  return areaPrefixes[area];
-}
-
-function tokenize(value: string): string[] {
-  return value
-    .split(/[^a-z0-9\u4e00-\u9fa5]+/i)
-    .map((item) => normalizeToken(item))
-    .filter(Boolean);
-}
-
-function normalizeToken(value: string): string {
-  return value.trim().toLowerCase();
-}
-
 function normalizeGitPath(value: string): string {
   return value.trim().replace(/\\/g, "/").replace(/^\.\/+/, "");
-}
-
-function escapeRegExp(value: string): string {
-  return value.replace(/[|\\{}()[\]^$+?.]/g, "\\$&");
 }
 
 function isAlwaysIncludedGoal(memory: Memory): boolean {
   return memory.type === "goal" && getMemoryStatus(memory) === "active";
 }
 
-function renderExplainComment(memories: RankedMemory[]): string {
-  const parts = memories.map((entry) => `${entry.relativePath}=${entry.gitContextScore}`);
-  return `<!-- brain-inject-scores: ${parts.join(", ")} -->`;
+function renderExplainComment(memories: RankedMemory[], maxItems: number): string {
+  const lines = memories.map((entry) => {
+    const topComponents = entry.report.components
+      .slice()
+      .sort((left, right) => right.score - left.score)
+      .slice(0, Math.max(1, maxItems))
+      .map((component) => `${component.key}=${component.score} (${component.detail})`);
+    const selectionPart = entry.selectionDecision
+      ? ` | utility=${entry.selectionDecision.utilityScore} | diversity=+${entry.selectionDecision.diversityBonus} | redundancy=-${entry.selectionDecision.redundancyPenalty}`
+      : "";
+    return `${entry.relativePath} | total=${entry.report.totalScore} | context=${entry.report.contextScore} | priority=${entry.report.priorityScore}${selectionPart} | ${topComponents.join(" ; ")}`;
+  });
+
+  return ["<!-- brain-inject-report", ...lines.map((line) => line.replace(/-->/g, "--&gt;")), "-->"].join("\n");
+}
+
+function shouldRenderExplain(explain: boolean | undefined): boolean {
+  if (explain) {
+    return true;
+  }
+
+  return process.env.REPOBRAIN_DEBUG === "1" || process.env.DEBUG?.includes("repobrain:inject") === true;
+}
+
+function hasGitContextComponent(entry: RankedMemory): boolean {
+  return entry.report.components.some(
+    (component) => component.key === "git_changed_files_match" || component.key === "branch_tag_hint",
+  );
+}
+
+function createPlainSelectionDecision(entry: RankedMemory): DiversitySelectionDecision {
+  return {
+    diversityBonus: 0,
+    redundancyPenalty: 0,
+    novelty: [],
+    redundancy: [],
+    utilityScore: entry.report.totalScore,
+  };
 }

@@ -22,6 +22,8 @@ const config = {
   language: "en",
   staleDays: 30,
   sweepOnInject: false,
+  injectDiversity: true,
+  injectExplainMaxItems: 4,
 };
 
 const results = [];
@@ -95,7 +97,7 @@ await runCase("inject_hit", "prioritizes the task-matched memory over generic gu
         injection.indexOf("General release reminder"),
     );
     assert.match(injection, /Selection mode: task-aware/);
-    assert.match(injection, /task trigger: prepare npm release/);
+    assert.match(injection, /Task Phrase Match: prepare npm release/);
   });
 });
 

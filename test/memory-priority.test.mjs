@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 
 import { computeInjectPriority } from "../dist/store-api.js";
 
-await runTest("computeInjectPriority applies default freshness when last_used is null", async () => {
+await runTest("computeInjectPriority applies the new explainable adjustment stack when last_used is null", async () => {
   const priority = computeInjectPriority({
     type: "decision",
     title: "Freshness fallback",
@@ -18,10 +18,10 @@ await runTest("computeInjectPriority applies default freshness when last_used is
     stale: false,
   });
 
-  assert.equal(priority, 51);
+  assert.equal(priority, 39.9);
 });
 
-await runTest("computeInjectPriority discounts stale last_used dates and caps heat", async () => {
+await runTest("computeInjectPriority discounts stale recency while preserving capped hit-count influence", async () => {
   const twoHundredDaysAgo = new Date(Date.now() - 200 * 24 * 60 * 60 * 1000).toISOString();
   const priority = computeInjectPriority({
     type: "decision",
@@ -38,7 +38,7 @@ await runTest("computeInjectPriority discounts stale last_used dates and caps he
     stale: false,
   });
 
-  assert.ok(Math.abs(priority - 85) < 0.01);
+  assert.ok(Math.abs(priority - 55.2) < 0.01);
 });
 
 console.log("All memory priority tests passed.");

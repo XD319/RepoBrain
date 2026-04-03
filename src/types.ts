@@ -84,6 +84,8 @@ export interface BrainConfig {
   language: string;
   staleDays: number;
   sweepOnInject: boolean;
+  injectDiversity: boolean;
+  injectExplainMaxItems: number;
   warnings?: string[];
 }
 
