@@ -22,6 +22,8 @@ const testFiles = [
   "test/session-end-hook.test.mjs",
   "test/score.test.mjs",
   "test/package-manifest.test.mjs",
+  "test/demo-proof.test.mjs",
+  "test/proof-evals.test.mjs",
   "test/integrations.test.mjs",
 ];
 

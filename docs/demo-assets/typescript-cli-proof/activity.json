@@ -1,0 +1,17 @@
+{
+  "lastInjectedAt": "2026-04-03",
+  "recentLoadedMemories": [
+    {
+      "type": "decision",
+      "title": "Release changes should start with checklist and install smoke validation",
+      "importance": "high",
+      "date": "2026-04-03T09:00:00.000Z"
+    },
+    {
+      "type": "gotcha",
+      "title": "Normalize CLI env booleans in src/config.ts before Commander validation",
+      "importance": "medium",
+      "date": "2026-04-03T09:59:15.011Z"
+    }
+  ]
+}

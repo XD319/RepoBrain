@@ -1,21 +1,22 @@
 # RepoBrain 演示脚本
 
-这份脚本用于首个公开演示 GIF。目标是在 3 分钟内讲清楚最小但可信的产品闭环。
+这份脚本用于录制首个公开 demo GIF，现在它会和可执行证明文档 [docs/demo-proof.zh-CN.md](./demo-proof.zh-CN.md) 配合使用，而不是单独充当 storyboard。
 
 ## 目标
 
 演示 RepoBrain 如何：
 
 1. 在真实仓库里初始化 durable repo memory
-2. 沉淀一条具体且可复用的经验
-3. 在下一个 coding session 开始前把这条经验重新注入
-4. 保持整个流程可 review、可走 Git
+2. capture 第一条 memory
+3. 先 review / approve，再写入长期知识
+4. 在下一次 session 开始前 inject 这条知识
+5. 对明确任务产出真实的 `suggest-skills` / `invocation_plan`
 
 ## 录制准备
 
 - 终端字号足够大，移动端也能看清
-- 使用一个全新的示例仓库，当前还没有 `.brain/`
-- 已安装 Node.js 和 npm
+- 一个全新的示例仓库，当前还没有 `.brain/`
+- Node.js 和 npm 已安装
 - RepoBrain 自身已经执行过 `npm install`、`npm run build`、`npm link`
 
 ## 场景 1：先展示问题
@@ -44,7 +45,7 @@ brain setup
 
 `初始化步骤刻意保持很小：先建立本地知识存储，再按需安装一个低风险的 post-commit hook。`
 
-## 场景 3：沉淀一条真实经验
+## 场景 3：Capture 第一条真实经验
 
 准备一段足够具体的 session 总结：
 
@@ -59,21 +60,23 @@ EOF
 执行：
 
 ```bash
-cat session-summary.txt | brain extract
-brain list
+cat session-summary.txt | brain extract --candidate
+brain review
+brain approve --safe
 ```
 
 停留展示：
 
-- deterministic review 输出
-- 被接受的 memory
+- deterministic extraction review 输出
+- candidate review 列表
+- approve 步骤
 - `.brain/gotchas/` 下新增的 markdown 文件
 
 旁白建议：
 
-`RepoBrain 不会把所有笔记都直接落盘。它会先判断这段输入是否足够具体、足够长期有价值。`
+`RepoBrain 不会把所有笔记都直接落盘。它会先判断这段输入是否足够具体、足够长期有价值，再通过 review/approve 进入长期知识。`
 
-## 场景 4：在下一个 Session 开始前注入记忆
+## 场景 4：下一次 Session 开始前注入记忆
 
 执行：
 
@@ -90,30 +93,30 @@ brain inject --task "refactor config loading for the CLI" --path src/config.ts -
 
 `这样下一次 session 一开始就能带着 repo-specific context，不需要再让 agent 重复踩同一个坑。`
 
-## 场景 5：补一句团队工作流
+## 场景 5：展示任务路由
 
-快速展示：
+补一段：
 
 ```bash
-brain review
-brain approve --safe
+brain suggest-skills --format json --task "prepare first npm release" --path package.json --path docs/release-checklist.md
 brain share --all-active
 ```
 
 旁白建议：
 
-`所有写入路径都保持可 review。团队可以审批、分享，再把 `.brain/` 变更和代码一起提交。`
+`写路径保持可 review。团队可以 approve、share、commit `.brain/` 变更，adapter 也可以直接消费真实的 invocation plan。`
 
 ## 收尾画面
 
-最后把三条命令放在一起：
+最后把命令压成一组：
 
 ```bash
 brain setup
-cat session-summary.txt | brain extract
+cat session-summary.txt | brain extract --candidate
+brain review && brain approve --safe
 brain inject
 ```
 
 收尾台词：
 
-`RepoBrain 给 coding agent 提供了一条 Git-friendly 的仓库记忆闭环：沉淀一次，review 一次，之后每个 session 都能复用。`
+`RepoBrain 给 coding agent 提供了一条 Git-friendly 的仓库记忆闭环：capture 一次，review 一次，之后每个 session 都能复用。`

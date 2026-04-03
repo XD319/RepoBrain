@@ -1,0 +1,2 @@
+Candidate memories: 1
+- 2026-04-03-normalize-cli-env-booleans-in-src-config-ts-befo-095915011 | gotcha | medium | Normalize CLI env booleans in src/config.ts before Commander validation

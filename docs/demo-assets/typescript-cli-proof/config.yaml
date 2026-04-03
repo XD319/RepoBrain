@@ -1,0 +1,6 @@
+# Project Brain config
+maxInjectTokens: 1200
+extractMode: suggest
+language: zh-CN
+staleDays: 90
+sweepOnInject: false

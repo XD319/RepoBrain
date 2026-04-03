@@ -10,6 +10,7 @@
   "types": "./dist/cli.d.ts",
   "files": [
     "dist",
+    "examples",
     "integrations",
     "LICENSE",
     "README.md",
@@ -18,12 +19,22 @@
     ".claude-plugin/mcp.json",
     ".codex/INSTALL.md",
     "scripts/setup-git-hooks.sh",
+    "scripts/generate-demo-proof.mjs",
+    "scripts/run-proof-evals.mjs",
     "docs/team-workflow.md",
     "docs/team-workflow.zh-CN.md",
     "docs/demo-script.md",
     "docs/demo-script.zh-CN.md",
+    "docs/demo-proof.md",
+    "docs/demo-proof.zh-CN.md",
+    "docs/evaluation.md",
+    "docs/evaluation.zh-CN.md",
     "docs/release-checklist.md",
-    "docs/release-checklist.zh-CN.md"
+    "docs/release-checklist.zh-CN.md",
+    "docs/release-guide.md",
+    "docs/release-guide.zh-CN.md",
+    "docs/case-studies",
+    "docs/demo-assets"
   ],
   "repository": {
     "type": "git",
@@ -38,6 +49,8 @@
     "dev": "tsup --watch",
     "test": "npm run build && node scripts/run-tests.mjs",
     "smoke:package": "node scripts/smoke-package.mjs",
+    "demo:proof": "node scripts/generate-demo-proof.mjs",
+    "eval:proof": "node scripts/run-proof-evals.mjs",
     "typecheck": "tsc --noEmit",
     "mcp": "node dist/mcp/server.js"
   },

@@ -1,0 +1,7 @@
+gotcha: Normalize CLI env booleans in src/config.ts before Commander validation
+
+In this TypeScript CLI repo, src/config.ts reads env defaults before src/cli.ts hands control to Commander.
+If boolean-like strings are passed through untouched, release smoke validation misreads dry-run flags and package verification becomes noisy.
+Normalize boolean env defaults in src/config.ts before wiring them into Commander option parsing.
+
+Files: src/config.ts, src/cli.ts

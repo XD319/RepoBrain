@@ -6,28 +6,53 @@
 
 RepoBrain helps AI coding agents remember the parts of your repository that actually matter later: architecture decisions, known gotchas, repo-specific conventions, and reusable patterns.
 
-It is not a generic chat memory platform. It does not try to save every conversation forever. The point is much simpler: stop re-explaining the same repo context every time Claude Code or Codex starts a new session.
+It is not a generic chat memory platform. It does not try to save every conversation forever.
+It is not model middleware either. It does not sit in front of Claude, Codex, or Cursor to proxy prompts.
+
+The point is much simpler: stop re-explaining the same repo context every time a new coding-agent session starts.
 
 ## Hero
 
 - Remember repo knowledge, not the whole chat log
-- Store memory in `.brain/` as Markdown plus frontmatter
+- Store durable memory in `.brain/` as Markdown plus frontmatter
 - Keep everything local-first, markdown-first, and Git-friendly
 - Work with Claude Code, Codex, Cursor, and Copilot through thin adapters
+
+## What It Already Solves
+
+- repeated "how this repo works" setup at the start of every agent session
+- repo-specific gotchas that agents keep rediscovering from code or failed runs
+- reviewable long-lived knowledge that belongs next to the code, not in a hidden cloud memory
+- task-known routing hints via `brain suggest-skills` and `invocation_plan`
+
+## Proof Layer
+
+- Executable demo proof: [docs/demo-proof.md](./docs/demo-proof.md)
+- Generated demo assets: [docs/demo-assets/typescript-cli-proof/transcript.md](./docs/demo-assets/typescript-cli-proof/transcript.md)
+- Evaluation cases: [docs/evaluation.md](./docs/evaluation.md)
+- TypeScript CLI case study: [docs/case-studies/typescript-cli.md](./docs/case-studies/typescript-cli.md)
+- Full-stack web case study: [docs/case-studies/full-stack-web.md](./docs/case-studies/full-stack-web.md)
+- Release loop: [docs/release-checklist.md](./docs/release-checklist.md) and [docs/release-guide.md](./docs/release-guide.md)
 
 ## Demo GIF
 
 Planned asset: `docs/demo.gif`
 
-Until the GIF is recorded, use [docs/demo-script.md](./docs/demo-script.md) as the exact storyboard.
+Until the GIF is recorded, use the real proof bundle first:
+
+- [docs/demo-proof.md](./docs/demo-proof.md) for the runnable script
+- [docs/demo-assets/typescript-cli-proof/transcript.md](./docs/demo-assets/typescript-cli-proof/transcript.md) for the real transcript
+- [docs/demo-script.md](./docs/demo-script.md) for the recording storyboard
 
 The recommended flow is simple:
 
 1. Fix a real repo issue once.
-2. Save the lesson as repo knowledge.
-3. Start a new session.
-4. Run `brain inject`.
-5. Watch the agent avoid the same mistake because the repo already remembers it.
+2. Save the lesson as a reviewable repo memory.
+3. Approve it.
+4. Start a new session.
+5. Run `brain inject`.
+6. Route the task with `brain suggest-skills` if needed.
+7. Watch the agent avoid the same mistake because the repo already remembers it.
 
 ## Quick Start
 
@@ -48,6 +73,13 @@ npm link
 ```
 
 Before a public release, run `npm run smoke:package` and follow [docs/release-checklist.md](./docs/release-checklist.md).
+
+For the proof bundle used in README screenshots and release prep:
+
+```bash
+npm run demo:proof
+npm run eval:proof
+```
 
 Extract memory from a session summary:
 

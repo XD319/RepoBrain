@@ -1,6 +1,6 @@
 # RepoBrain Demo Script
 
-This script is the storyboard for the first public demo GIF. The goal is to show the smallest believable product loop in under three minutes.
+This script is the storyboard for the first public demo GIF. It now complements a real generated demo proof in [docs/demo-proof.md](./demo-proof.md) instead of standing alone.
 
 ## Goal
 
@@ -9,7 +9,9 @@ Show that RepoBrain can:
 1. initialize durable repo memory in a real repository
 2. capture one concrete lesson
 3. inject that lesson into the next coding session
-4. keep the workflow reviewable and Git-friendly
+4. review and approve durable memories
+5. keep the workflow reviewable and Git-friendly
+6. derive a task-known invocation plan with `brain suggest-skills`
 
 ## Recording Setup
 
@@ -59,14 +61,16 @@ EOF
 Run:
 
 ```bash
-cat session-summary.txt | brain extract
-brain list
+cat session-summary.txt | brain extract --candidate
+brain review
+brain approve --safe
 ```
 
 Pause on:
 
-- the deterministic review output
-- the accepted memory
+- the deterministic extraction review output
+- the candidate review list
+- the approval step
 - the new markdown file under `.brain/gotchas/`
 
 Narration:
@@ -95,14 +99,13 @@ Narration:
 Briefly show:
 
 ```bash
-brain review
-brain approve --safe
+brain suggest-skills --format json --task "prepare first npm release" --path package.json --path docs/release-checklist.md
 brain share --all-active
 ```
 
 Narration:
 
-`Write paths stay reviewable. Teams can approve, share, and commit `.brain/` changes alongside normal code changes.`
+`Write paths stay reviewable. Teams can approve, share, and commit `.brain/` changes alongside normal code changes, while adapters can route on a real invocation plan.`
 
 ## Closing Frame
 
@@ -110,7 +113,8 @@ Show these three commands together:
 
 ```bash
 brain setup
-cat session-summary.txt | brain extract
+cat session-summary.txt | brain extract --candidate
+brain review && brain approve --safe
 brain inject
 ```
 
