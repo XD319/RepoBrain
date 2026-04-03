@@ -345,7 +345,14 @@ brain list
 
 `brain extract` 现在会先跑一轮 deterministic review，再决定怎么落盘。CLI 会为每条提取结果输出 `decision`、`target_memory_ids` 和 `reason`。`accept` 会保持当前写入行为，`merge` / `supersede` 会先保守地落成 `candidate`，`reject` 则不会写入。
 
-当前 baseline reviewer 是可解释的 deterministic 规则：先看 type，再看 scope 归一化后是否一致，然后结合标题相似度、摘要相似度、目标 memory 的状态和更新时间来做判定。为了避免误覆盖，`merge` 和 `supersede` 只会在“同类型 + 同归一化 scope”下触发；仅仅 scope 有重叠，还不足以自动折叠或替换 memory。程序化集成可以附带 external review input，但 Core 仍会先校验输入结构，再保留本地最终的 `accept` / `merge` / `supersede` / `reject` 判定。
+当前 baseline reviewer 仍然是 deterministic 且可解释的，但不再依赖单层阈值堆叠，而是改成分层管线：
+
+- 先过滤不可比较对象：`type`、活动状态、scope 可比性
+- 再构建结构化 evidence vector：identity、scope、title/summary/detail overlap、replacement wording、recency、status/lineage
+- 再判定内部关系：`duplicate`、`additive_update`、`full_replacement`、`possible_split`、`ambiguous_overlap`
+- 最后再映射回 Core 的公开决定：`accept` / `merge` / `supersede` / `reject`
+
+现在的 `same_scope` 表示 scope 归一化后完全一致；`overlapping_scope` 表示归一化后是父子级重叠但不完全相同；`same_identity` 也不再只是标题 slug 是否相等，而是由分层 evidence 累积得到。这样措辞变化仍然可以 merge，而不同 scope 下的同标题 memory 会更容易保持分离。程序化集成依然可以附带 external review input，但 Core 仍会先校验输入结构，再保留本地最终决策权。
 
 ### 内置本地抽取器
 
@@ -741,9 +748,10 @@ sweepOnInject: false
 - hook 在 `suggest` 模式下，会把可接受的结果写成 `candidate`
 - 重复或高度重合的 durable knowledge 会走 `merge`，而不是交给远程 reviewer
 - `merge` 和 `supersede` 目前都保持保守：RepoBrain 只会把新 memory 存成 `candidate`，并输出目标 memory ids，不会自动改写旧文件
-- deterministic baseline 只会对“同类型 + 同归一化 scope”的 memory 判定 `merge` / `supersede`；scope 仅重叠不会触发自动合并
-- `merge` 只用于补充型更新，也就是标题和摘要都明显指向同一条经验，但没有明确替换语义
-- `supersede` 只用于“更新版本替换旧版本”的情况：同 identity、候选 memory 更新，并且文本里有明确 replacement signal，比如 `replace`、`deprecated`、`no longer`
+- reviewer 的内部关系现在比公开 decision 更细：`duplicate`、`additive_update`、`full_replacement`、`possible_split`、`ambiguous_overlap`
+- `merge` 用于 `duplicate` 和 `additive_update`
+- `supersede` 用于 `full_replacement`
+- `reject` 除了低质量/临时信息之外，也会覆盖 `possible_split` 和 `ambiguous_overlap`，避免 Core 在 partial update 或多目标冲突上做猜测
 - `reject` 会带着明确原因被跳过，比如 `temporary_detail`、`insufficient_signal`
 - `brain approve` 会把 candidate 提升为 `active`
 - `brain dismiss` 会把 candidate 标记为 `stale`
@@ -755,7 +763,14 @@ sweepOnInject: false
 
 这样既保留了当前清晰的写入主路径，也允许更高层 agent 工作流围绕同一套 deterministic baseline 附加结构化建议。
 
-如果你是通过代码集成 RepoBrain，`store-api` 现在也会导出 `buildMemoryReviewContext`、`parseExternalReviewInput` 和 `decideCandidateMemoryReview`，这样 adapter 可以传入 agent-provided candidate review input，同时保持最终审核权仍在 Core。
+如果你是通过代码集成 RepoBrain，`store-api` 现在也会导出 `buildMemoryReviewContext`、`parseExternalReviewInput`、`decideCandidateMemoryReview`、`explainCandidateMemoryReview` 和 `renderCandidateMemoryReviewExplanation`，这样 adapter 可以读取 evidence / explain 输出，同时保持最终审核权仍在 Core。
+
+### Reviewer 复杂案例
+
+- 旧逻辑里，“标题相同但 scope 只是部分重叠”的情况经常只能落回 `accept`。新逻辑会把它显式打成 `possible_split` 或 `ambiguous_overlap`，并带着 evidence 拒绝自动关系决策。
+- 旧逻辑里，`transaction helper` 这类措辞变化一旦摘要相似度掉出阈值，就容易错过 merge。新逻辑把 identity evidence 和 overlap evidence 分开累计，所以同 scope 的措辞变化更容易稳定落到 `additive_update -> merge`。
+- 旧逻辑里，replace 类文本很依赖标题/摘要阈值。新逻辑会把 replacement wording、recency、status/lineage 一起计入，因此更容易稳定识别 `full_replacement -> supersede`。
+- 旧逻辑里，两个旧 memory 同时和新 memory 有中等重叠时，系统往往只能把它当成新 memory。新逻辑会直接返回 `ambiguous_existing_overlap`，明确告诉开发者 Core 为什么拒绝自动 merge。
 
 ## Memory Audit
 

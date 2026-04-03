@@ -362,7 +362,14 @@ brain list
 
 `brain extract` now runs a deterministic review pass before writing. The CLI prints `decision`, `target_memory_ids`, and `reason` for each extracted memory. `accept` keeps the current write behavior, `merge` and `supersede` are stored conservatively as `candidate` memories for follow-up, and `reject` entries are skipped.
 
-The baseline reviewer is deterministic and explainable on purpose. It looks at memory type first, then exact normalized scope, title similarity, summary similarity, target status, and target recency. `merge` and `supersede` only trigger when the candidate and target share the same normalized scope. Scope overlap by itself is treated as context, not enough to rewrite or collapse memories. Programmatic integrations may attach optional external review input, but Core still validates that input shape and makes the final local `accept` / `merge` / `supersede` / `reject` decision itself.
+The baseline reviewer is deterministic and explainable on purpose. Instead of a single threshold stack, it now uses a layered pipeline:
+
+- filter non-comparable objects first (`type`, active status, scope comparability)
+- build a structured evidence vector for identity, scope, title/summary/detail overlap, replacement wording, recency, and status/lineage
+- classify the strongest internal relationship as `duplicate`, `additive_update`, `full_replacement`, `possible_split`, or `ambiguous_overlap`
+- map that internal relationship back to the public Core decision: `accept`, `merge`, `supersede`, or `reject`
+
+`same_scope` now means exact normalized scope identity. `overlapping_scope` means parent/child scope overlap after normalization, but not exact equality. `same_identity` is no longer just a title slug shortcut: it is derived from layered identity evidence, so wording changes can still merge while same-title memories in disjoint scopes stay separate. Programmatic integrations may attach optional external review input, but Core still validates that input shape and makes the final local decision itself.
 
 ### Built-in Local Extractor
 
@@ -757,9 +764,10 @@ RepoBrain keeps lifecycle rules intentionally small for the current MVP:
 - Hook-driven extraction in `suggest` mode saves accepted memories as `candidate`
 - duplicate or near-duplicate durable knowledge merges into the matched memory id instead of being treated as a remote-review problem
 - `merge` and `supersede` results are kept conservative today: the extracted memory is saved as a `candidate`, and RepoBrain prints the target memory ids instead of rewriting old files automatically
-- The deterministic baseline only considers `merge` and `supersede` against memories with the same type and normalized scope; overlapping scopes are not enough
-- `merge` is reserved for additive updates with strong title and summary overlap
-- `supersede` is reserved for newer memories with the same identity plus explicit replacement language such as "replace", "deprecated", or "no longer"
+- internal reviewer relationships are richer than the public decision: `duplicate`, `additive_update`, `full_replacement`, `possible_split`, and `ambiguous_overlap`
+- `merge` is used for `duplicate` and `additive_update`
+- `supersede` is used for `full_replacement`
+- `reject` is also used for high-risk relationship states such as `possible_split` and `ambiguous_overlap`, so Core never guesses across partial updates or multi-target conflicts
 - `reject` results are skipped with explicit reasons such as `temporary_detail` or `insufficient_signal`
 - `brain approve` promotes a candidate to `active`
 - `brain dismiss` marks a candidate as `stale`
@@ -771,7 +779,14 @@ RepoBrain keeps lifecycle rules intentionally small for the current MVP:
 
 This keeps the current write path compatible for clear accepts while still allowing higher-level agent workflows to attach structured candidate review suggestions around the same deterministic baseline.
 
-If you are integrating RepoBrain programmatically, the store API also exposes `buildMemoryReviewContext`, `parseExternalReviewInput`, and `decideCandidateMemoryReview` so adapters can pass validated agent-provided candidate review input without moving final review authority out of Core.
+If you are integrating RepoBrain programmatically, the store API also exposes `buildMemoryReviewContext`, `parseExternalReviewInput`, `decideCandidateMemoryReview`, `explainCandidateMemoryReview`, and `renderCandidateMemoryReviewExplanation` so adapters can inspect the evidence vector without moving final review authority out of Core.
+
+### Reviewer Examples
+
+- Old logic: same title plus overlapping scope usually fell back to `accept`, because only exact normalized scope was eligible for merge or supersede. New logic: overlapping scope can still produce `possible_split` or `ambiguous_overlap`, which is rejected with explicit evidence instead of being silently treated as novel.
+- Old logic: wording changes like "transaction helper" vs "shared transaction helper" were easy to miss if summary similarity dipped below a hard cutoff. New logic: identity evidence and overlap evidence accumulate separately, so same-scope additive updates still land on `merge`.
+- Old logic: replacement cases depended heavily on title and summary thresholds. New logic: explicit replacement wording, recency, and lineage-aware status evidence can promote the same match to `full_replacement`, which maps to `supersede`.
+- Old logic: two overlapping older memories could both look weakly relevant and still leave the candidate as `accept`. New logic: if two targets survive with similar ambiguous evidence, Core rejects with `ambiguous_existing_overlap` instead of guessing.
 
 ## Memory Audit
 

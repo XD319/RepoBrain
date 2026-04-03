@@ -8,11 +8,21 @@ export const INVOCATION_MODES = ["required", "prefer", "optional", "suppress"] a
 export const RISK_LEVELS = ["high", "medium", "low"] as const;
 export const MEMORY_AREAS = ["auth", "api", "db", "infra", "ui", "testing", "general"] as const;
 export const MEMORY_REVIEW_DECISIONS = ["accept", "merge", "supersede", "reject"] as const;
+export const MEMORY_REVIEW_RELATIONS = [
+  "duplicate",
+  "additive_update",
+  "full_replacement",
+  "possible_split",
+  "ambiguous_overlap",
+] as const;
+export const MEMORY_SCOPE_RELATIONS = ["same_scope", "overlapping_scope", "disjoint_scope"] as const;
 export const MEMORY_REVIEW_REASONS = [
   "novel_memory",
   "same_scope_summary_overlap",
   "newer_memory_replaces_older",
   "duplicate_memory",
+  "possible_scope_split",
+  "ambiguous_existing_overlap",
   "temporary_detail",
   "insufficient_signal",
 ] as const;
@@ -28,6 +38,8 @@ export type InvocationMode = (typeof INVOCATION_MODES)[number];
 export type RiskLevel = (typeof RISK_LEVELS)[number];
 export type MemoryArea = (typeof MEMORY_AREAS)[number];
 export type MemoryReviewDecision = (typeof MEMORY_REVIEW_DECISIONS)[number];
+export type MemoryReviewRelation = (typeof MEMORY_REVIEW_RELATIONS)[number];
+export type MemoryScopeRelation = (typeof MEMORY_SCOPE_RELATIONS)[number];
 export type MemoryReviewReason = (typeof MEMORY_REVIEW_REASONS)[number];
 export type MemoryAuditIssueType = (typeof MEMORY_AUDIT_ISSUE_TYPES)[number];
 
@@ -101,6 +113,31 @@ export interface CandidateMemoryReviewResult {
   decision: MemoryReviewDecision;
   target_memory_ids: string[];
   reason: MemoryReviewReason;
+  confidence?: number;
+  internal_relation?: MemoryReviewRelation | null;
+  explanation?: CandidateMemoryReviewExplanation;
+}
+
+export interface MemoryReviewEvidenceItem {
+  code: string;
+  label: string;
+  weight: number;
+  value?: string | number | boolean;
+}
+
+export interface MemoryReviewEvidenceBucket {
+  score: number;
+  items: MemoryReviewEvidenceItem[];
+}
+
+export interface MemoryReviewEvidenceVector {
+  identity: MemoryReviewEvidenceBucket;
+  scope: MemoryReviewEvidenceBucket;
+  title_summary_detail_overlap: MemoryReviewEvidenceBucket;
+  replacement_wording: MemoryReviewEvidenceBucket;
+  recency: MemoryReviewEvidenceBucket;
+  status_lineage: MemoryReviewEvidenceBucket;
+  total_score: number;
 }
 
 export interface MemoryReviewMatch {
@@ -109,11 +146,17 @@ export interface MemoryReviewMatch {
   target_updated_at: string;
   title_similarity: number;
   summary_similarity: number;
+  detail_similarity: number;
   same_scope: boolean;
   overlapping_scope: boolean;
+  scope_relation: MemoryScopeRelation;
   same_identity: boolean;
   candidate_is_newer: boolean;
   replacement_signal: boolean;
+  relation: MemoryReviewRelation;
+  confidence: number;
+  evidence: MemoryReviewEvidenceVector;
+  explain_summary: string;
 }
 
 export interface MemoryReviewContext {
@@ -145,6 +188,18 @@ export interface MemoryAuditResult {
 export interface ReviewedMemoryCandidate {
   memory: Memory;
   review: CandidateMemoryReviewResult;
+}
+
+export interface CandidateMemoryReviewExplanation {
+  summary: string;
+  winning_target_memory_ids: string[];
+  considered_match_ids: string[];
+  top_matches: Array<{
+    target_memory_id: string;
+    relation: MemoryReviewRelation;
+    confidence: number;
+    explain_summary: string;
+  }>;
 }
 
 export interface MemoryReviewer {

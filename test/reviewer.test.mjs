@@ -5,6 +5,7 @@ import path from "node:path";
 
 import {
   buildMemoryReviewContext,
+  explainCandidateMemoryReview,
   initBrain,
   loadStoredMemoryRecords,
   reviewCandidateMemories,
@@ -46,11 +47,11 @@ await runTest("accepts a novel memory when no strong overlap exists", async () =
       records,
     );
 
-    assert.deepEqual(review, {
-      decision: "accept",
-      target_memory_ids: [],
-      reason: "novel_memory",
-    });
+    assert.equal(review.decision, "accept");
+    assert.deepEqual(review.target_memory_ids, []);
+    assert.equal(review.reason, "novel_memory");
+    assert.equal(review.internal_relation, null);
+    assert.ok(review.confidence >= 0.5);
   });
 });
 
@@ -91,6 +92,7 @@ await runTest("marks additive updates in the same scope as merge", async () => {
     assert.equal(review.decision, "merge");
     assert.deepEqual(review.target_memory_ids, [path.basename(existingPath, ".md")]);
     assert.equal(review.reason, "same_scope_summary_overlap");
+    assert.equal(review.internal_relation, "additive_update");
   });
 });
 
@@ -147,6 +149,7 @@ await runTest("prefers the active target over a candidate when both are merge ma
     assert.equal(review.decision, "merge");
     assert.deepEqual(review.target_memory_ids, [path.basename(activePath, ".md")]);
     assert.equal(review.reason, "same_scope_summary_overlap");
+    assert.equal(review.internal_relation, "additive_update");
   });
 });
 
@@ -186,6 +189,7 @@ await runTest("marks replacement updates in the same scope as supersede", async 
     assert.equal(review.decision, "supersede");
     assert.deepEqual(review.target_memory_ids, [path.basename(existingPath, ".md")]);
     assert.equal(review.reason, "newer_memory_replaces_older");
+    assert.equal(review.internal_relation, "full_replacement");
   });
 });
 
@@ -226,6 +230,7 @@ await runTest("merges an exact duplicate into the existing durable memory", asyn
     assert.equal(review.decision, "merge");
     assert.deepEqual(review.target_memory_ids, [path.basename(existingPath, ".md")]);
     assert.equal(review.reason, "duplicate_memory");
+    assert.equal(review.internal_relation, "duplicate");
   });
 });
 
@@ -263,11 +268,10 @@ await runTest("keeps same-title memories with different scopes separate", async 
       records,
     );
 
-    assert.deepEqual(review, {
-      decision: "accept",
-      target_memory_ids: [],
-      reason: "novel_memory",
-    });
+    assert.equal(review.decision, "accept");
+    assert.deepEqual(review.target_memory_ids, []);
+    assert.equal(review.reason, "novel_memory");
+    assert.equal(review.internal_relation, null);
   });
 });
 
@@ -324,11 +328,10 @@ await runTest("rejects obviously temporary details", async () => {
       await loadStoredMemoryRecords(projectRoot),
     );
 
-    assert.deepEqual(review, {
-      decision: "reject",
-      target_memory_ids: [],
-      reason: "temporary_detail",
-    });
+    assert.equal(review.decision, "reject");
+    assert.deepEqual(review.target_memory_ids, []);
+    assert.equal(review.reason, "temporary_detail");
+    assert.equal(review.internal_relation, null);
   });
 });
 
@@ -348,11 +351,10 @@ await runTest("rejects one-off debug TODO details with a deterministic reason", 
       await loadStoredMemoryRecords(projectRoot),
     );
 
-    assert.deepEqual(review, {
-      decision: "reject",
-      target_memory_ids: [],
-      reason: "temporary_detail",
-    });
+    assert.equal(review.decision, "reject");
+    assert.deepEqual(review.target_memory_ids, []);
+    assert.equal(review.reason, "temporary_detail");
+    assert.equal(review.internal_relation, null);
   });
 });
 
@@ -371,11 +373,10 @@ await runTest("rejects low-signal memories that are too thin to preserve", async
       await loadStoredMemoryRecords(projectRoot),
     );
 
-    assert.deepEqual(review, {
-      decision: "reject",
-      target_memory_ids: [],
-      reason: "insufficient_signal",
-    });
+    assert.equal(review.decision, "reject");
+    assert.deepEqual(review.target_memory_ids, []);
+    assert.equal(review.reason, "insufficient_signal");
+    assert.equal(review.internal_relation, null);
   });
 });
 
@@ -429,6 +430,7 @@ await runTest("keeps validated external review input in context but still makes 
     assert.equal(review.decision, "merge");
     assert.deepEqual(review.target_memory_ids, [path.basename(existingPath, ".md")]);
     assert.equal(review.reason, "duplicate_memory");
+    assert.equal(review.internal_relation, "duplicate");
   });
 });
 
@@ -465,11 +467,10 @@ await runTest("ignores invalid external review input instead of trusting it", as
         target_memory_ids: ["fake-id"],
       },
     });
-    assert.deepEqual(review, {
-      decision: "accept",
-      target_memory_ids: [],
-      reason: "novel_memory",
-    });
+    assert.equal(review.decision, "accept");
+    assert.deepEqual(review.target_memory_ids, []);
+    assert.equal(review.reason, "novel_memory");
+    assert.equal(review.internal_relation, null);
   });
 });
 
@@ -536,11 +537,188 @@ await runTest("superseded memories do not participate as active review baselines
       await loadStoredMemoryRecords(projectRoot),
     );
 
-    assert.deepEqual(review, {
-      decision: "accept",
-      target_memory_ids: [],
-      reason: "novel_memory",
-    });
+    assert.equal(review.decision, "accept");
+    assert.deepEqual(review.target_memory_ids, []);
+    assert.equal(review.reason, "novel_memory");
+    assert.equal(review.internal_relation, null);
+  });
+});
+
+await runTest("handles wording changes as additive updates when identity and scope evidence still align", async () => {
+  await withTempRepo(async (projectRoot) => {
+    const existingPath = await saveMemory(
+      {
+        type: "pattern",
+        title: "Route billing writes through the transaction helper",
+        summary: "Billing writes should go through the shared transaction helper so rollback stays consistent.",
+        detail:
+          "## PATTERN\n\nBilling writes should go through the shared transaction helper so rollback stays consistent across billing flows.",
+        tags: ["billing", "transactions"],
+        importance: "high",
+        date: "2026-04-01T08:00:00.000Z",
+        status: "active",
+        path_scope: ["src/billing/**"],
+      },
+      projectRoot,
+    );
+
+    const review = reviewCandidateMemory(
+      {
+        type: "pattern",
+        title: "Route billing writes through the transaction helper",
+        summary: "Billing mutation routes should also use the shared transaction helper so the same rollback rule applies.",
+        detail:
+          "## PATTERN\n\nBilling mutation paths should also use the shared transaction helper so the same rollback rule applies across billing flows.",
+        tags: ["billing", "transactions"],
+        importance: "medium",
+        date: "2026-04-01T09:00:00.000Z",
+        path_scope: ["src/billing/**"],
+      },
+      await loadStoredMemoryRecords(projectRoot),
+    );
+
+    assert.equal(review.decision, "merge");
+    assert.deepEqual(review.target_memory_ids, [path.basename(existingPath, ".md")]);
+    assert.equal(review.internal_relation, "additive_update");
+  });
+});
+
+await runTest("rejects partial updates that should stay split from a broader memory", async () => {
+  await withTempRepo(async (projectRoot) => {
+    const existingPath = await saveMemory(
+      {
+        type: "decision",
+        title: "Keep auth writes inside the transaction helper",
+        summary: "Auth writes should stay inside the transaction helper so rollback is consistent across auth flows.",
+        detail:
+          "## DECISION\n\nAuth writes should stay inside the transaction helper so rollback is consistent across auth flows.",
+        tags: ["auth", "transactions"],
+        importance: "high",
+        date: "2026-04-01T08:00:00.000Z",
+        status: "active",
+        path_scope: ["src/auth/**"],
+      },
+      projectRoot,
+    );
+
+    const review = reviewCandidateMemory(
+      {
+        type: "decision",
+        title: "Keep auth writes inside the transaction helper",
+        summary: "This partial auth update only applies to token refresh and should stay split from the broader auth write rule.",
+        detail:
+          "## DECISION\n\nThis partial auth update only applies to token refresh, so keep it separate instead of merging it into the broader auth write rule.",
+        tags: ["auth", "token-refresh"],
+        importance: "medium",
+        date: "2026-04-01T09:00:00.000Z",
+        path_scope: ["src/auth/token-refresh/**"],
+      },
+      await loadStoredMemoryRecords(projectRoot),
+    );
+
+    assert.equal(review.decision, "reject");
+    assert.deepEqual(review.target_memory_ids, [path.basename(existingPath, ".md")]);
+    assert.equal(review.reason, "possible_scope_split");
+    assert.equal(review.internal_relation, "possible_split");
+  });
+});
+
+await runTest("rejects ambiguous overlap when multiple old memories compete as targets", async () => {
+  await withTempRepo(async (projectRoot) => {
+    const firstPath = await saveMemory(
+      {
+        type: "convention",
+        title: "Run billing CI in the shared transaction test harness",
+        summary: "Billing CI should use the shared transaction test harness so billing checks stay deterministic.",
+        detail:
+          "## CONVENTION\n\nBilling CI should use the shared transaction test harness so billing checks stay deterministic.",
+        tags: ["billing", "ci"],
+        importance: "medium",
+        date: "2026-04-01T08:00:00.000Z",
+        status: "active",
+        path_scope: ["src/billing/**"],
+      },
+      projectRoot,
+    );
+
+    const secondPath = await saveMemory(
+      {
+        type: "convention",
+        title: "Run invoices CI in the shared transaction test harness",
+        summary: "Invoices CI should use the shared transaction test harness so invoice checks stay deterministic.",
+        detail:
+          "## CONVENTION\n\nInvoices CI should use the shared transaction test harness so invoice checks stay deterministic.",
+        tags: ["invoices", "ci"],
+        importance: "medium",
+        date: "2026-04-01T08:30:00.000Z",
+        status: "active",
+        path_scope: ["src/invoices/**"],
+      },
+      projectRoot,
+    );
+
+    const review = reviewCandidateMemory(
+      {
+        type: "convention",
+        title: "Run finance CI in the shared transaction test harness",
+        summary: "Finance CI should use the shared transaction test harness across billing and invoices, but this overlaps both existing memories.",
+        detail:
+          "## CONVENTION\n\nFinance CI should use the shared transaction test harness across billing and invoices, but this candidate overlaps both existing memories and does not identify a single replacement target.",
+        tags: ["finance", "ci"],
+        importance: "medium",
+        date: "2026-04-01T09:00:00.000Z",
+        path_scope: ["src/**"],
+      },
+      await loadStoredMemoryRecords(projectRoot),
+    );
+
+    assert.equal(review.decision, "reject");
+    assert.deepEqual(review.target_memory_ids.sort(), [path.basename(firstPath, ".md"), path.basename(secondPath, ".md")].sort());
+    assert.equal(review.reason, "ambiguous_existing_overlap");
+    assert.equal(review.internal_relation, "ambiguous_overlap");
+  });
+});
+
+await runTest("explain API exposes structured evidence for developer debugging", async () => {
+  await withTempRepo(async (projectRoot) => {
+    await saveMemory(
+      {
+        type: "convention",
+        title: "Run CI checks with npm test",
+        summary: "CI should run npm test before merge so local and remote checks stay aligned.",
+        detail: "## CONVENTION\n\nCI should run npm test before merge so local and remote checks stay aligned.",
+        tags: ["ci", "npm"],
+        importance: "medium",
+        date: "2026-04-01T08:00:00.000Z",
+        status: "active",
+        path_scope: ["package.json", "scripts/**"],
+      },
+      projectRoot,
+    );
+
+    const explained = explainCandidateMemoryReview(
+      {
+        type: "convention",
+        title: "Run CI checks with npm test",
+        summary: "CI now needs pnpm test instead of npm test after the workspace migration.",
+        detail:
+          "## CONVENTION\n\nReplace npm test with pnpm test in CI after the workspace migration. The npm-based command is obsolete and should no longer be used.",
+        tags: ["ci", "pnpm"],
+        importance: "high",
+        date: "2026-04-01T10:00:00.000Z",
+        path_scope: ["package.json", "scripts/**"],
+      },
+      await loadStoredMemoryRecords(projectRoot),
+    );
+
+    assert.equal(explained.review.decision, "supersede");
+    assert.match(explained.text, /decision=supersede/);
+    assert.match(explained.text, /evidence identity=/);
+    assert.match(explained.text, /evidence replacement=/);
+    const firstMatch = explained.context.comparable_matches[0];
+    assert.ok(firstMatch);
+    assert.ok(firstMatch.evidence.identity.score > 0);
+    assert.ok(firstMatch.evidence.replacement_wording.items.some((item) => item.code === "replacement_wording"));
   });
 });
 
