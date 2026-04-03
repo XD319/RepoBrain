@@ -31,6 +31,7 @@ export {
 } from "./failure-detector.js";
 export {
   buildSkillShortlist,
+  collectGitDiffPaths,
   renderSkillShortlist,
   renderSkillShortlistJson,
   SUGGEST_SKILLS_CONTRACT_KIND,
@@ -84,6 +85,7 @@ export type {
 export type {
   InvocationPlan,
   MatchedMemory,
+  PathSource,
   ResolvedSkill,
   SkillConflict,
   SkillSuggestionResult,

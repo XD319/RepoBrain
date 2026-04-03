@@ -638,7 +638,13 @@ Use Playwright-oriented guidance first when the task touches browser test infras
 
 ### Suggest A Skill Shortlist
 
-Once some memories carry routing metadata, you can ask RepoBrain to turn the current task and changed paths into a deterministic routing plan:
+Once some memories carry routing metadata, you can ask RepoBrain to turn the current task and changed paths into a deterministic routing plan. The simplest usage only needs a task:
+
+```bash
+brain suggest-skills --task "fix refund bug"
+```
+
+When `--path` is omitted, the command auto-collects changed paths from `git diff --name-only HEAD`. If git context is unavailable (not inside a repo, no commits yet, etc.), task-only routing still works. Use explicit `--path` only when you want to override the auto-detected paths:
 
 ```bash
 brain suggest-skills --task "debug flaky browser tests in CI" --path tests/e2e/login.spec.ts --path playwright.config.ts
@@ -650,19 +656,20 @@ The command only considers `active` memories. It matches the task against `skill
 - `resolved_skills`: the per-skill resolution after applying local rules
 - `conflicts`: deterministic conflict records, including local strategy outcomes for required-vs-suppressed collisions
 - `invocation_plan`: a stable adapter-facing plan with `required`, `prefer_first`, `optional_fallback`, and `suppress` buckets, plus `blocked` and `human_review` when the local rules refuse to auto-resolve
+- `path_source`: indicates where the paths came from — `"explicit"` (from `--path`), `"git_diff"` (auto-collected), or `"none"` (task-only routing)
 
 Markdown stays the default human-readable output:
 
 ```bash
-brain suggest-skills --task "debug flaky browser tests in CI" --path tests/e2e/login.spec.ts
+brain suggest-skills --task "debug flaky browser tests in CI"
 ```
 
 JSON is available for agent adapters that want a stable machine contract:
 
 ```bash
-brain suggest-skills --format json --task "debug flaky browser tests in CI" --path tests/e2e/login.spec.ts
+brain suggest-skills --format json --task "debug flaky browser tests in CI"
 # or
-brain suggest-skills --json --task "debug flaky browser tests in CI" --path tests/e2e/login.spec.ts
+brain suggest-skills --json --task "debug flaky browser tests in CI"
 ```
 
 Example JSON shape:
@@ -673,6 +680,7 @@ Example JSON shape:
   "kind": "repobrain.skill_invocation_plan",
   "task": "debug flaky browser tests in CI",
   "paths": ["tests/e2e/login.spec.ts"],
+  "path_source": "git_diff",
   "matched_memories": [],
   "resolved_skills": [],
   "conflicts": [],

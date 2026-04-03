@@ -37,9 +37,11 @@ import { setupRepoBrain } from "./setup.js";
 import { getSteeringRulesStatus, writeSteeringRules } from "./steering-rules.js";
 import {
   buildSkillShortlist,
+  collectGitDiffPaths,
   renderSkillShortlist,
   renderSkillShortlistJson,
 } from "./suggest-skills.js";
+import type { PathSource } from "./suggest-skills.js";
 import {
   applySweepAuto,
   archiveGoalMemory,
@@ -597,11 +599,15 @@ program
 
 program
   .command("suggest-skills")
-  .description("Suggest a skill shortlist from the current task, changed paths, and matched memories.")
+  .description(
+    "Suggest a skill shortlist from the current task, changed paths, and matched memories. " +
+    "When --path is omitted, paths are auto-collected from git diff --name-only HEAD. " +
+    'Simplest usage: brain suggest-skills --task "fix refund bug"',
+  )
   .option("--task <task>", "Task description to match against skill_trigger_tasks.")
   .option(
     "--path <path>",
-    "Changed path to match against skill_trigger_paths. Repeat or pass a comma-separated list.",
+    "Override changed paths (skips git diff auto-detection). Repeat or pass a comma-separated list.",
     collectValues,
     [] as string[],
   )
@@ -610,9 +616,23 @@ program
   .action(async (options: { task?: string; path: string[]; json?: boolean; format?: string }) => {
     const projectRoot = process.cwd();
     const task = options.task?.trim() || (await readOptionalStdin());
+
+    let paths: string[];
+    let pathSource: PathSource;
+
+    if (options.path.length > 0) {
+      paths = options.path;
+      pathSource = "explicit";
+    } else {
+      const gitPaths = collectGitDiffPaths(projectRoot);
+      paths = gitPaths;
+      pathSource = gitPaths.length > 0 ? "git_diff" : "none";
+    }
+
     const result = await buildSkillShortlist(projectRoot, {
       ...(task ? { task } : {}),
-      paths: options.path,
+      paths,
+      path_source: pathSource,
     });
 
     const format = resolveSuggestSkillsOutputFormat(options);

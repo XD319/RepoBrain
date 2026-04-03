@@ -1,3 +1,4 @@
+import { execSync } from "node:child_process";
 import { getMemoryStatus, loadStoredMemoryRecords } from "./store.js";
 import {
   matchPathPatterns,
@@ -11,9 +12,12 @@ import type {
   StoredMemoryRecord,
 } from "./types.js";
 
+export type PathSource = "explicit" | "git_diff" | "none";
+
 export interface SuggestSkillsOptions {
   task?: string;
   paths?: string[];
+  path_source?: PathSource;
 }
 
 export const SUGGEST_SKILLS_CONTRACT_VERSION = "repobrain.skill-plan.v1";
@@ -24,6 +28,7 @@ export interface SkillSuggestionResult {
   kind: typeof SUGGEST_SKILLS_CONTRACT_KIND;
   task?: string;
   paths: string[];
+  path_source: PathSource;
   matched_memories: MatchedMemory[];
   resolved_skills: ResolvedSkill[];
   conflicts: SkillConflict[];
@@ -140,9 +145,14 @@ export async function buildSkillShortlist(
 ): Promise<SkillSuggestionResult> {
   const task = options.task?.trim();
   const paths = normalizePaths(options.paths ?? []);
+  const path_source: PathSource = options.path_source ?? (paths.length > 0 ? "explicit" : "none");
 
   if (!task && paths.length === 0) {
-    throw new Error('Provide a task with "--task" (or stdin) and/or at least one "--path".');
+    throw new Error(
+      'Provide a task with "--task" (or stdin) and/or at least one "--path". ' +
+      "When --path is omitted, the CLI auto-collects paths from git diff; " +
+      "pass --task alone if no git context is available.",
+    );
   }
 
   const records = await loadStoredMemoryRecords(projectRoot);
@@ -166,6 +176,7 @@ export async function buildSkillShortlist(
     kind: SUGGEST_SKILLS_CONTRACT_KIND,
     ...(task ? { task } : {}),
     paths,
+    path_source,
     matched_memories,
     resolved_skills: routing.resolved_skills,
     conflicts: routing.conflicts,
@@ -183,7 +194,8 @@ export function renderSkillShortlist(result: SkillSuggestionResult): string {
   }
 
   lines.push(`Contract: ${result.contract_version} (${result.kind})`);
-  lines.push("Paths:");
+  const pathLabel = result.path_source === "git_diff" ? "Paths (from git diff):" : "Paths:";
+  lines.push(pathLabel);
   if (result.paths.length === 0) {
     lines.push("- None.");
   } else {
@@ -602,6 +614,21 @@ function formatSources(sources: SkillSuggestionSource[]): string {
 
 function renderPlanLine(label: string, values: string[]): string {
   return `- ${label}: ${values.length > 0 ? values.join(", ") : "None."}`;
+}
+
+export function collectGitDiffPaths(projectRoot: string): string[] {
+  try {
+    return execSync("git diff --name-only HEAD", {
+      cwd: projectRoot,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    })
+      .split("\n")
+      .map((value) => value.trim().replace(/\\/g, "/").replace(/^\.\/+/, ""))
+      .filter(Boolean);
+  } catch {
+    return [];
+  }
 }
 
 function toDisplayPath(value: string): string {

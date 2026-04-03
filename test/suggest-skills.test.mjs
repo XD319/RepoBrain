@@ -1,10 +1,12 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
+import { execSync } from "node:child_process";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
 import {
   buildSkillShortlist,
+  collectGitDiffPaths,
   initBrain,
   renderSkillShortlistJson,
   saveMemory,
@@ -76,6 +78,7 @@ await runTest("suggest-skills renders a markdown routing plan from matched activ
 
     assert.equal(result.contract_version, "repobrain.skill-plan.v1");
     assert.equal(result.kind, "repobrain.skill_invocation_plan");
+    assert.equal(result.path_source, "explicit");
     assert.deepEqual(result.invocation_plan.required, ["playwright"]);
     assert.deepEqual(result.invocation_plan.prefer_first, ["github:gh-fix-ci"]);
     assert.deepEqual(result.invocation_plan.optional_fallback, ["browser-checklist"]);
@@ -83,6 +86,7 @@ await runTest("suggest-skills renders a markdown routing plan from matched activ
     assert.equal(result.conflicts.length, 0);
 
     assert.match(stdout, /Contract: repobrain\.skill-plan\.v1 \(repobrain\.skill_invocation_plan\)/);
+    assert.match(stdout, /Paths:/);
     assert.match(stdout, /Matched memories:/);
     assert.match(stdout, /Route browser test work through Playwright guidance/);
     assert.match(stdout, /task: debug flaky browser tests/);
@@ -338,10 +342,191 @@ await runTest("suggest-skills fails with a clear error when no task or path inpu
       async () => buildSkillShortlist(projectRoot, {}),
       (error) => {
         assert.ok(error instanceof Error);
-        assert.match(error.message, /Provide a task with "--task" \(or stdin\) and\/or at least one "--path"\./);
+        assert.match(error.message, /Provide a task with "--task" \(or stdin\) and\/or at least one "--path"/);
         return true;
       },
     );
+  });
+});
+
+await runTest("suggest-skills sets path_source to git_diff when caller marks paths as auto-collected", async () => {
+  await withTempRepo(async (projectRoot) => {
+    await saveMemory(
+      {
+        type: "decision",
+        title: "Use linter for config edits",
+        summary: "Config file edits should trigger the linter skill.",
+        detail: "## DECISION\n\nUse the linter when config files change.",
+        tags: ["linter"],
+        importance: "medium",
+        date: "2026-04-01T18:00:00.000Z",
+        status: "active",
+        recommended_skills: ["config-linter"],
+        skill_trigger_paths: ["*.config.ts"],
+        skill_trigger_tasks: ["update config"],
+      },
+      projectRoot,
+    );
+
+    const result = await buildSkillShortlist(projectRoot, {
+      task: "update config",
+      paths: ["tsconfig.json"],
+      path_source: "git_diff",
+    });
+
+    assert.equal(result.path_source, "git_diff");
+    const stdout = renderSkillShortlist(result);
+    assert.match(stdout, /Paths \(from git diff\):/);
+  });
+});
+
+await runTest("suggest-skills defaults path_source to explicit when paths are provided without path_source", async () => {
+  await withTempRepo(async (projectRoot) => {
+    await saveMemory(
+      {
+        type: "decision",
+        title: "Use Playwright for browser tests",
+        summary: "Browser tests need Playwright.",
+        detail: "## DECISION\n\nUse Playwright.",
+        tags: ["playwright"],
+        importance: "high",
+        date: "2026-04-01T19:00:00.000Z",
+        status: "active",
+        required_skills: ["playwright"],
+        skill_trigger_tasks: ["browser tests"],
+      },
+      projectRoot,
+    );
+
+    const result = await buildSkillShortlist(projectRoot, {
+      task: "browser tests",
+      paths: ["tests/e2e/login.spec.ts"],
+    });
+
+    assert.equal(result.path_source, "explicit");
+    const stdout = renderSkillShortlist(result);
+    assert.match(stdout, /^Paths:$/m);
+    assert.doesNotMatch(stdout, /from git diff/);
+  });
+});
+
+await runTest("suggest-skills supports task-only routing with path_source none when no paths provided", async () => {
+  await withTempRepo(async (projectRoot) => {
+    await saveMemory(
+      {
+        type: "decision",
+        title: "Use refund-handler for refund bugs",
+        summary: "Refund bugs should use the refund-handler skill.",
+        detail: "## DECISION\n\nUse refund-handler for refund-related work.",
+        tags: ["refund"],
+        importance: "high",
+        date: "2026-04-01T20:00:00.000Z",
+        status: "active",
+        required_skills: ["refund-handler"],
+        skill_trigger_tasks: ["fix refund bug"],
+      },
+      projectRoot,
+    );
+
+    const result = await buildSkillShortlist(projectRoot, {
+      task: "fix refund bug",
+    });
+
+    assert.equal(result.path_source, "none");
+    assert.deepEqual(result.paths, []);
+    assert.deepEqual(result.invocation_plan.required, ["refund-handler"]);
+  });
+});
+
+await runTest("suggest-skills JSON contract includes path_source field", async () => {
+  await withTempRepo(async (projectRoot) => {
+    await saveMemory(
+      {
+        type: "decision",
+        title: "Use Playwright for browser smoke tests",
+        summary: "Playwright stays required for smoke coverage.",
+        detail: "## DECISION\n\nUse Playwright for browser smoke coverage.",
+        tags: ["playwright"],
+        importance: "high",
+        date: "2026-04-01T21:00:00.000Z",
+        status: "active",
+        required_skills: ["playwright"],
+        skill_trigger_tasks: ["browser smoke tests"],
+      },
+      projectRoot,
+    );
+
+    const result = await buildSkillShortlist(projectRoot, {
+      task: "browser smoke tests",
+      paths: ["tests/e2e/login.spec.ts"],
+    });
+    const parsed = JSON.parse(renderSkillShortlistJson(result));
+    assert.equal(parsed.path_source, "explicit");
+    assert.ok(["explicit", "git_diff", "none"].includes(parsed.path_source));
+  });
+});
+
+await runTest("collectGitDiffPaths returns changed files from a real git repo", async () => {
+  const tmpDir = await mkdtemp(path.join(os.tmpdir(), "repobrain-gitdiff-"));
+  try {
+    execSync("git init", { cwd: tmpDir, stdio: "ignore" });
+    execSync("git config user.email test@test.com", { cwd: tmpDir, stdio: "ignore" });
+    execSync("git config user.name Test", { cwd: tmpDir, stdio: "ignore" });
+    await writeFile(path.join(tmpDir, "initial.txt"), "hello");
+    execSync("git add . && git commit -m init", { cwd: tmpDir, stdio: "ignore" });
+    await writeFile(path.join(tmpDir, "changed.txt"), "world");
+    await writeFile(path.join(tmpDir, "initial.txt"), "updated");
+    execSync("git add .", { cwd: tmpDir, stdio: "ignore" });
+
+    const paths = collectGitDiffPaths(tmpDir);
+    assert.ok(paths.includes("changed.txt"), `Expected changed.txt in ${JSON.stringify(paths)}`);
+    assert.ok(paths.includes("initial.txt"), `Expected initial.txt in ${JSON.stringify(paths)}`);
+  } finally {
+    await rm(tmpDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+  }
+});
+
+await runTest("collectGitDiffPaths returns empty array for non-git directories", async () => {
+  const tmpDir = await mkdtemp(path.join(os.tmpdir(), "repobrain-nogit-"));
+  try {
+    const paths = collectGitDiffPaths(tmpDir);
+    assert.deepEqual(paths, []);
+  } finally {
+    await rm(tmpDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+  }
+});
+
+await runTest("suggest-skills routes correctly with task + git_diff paths together", async () => {
+  await withTempRepo(async (projectRoot) => {
+    await saveMemory(
+      {
+        type: "decision",
+        title: "Use deploy-checker for CI config changes",
+        summary: "Changes to CI config should trigger deploy checks.",
+        detail: "## DECISION\n\nUse deploy-checker when CI config changes.",
+        tags: ["ci"],
+        importance: "high",
+        date: "2026-04-01T22:00:00.000Z",
+        status: "active",
+        required_skills: ["deploy-checker"],
+        skill_trigger_paths: [".github/workflows/"],
+        skill_trigger_tasks: ["update CI pipeline"],
+      },
+      projectRoot,
+    );
+
+    const result = await buildSkillShortlist(projectRoot, {
+      task: "update CI pipeline",
+      paths: [".github/workflows/deploy.yml"],
+      path_source: "git_diff",
+    });
+
+    assert.equal(result.path_source, "git_diff");
+    assert.deepEqual(result.invocation_plan.required, ["deploy-checker"]);
+    assert.ok(result.matched_memories.length > 0);
+    const reasons = result.matched_memories[0].reasons;
+    assert.ok(reasons.some((r) => r.includes("task:")));
+    assert.ok(reasons.some((r) => r.includes("path:")));
   });
 });
 

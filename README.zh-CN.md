@@ -609,7 +609,13 @@ risk_level: "medium"
 
 ### 生成 Skill Shortlist
 
-当一部分 memories 已经带上 skill routing 元数据后，可以直接让 RepoBrain 按当前任务和变更路径给出 shortlist：
+当一部分 memories 已经带上 skill routing 元数据后，可以直接让 RepoBrain 按当前任务和变更路径给出 shortlist。最简用法只需要传 task：
+
+```bash
+brain suggest-skills --task "fix refund bug"
+```
+
+当 `--path` 省略时，命令会自动从 `git diff --name-only HEAD` 收集变更路径。如果 git 上下文不可用（不在 repo 内、还没有 commit 等），task-only 路由仍然正常工作。只有在需要手动覆盖自动检测路径时才需要显式传 `--path`：
 
 ```bash
 brain suggest-skills --task "debug flaky browser tests in CI" --path tests/e2e/login.spec.ts --path playwright.config.ts
@@ -621,19 +627,20 @@ brain suggest-skills --task "debug flaky browser tests in CI" --path tests/e2e/l
 - `resolved_skills`：把本地规则应用到每个 skill 之后的结果
 - `conflicts`：冲突记录，包含 required-vs-suppressed 这类冲突的本地策略结果
 - `invocation_plan`：稳定的 adapter-facing plan，至少包含 `required`、`prefer_first`、`optional_fallback`、`suppress`，并在需要时额外给出 `blocked`、`human_review`
+- `path_source`：路径来源 — `"explicit"`（来自 `--path`）、`"git_diff"`（自动收集）、或 `"none"`（仅 task 路由）
 
 默认仍然输出给人看的 markdown：
 
 ```bash
-brain suggest-skills --task "debug flaky browser tests in CI" --path tests/e2e/login.spec.ts
+brain suggest-skills --task "debug flaky browser tests in CI"
 ```
 
 如果上层 agent adapter 需要直接消费 plan，可以切到 JSON：
 
 ```bash
-brain suggest-skills --format json --task "debug flaky browser tests in CI" --path tests/e2e/login.spec.ts
+brain suggest-skills --format json --task "debug flaky browser tests in CI"
 # 或
-brain suggest-skills --json --task "debug flaky browser tests in CI" --path tests/e2e/login.spec.ts
+brain suggest-skills --json --task "debug flaky browser tests in CI"
 ```
 
 JSON 结构示例：
@@ -644,6 +651,7 @@ JSON 结构示例：
   "kind": "repobrain.skill_invocation_plan",
   "task": "debug flaky browser tests in CI",
   "paths": ["tests/e2e/login.spec.ts"],
+  "path_source": "git_diff",
   "matched_memories": [],
   "resolved_skills": [],
   "conflicts": [],
