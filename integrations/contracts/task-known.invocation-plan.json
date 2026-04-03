@@ -1,0 +1,38 @@
+{
+  "contract_version": "repobrain.adapter.invocation-plan.v1",
+  "task": {
+    "title": "Refactor config loading for CLI startup",
+    "paths": ["src/config.ts", "src/cli.ts"],
+    "modules": ["cli"]
+  },
+  "suggest_skills": {
+    "source": "brain suggest-skills --format json",
+    "decision": "choose-required",
+    "reason": "Config changes touch CLI defaults and memory hook behavior.",
+    "matched_memory_ids": ["decision-cli-config-boundary", "gotcha-extractmode-default"]
+  },
+  "invocation_plan": {
+    "skills": [
+      {
+        "id": "config-safety",
+        "label": "Config Safety",
+        "mode": "required",
+        "why": "Protect backward-compatible config parsing and defaults."
+      },
+      {
+        "id": "cli-regression-checks",
+        "label": "CLI Regression Checks",
+        "mode": "recommended",
+        "why": "Changes affect user-visible command behavior."
+      }
+    ],
+    "checks": [
+      "Run targeted tests for config parsing and CLI execution.",
+      "Keep README examples aligned if config flags or defaults change."
+    ],
+    "fallback": {
+      "mode": "manual-review",
+      "instruction": "If no skill can be auto-routed, continue with the task and keep the checks list visible to the operator."
+    }
+  }
+}

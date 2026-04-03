@@ -1,0 +1,18 @@
+{
+  "contract_version": "repobrain.adapter.reinforce-event.v1",
+  "session": {
+    "agent": "claude",
+    "task": "Refactor config loading for CLI startup"
+  },
+  "failure_event": {
+    "summary": "The refactor changed the default extractMode from suggest to auto and broke reviewable hook behavior.",
+    "violated_memory_ids": ["gotcha-extractmode-default"],
+    "related_files": ["src/config.ts", ".brain/config.yaml"],
+    "evidence_markdown": "Tests showed hook-driven extraction writing active memories immediately after the refactor. The existing RepoBrain memory says `extractMode` must default to `suggest`.",
+    "suggested_action": "rewrite_memory"
+  },
+  "write_hint": {
+    "command": "brain reinforce --yes",
+    "fallback": "If the adapter cannot emit the JSON event directly, save summary plus evidence_markdown into a file and pipe it into brain reinforce."
+  }
+}

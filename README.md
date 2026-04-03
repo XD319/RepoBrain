@@ -182,11 +182,29 @@ Adapter layer responsibilities:
 - provide optional structured review suggestions without replacing Core's local final decision
 - stay thin enough that RepoBrain core remains the only durable knowledge model
 
-Shared adapter templates live in [integrations/README.md](./integrations/README.md).
+### Why thin adapters, but stronger contracts
+
+Thin adapters keep RepoBrain portable. Claude Code, Codex, Cursor, and Copilot all expose different instruction surfaces, but none of them should own repo memory, schema evolution, or final review decisions. That stays in Core.
+
+Stronger contracts make those thin adapters reliable. Instead of "copy this template and improvise", RepoBrain now defines shared lifecycle contracts for:
+
+- session start via `brain inject`
+- task-known routing via `brain suggest-skills --format json` and `invocation_plan`
+- session-end extraction via extract-candidate markdown or JSON
+- failure reinforcement via reinforce-event markdown or JSON
+
+This gives each adapter the same consumption and output semantics without turning the adapter layer into a heavy SDK.
+
+Shared adapter docs and examples live in [integrations/README.md](./integrations/README.md).
 
 ### Claude Code
 
-Claude support keeps the existing hook and plugin surface, while the new adapter template documents how Claude should consume RepoBrain outputs.
+Claude support keeps the existing hook and plugin surface, while the adapter contract now documents:
+
+- how Claude consumes inject at session start
+- how Claude routes on `invocation_plan`
+- how Claude emits extract candidates at session end
+- how Claude falls back to `brain reinforce` when failures need reinforcement
 
 Current files:
 
@@ -210,7 +228,7 @@ Before a new Codex session:
 
 ```bash
 brain inject
-brain suggest-skills --task "current task" --path src/example.ts
+brain suggest-skills --format json --task "current task" --path src/example.ts
 ```
 
 Templates and setup notes:
@@ -220,11 +238,11 @@ Templates and setup notes:
 
 ### Cursor
 
-Cursor support starts with a rules template instead of a deep integration. Copy `integrations/cursor/repobrain.mdc` into `.cursor/rules/repobrain.mdc` and keep RepoBrain as the only durable repo-memory source.
+Cursor support remains rules-first. Copy `integrations/cursor/repobrain.mdc` into `.cursor/rules/repobrain.mdc`, then use the shared contract examples for inject, invocation plans, extract candidates, and reinforce events.
 
 ### GitHub Copilot
 
-Copilot support starts with a custom instructions template. Copy `integrations/copilot/copilot-instructions.md` into `.github/copilot-instructions.md` and keep RepoBrain as the shared memory core instead of creating Copilot-only repo notes.
+Copilot support remains custom-instructions-first. Copy `integrations/copilot/copilot-instructions.md` into `.github/copilot-instructions.md` and keep RepoBrain as the shared memory core instead of creating Copilot-only repo notes.
 
 ### MCP Setup
 

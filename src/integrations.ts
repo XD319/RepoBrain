@@ -13,11 +13,13 @@ export interface IntegrationAdapter {
   label: string;
   instructionKind: IntegrationInstructionKind;
   templatePath: string;
+  contractPaths: string[];
   readsBrainSchema: true;
   readsInjectOutput: true;
   readsSuggestSkillsOutput: true;
   coreResponsibilities: string[];
   adapterResponsibilities: string[];
+  failureFallback: string;
 }
 
 export const INTEGRATION_ADAPTERS: readonly IntegrationAdapter[] = [
@@ -26,6 +28,12 @@ export const INTEGRATION_ADAPTERS: readonly IntegrationAdapter[] = [
     label: "Claude Code",
     instructionKind: "skill",
     templatePath: "integrations/claude/SKILL.md",
+    contractPaths: [
+      "integrations/contracts/session-start.inject.md",
+      "integrations/contracts/task-known.invocation-plan.json",
+      "integrations/contracts/session-end.extract-candidate.json",
+      "integrations/contracts/failure.reinforce-event.json",
+    ],
     readsBrainSchema: true,
     readsInjectOutput: true,
     readsSuggestSkillsOutput: true,
@@ -38,12 +46,19 @@ export const INTEGRATION_ADAPTERS: readonly IntegrationAdapter[] = [
       "Translate RepoBrain outputs into Claude-friendly skill instructions.",
       "Keep Claude setup thin and avoid adapter-local memory stores.",
     ],
+    failureFallback: "When structured extraction or reinforcement is unavailable, persist the raw summary and run brain extract or brain reinforce manually.",
   },
   {
     id: "codex",
     label: "Codex",
     instructionKind: "skill",
     templatePath: "integrations/codex/SKILL.md",
+    contractPaths: [
+      "integrations/contracts/session-start.inject.md",
+      "integrations/contracts/task-known.invocation-plan.json",
+      "integrations/contracts/session-end.extract-candidate.json",
+      "integrations/contracts/failure.reinforce-event.json",
+    ],
     readsBrainSchema: true,
     readsInjectOutput: true,
     readsSuggestSkillsOutput: true,
@@ -56,12 +71,19 @@ export const INTEGRATION_ADAPTERS: readonly IntegrationAdapter[] = [
       "Translate RepoBrain outputs into Codex-friendly session instructions.",
       "Keep Codex setup thin and avoid adapter-local memory stores.",
     ],
+    failureFallback: "When structured extraction or reinforcement is unavailable, persist the raw summary and run brain extract or brain reinforce manually.",
   },
   {
     id: "cursor",
     label: "Cursor",
     instructionKind: "rules",
     templatePath: "integrations/cursor/repobrain.mdc",
+    contractPaths: [
+      "integrations/contracts/session-start.inject.md",
+      "integrations/contracts/task-known.invocation-plan.json",
+      "integrations/contracts/session-end.extract-candidate.json",
+      "integrations/contracts/failure.reinforce-event.json",
+    ],
     readsBrainSchema: true,
     readsInjectOutput: true,
     readsSuggestSkillsOutput: true,
@@ -74,12 +96,19 @@ export const INTEGRATION_ADAPTERS: readonly IntegrationAdapter[] = [
       "Translate RepoBrain outputs into Cursor rules or project instructions.",
       "Keep Cursor setup thin and avoid adapter-local memory stores.",
     ],
+    failureFallback: "When Cursor rules cannot emit structured output, copy the session summary into a markdown artifact and hand it to brain extract or brain reinforce.",
   },
   {
     id: "copilot",
     label: "GitHub Copilot",
     instructionKind: "custom-instructions",
     templatePath: "integrations/copilot/copilot-instructions.md",
+    contractPaths: [
+      "integrations/contracts/session-start.inject.md",
+      "integrations/contracts/task-known.invocation-plan.json",
+      "integrations/contracts/session-end.extract-candidate.json",
+      "integrations/contracts/failure.reinforce-event.json",
+    ],
     readsBrainSchema: true,
     readsInjectOutput: true,
     readsSuggestSkillsOutput: true,
@@ -92,6 +121,7 @@ export const INTEGRATION_ADAPTERS: readonly IntegrationAdapter[] = [
       "Translate RepoBrain outputs into Copilot custom instructions.",
       "Keep Copilot setup thin and avoid adapter-local memory stores.",
     ],
+    failureFallback: "When Copilot cannot emit structured output directly, route a saved markdown summary into brain extract or brain reinforce from the shell or CI step.",
   },
 ];
 

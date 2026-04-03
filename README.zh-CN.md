@@ -165,11 +165,29 @@ adapter 层职责：
 - 可以提供结构化的 review suggestion，但不能替代 Core 的本地最终判定
 - 保持足够轻量，避免在 RepoBrain 核心层之外再发明一套知识模型
 
-共享模板位于 [integrations/README.md](./integrations/README.md)。
+### Why thin adapters, but stronger contracts
+
+adapter 保持轻量，是为了让 RepoBrain 可以稳定复用到 Claude Code、Codex、Cursor、Copilot 这类不同 agent 表面，而不会把 repo memory、schema 演进和最终 review 决策分散到各家集成里。
+
+contract 变强，是为了让这些轻 adapter 仍然有统一边界。RepoBrain 现在把 adapter 生命周期固定成四段：
+
+- session start：消费 `brain inject`
+- task known：消费 `brain suggest-skills --format json` 里的 `invocation_plan`
+- session end：产出 extract candidate
+- failure path：产出 reinforce event
+
+这样 adapter 仍然只是格式翻译层，而不是重型 integration SDK。
+
+共享 adapter 文档与示例位于 [integrations/README.md](./integrations/README.md)。
 
 ### Claude Code
 
-Claude 继续沿用现有的 hook 和 plugin 接口；新增的 adapter 模板只负责说明 Claude 应该如何消费 RepoBrain 输出。
+Claude 继续沿用现有的 hook 和 plugin 接口；新的 adapter contract 会明确：
+
+- session start 怎么消费 inject
+- task 已知后怎么消费 `invocation_plan`
+- session end 怎么产出 extract candidate
+- failure 时怎么回退到 `brain reinforce`
 
 当前相关文件：
 
@@ -193,7 +211,7 @@ sh scripts/setup-git-hooks.sh
 
 ```bash
 brain inject
-brain suggest-skills --task "current task" --path src/example.ts
+brain suggest-skills --format json --task "current task" --path src/example.ts
 ```
 
 模板和安装说明：
@@ -203,11 +221,11 @@ brain suggest-skills --task "current task" --path src/example.ts
 
 ### Cursor
 
-Cursor 目前先提供 rules 模板，不做深度集成。可以把 `integrations/cursor/repobrain.mdc` 复制到 `.cursor/rules/repobrain.mdc`，并继续把 RepoBrain 作为唯一的 durable repo-memory source。
+Cursor 继续保持 rules-first，不做深度集成。可以把 `integrations/cursor/repobrain.mdc` 复制到 `.cursor/rules/repobrain.mdc`，再按共享 contract 消费 inject、`invocation_plan`、extract candidate 和 reinforce event。
 
 ### GitHub Copilot
 
-Copilot 目前先提供 custom instructions 模板。可以把 `integrations/copilot/copilot-instructions.md` 复制到 `.github/copilot-instructions.md`，并继续把 RepoBrain 作为共享 memory core，而不是单独维护 Copilot 专属的 repo notes。
+Copilot 继续提供 custom instructions 模板。可以把 `integrations/copilot/copilot-instructions.md` 复制到 `.github/copilot-instructions.md`，并继续把 RepoBrain 作为共享 memory core，而不是单独维护 Copilot 专属的 repo notes。
 
 ### MCP Setup
 

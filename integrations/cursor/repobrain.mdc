@@ -1,20 +1,36 @@
 ---
-description: Bootstrap Cursor with RepoBrain context and routing hints
+description: Bootstrap Cursor with RepoBrain thin-adapter contract
 globs:
 alwaysApply: false
 ---
 
 Use RepoBrain as the durable repo-memory layer for this repository.
 
-Before non-trivial edits:
+Session start:
 
-- Read the output of `brain inject --task "<current task>" --path <changed-path>`.
-- Read the output of `brain suggest-skills --task "<current task>" --path <changed-path>` when workflow selection is unclear.
+- Read the markdown payload from `brain inject --task "<current task>" --path <changed-path>`.
+- Treat `integrations/contracts/session-start.inject.md` as the canonical shape example.
+
+Task known:
+
+- Read the JSON payload from `brain suggest-skills --format json --task "<current task>" --path <changed-path>`.
+- Route on `invocation_plan`, not on a Cursor-local memory schema.
+- Treat `integrations/contracts/task-known.invocation-plan.json` as the canonical shape example.
+
+Session end:
+
+- If a durable lesson appears, emit the candidate shape from `integrations/contracts/session-end.extract-candidate.json`.
+- If structured JSON is inconvenient, emit the markdown fallback from `integrations/contracts/session-end.extract-candidate.md` and pipe it to `brain extract`.
+
+Failure path:
+
+- If the task violated a known memory or repeated a previous mistake, emit the event shape from `integrations/contracts/failure.reinforce-event.json`.
+- If structured output is unavailable, write a markdown failure summary and pipe it to `brain reinforce`.
 
 Rules:
 
 - `.brain/` is the only durable repo-memory store.
-- `brain inject` provides compact session context.
-- `brain suggest-skills` provides task-aware routing hints.
+- `brain inject` gives compact context.
+- `brain suggest-skills` gives task-aware routing metadata.
+- `brain extract` and `brain reinforce` remain the only durable write paths.
 - Do not create Cursor-only copies of decisions, gotchas, conventions, or patterns.
-- If a durable lesson appears during implementation, save it back through RepoBrain review flows.

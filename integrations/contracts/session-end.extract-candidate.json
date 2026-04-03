@@ -1,0 +1,20 @@
+{
+  "contract_version": "repobrain.adapter.extract-candidate.v1",
+  "session": {
+    "agent": "codex",
+    "task": "Refactor config loading for CLI startup"
+  },
+  "candidate": {
+    "title": "Keep config parsing and defaulting in one boundary",
+    "type": "decision",
+    "summary": "CLI config refactors stay safer when parsing, defaulting, and validation remain in src/config.ts before values reach command handlers.",
+    "detail_markdown": "## Decision\n\nKeep config parsing, defaulting, and validation together in `src/config.ts` before `src/cli.ts` consumes the result.\n\n## Why\n\nSplitting the steps across files made default handling drift and broke session-end hook assumptions.\n\n## Scope\n\n- `src/config.ts`\n- `src/cli.ts`\n- `.brain/config.yaml`",
+    "files": ["src/config.ts", "src/cli.ts"],
+    "tags": ["cli", "config"],
+    "confidence": "candidate"
+  },
+  "write_hint": {
+    "command": "brain extract --candidate",
+    "fallback": "If structured output is unavailable, save the same detail_markdown into a temporary summary file and pipe it into brain extract."
+  }
+}
