@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { chmod, copyFile, mkdir, readFile, writeFile } from "node:fs/promises";
+import { chmod, copyFile, mkdir, readFile, realpath, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import { getBrainDir } from "./config.js";
@@ -63,7 +63,7 @@ export async function setupRepoBrain(
     return result;
   }
 
-  if (!samePath(gitRoot, projectRoot)) {
+  if (!(await samePath(gitRoot, projectRoot))) {
     result.gitHook.message = [
       `Current directory is not the Git root (${gitRoot}).`,
       `Skipped post-commit hook installation so hooks can still find ${path.join(getBrainDir(projectRoot), "config.yaml")}.`,
@@ -150,8 +150,22 @@ async function resolveGitRoot(projectRoot: string): Promise<string | null> {
   });
 }
 
-function samePath(left: string, right: string): boolean {
-  const normalizedLeft = path.resolve(left).replace(/[\\/]+$/, "").toLowerCase();
-  const normalizedRight = path.resolve(right).replace(/[\\/]+$/, "").toLowerCase();
+async function samePath(left: string, right: string): Promise<boolean> {
+  const normalizedLeft = await normalizePathForComparison(left);
+  const normalizedRight = await normalizePathForComparison(right);
   return normalizedLeft === normalizedRight;
+}
+
+async function normalizePathForComparison(value: string): Promise<string> {
+  const resolved = path.resolve(value);
+
+  try {
+    return stripTrailingSeparators(await realpath(resolved)).toLowerCase();
+  } catch {
+    return stripTrailingSeparators(resolved).toLowerCase();
+  }
+}
+
+function stripTrailingSeparators(value: string): string {
+  return value.replace(/[\\/]+$/, "");
 }
