@@ -1,6 +1,7 @@
 import path from "node:path";
 
-import { loadActivityState, loadStoredMemoryRecords, getMemoryStatus } from "./store.js";
+import { loadActivityState, getMemoryStatus } from "./store.js";
+import { loadSchemaValidatedMemoryRecords, renderSchemaHealthSummary } from "./memory-schema.js";
 import {
   normalizeTextForComparison,
   scopesOverlap,
@@ -66,8 +67,8 @@ export async function buildMemoryAudit(
   projectRoot: string,
   options: MemoryAuditOptions = {},
 ): Promise<MemoryAuditResult> {
-  const [records, activity] = await Promise.all([
-    loadStoredMemoryRecords(projectRoot),
+  const [{ records, schema }, activity] = await Promise.all([
+    loadSchemaValidatedMemoryRecords(projectRoot),
     loadActivityState(projectRoot),
   ]);
   const generatedAt = options.now?.trim() || new Date().toISOString();
@@ -95,6 +96,7 @@ export async function buildMemoryAudit(
     summary: {
       total_issues: issues.length,
       by_issue_type: byIssueType,
+      schema_health: schema.summary,
     },
     issues,
   };
@@ -104,9 +106,10 @@ export function renderMemoryAuditResult(result: MemoryAuditResult): string {
   const lines = [
     `Memory audit generated at ${result.generated_at}`,
     `Issues: total=${result.summary.total_issues}, stale=${result.summary.by_issue_type.stale}, conflict=${result.summary.by_issue_type.conflict}, low_signal=${result.summary.by_issue_type.low_signal}, overscoped=${result.summary.by_issue_type.overscoped}`,
+    result.summary.schema_health ? renderSchemaHealthSummary(result.summary.schema_health) : null,
     "",
     "Findings:",
-  ];
+  ].filter((line): line is string => Boolean(line));
 
   if (result.issues.length === 0) {
     lines.push("- None.");

@@ -39,7 +39,7 @@ const DIRECTORY_BY_TYPE: Record<MemoryType, string> = {
   goal: "goals",
 };
 
-const ARRAY_FRONTMATTER_FIELDS = [
+export const ARRAY_FRONTMATTER_FIELDS = [
   "tags",
   "files",
   "related",
@@ -53,17 +53,17 @@ const ARRAY_FRONTMATTER_FIELDS = [
 
 type ArrayFrontmatterField = (typeof ARRAY_FRONTMATTER_FIELDS)[number];
 
-const DEFAULT_INVOCATION_MODE: InvocationMode = "optional";
-const DEFAULT_RISK_LEVEL: RiskLevel = "low";
-const DEFAULT_MEMORY_SCORE = 60;
-const DEFAULT_MEMORY_HIT_COUNT = 0;
-const DEFAULT_MEMORY_LAST_USED: string | null = null;
-const DEFAULT_MEMORY_STALE = false;
-const DEFAULT_MEMORY_SUPERSEDES: string | null = null;
-const DEFAULT_MEMORY_SUPERSEDED_BY: string | null = null;
-const DEFAULT_MEMORY_VERSION = 1;
-const DEFAULT_MEMORY_AREA: MemoryArea = "general";
-const DEFAULT_GOAL_STATUS: MemoryStatus = "active";
+export const DEFAULT_INVOCATION_MODE: InvocationMode = "optional";
+export const DEFAULT_RISK_LEVEL: RiskLevel = "low";
+export const DEFAULT_MEMORY_SCORE = 60;
+export const DEFAULT_MEMORY_HIT_COUNT = 0;
+export const DEFAULT_MEMORY_LAST_USED: string | null = null;
+export const DEFAULT_MEMORY_STALE = false;
+export const DEFAULT_MEMORY_SUPERSEDES: string | null = null;
+export const DEFAULT_MEMORY_SUPERSEDED_BY: string | null = null;
+export const DEFAULT_MEMORY_VERSION = 1;
+export const DEFAULT_MEMORY_AREA: MemoryArea = "general";
+export const DEFAULT_GOAL_STATUS: MemoryStatus = "active";
 
 export async function initBrain(projectRoot: string): Promise<void> {
   const brainDir = getBrainDir(projectRoot);
@@ -373,7 +373,7 @@ export async function updateStoredMemoryStatus(
   });
 }
 
-function validateMemory(memory: Memory, context = "Memory"): void {
+export function validateMemory(memory: Memory, context = "Memory"): void {
   if (!MEMORY_TYPES.includes(memory.type)) {
     throw new Error(`${context} has unsupported type "${memory.type}". Expected one of: ${MEMORY_TYPES.join(", ")}.`);
   }
@@ -470,7 +470,7 @@ function validateMemory(memory: Memory, context = "Memory"): void {
   validateStringArray(memory.skill_trigger_tasks ?? [], "skill_trigger_tasks", context);
 }
 
-function serializeMemory(memory: Memory): string {
+export function serializeMemory(memory: Memory): string {
   const normalizedMemory = normalizeMemory(memory);
   const frontmatterLines = [
     "---",
@@ -607,7 +607,7 @@ function parseMemory(content: string, filePath: string): Memory {
   return memory;
 }
 
-function parseFrontmatter(raw: string): {
+export function parseFrontmatter(raw: string): {
   type?: string;
   title?: string;
   summary?: string;
@@ -833,28 +833,29 @@ function parseYamlBoolean(value: string): boolean | string | undefined {
   return trimmed ? trimmed : undefined;
 }
 
-function normalizeMemory(memory: Memory): Memory {
-  const created = normalizeOptionalIsoDateOnly(memory.created ?? isoDateOnlyFromKnownDate(memory.created_at ?? memory.date));
-  const updated = normalizeOptionalIsoDateOnly(memory.updated ?? isoDateOnlyFromKnownDate(memory.date));
+export function normalizeMemory(memory: Memory): Memory {
+  const normalizedCreatedAt = normalizeCreatedAt(memory.created_at, memory.created, memory.date);
+  const created = normalizeOptionalIsoDateOnly(memory.created ?? isoDateOnlyFromKnownDate(normalizedCreatedAt));
+  const updated = normalizeOptionalIsoDateOnly(memory.updated ?? created ?? isoDateOnlyFromKnownDate(memory.date));
   const expires = normalizeOptionalIsoDateOnly(memory.expires);
   const status = normalizeMemoryStatus(memory.type, memory.status);
 
   return {
     ...memory,
-    tags: normalizeStringArray(memory.tags),
-    files: normalizeStringArray(memory.files ?? []),
-    related: normalizeStringArray(memory.related ?? []),
-    path_scope: normalizeStringArray(memory.path_scope ?? []),
-    recommended_skills: normalizeStringArray(memory.recommended_skills ?? []),
-    required_skills: normalizeStringArray(memory.required_skills ?? []),
-    suppressed_skills: normalizeStringArray(memory.suppressed_skills ?? []),
-    skill_trigger_paths: normalizeStringArray(memory.skill_trigger_paths ?? []),
+    tags: normalizeTagArray(memory.tags),
+    files: normalizePathArray(memory.files ?? []),
+    related: normalizeRelativePathArray(memory.related ?? []),
+    path_scope: normalizePathArray(memory.path_scope ?? []),
+    recommended_skills: normalizeSkillArray(memory.recommended_skills ?? []),
+    required_skills: normalizeSkillArray(memory.required_skills ?? []),
+    suppressed_skills: normalizeSkillArray(memory.suppressed_skills ?? []),
+    skill_trigger_paths: normalizePathArray(memory.skill_trigger_paths ?? []),
     skill_trigger_tasks: normalizeStringArray(memory.skill_trigger_tasks ?? []),
     score: memory.score ?? DEFAULT_MEMORY_SCORE,
     hit_count: memory.hit_count ?? DEFAULT_MEMORY_HIT_COUNT,
     last_used: memory.last_used ?? DEFAULT_MEMORY_LAST_USED,
-    created_at: memory.created_at ?? memory.date,
-    created: created ?? isoDateOnlyFromKnownDate(memory.created_at ?? memory.date),
+    created_at: normalizedCreatedAt,
+    created: created ?? isoDateOnlyFromKnownDate(normalizedCreatedAt),
     updated: updated ?? created ?? isoDateOnlyFromKnownDate(memory.date),
     stale: memory.stale ?? DEFAULT_MEMORY_STALE,
     supersedes: normalizeNullableBrainRelativePath(memory.supersedes ?? DEFAULT_MEMORY_SUPERSEDES),
@@ -870,11 +871,28 @@ function normalizeMemory(memory: Memory): Memory {
   };
 }
 
-function normalizeStringArray(values: string[]): string[] {
-  return values.map((value) => value.trim()).filter(Boolean);
+export function normalizeStringArray(values: string[]): string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+
+  for (const rawValue of values) {
+    const value = rawValue.trim();
+    if (!value) {
+      continue;
+    }
+
+    if (seen.has(value)) {
+      continue;
+    }
+
+    seen.add(value);
+    result.push(value);
+  }
+
+  return result;
 }
 
-function normalizeOptionalIsoDateOnly(value: string | undefined): string | undefined {
+export function normalizeOptionalIsoDateOnly(value: string | undefined): string | undefined {
   if (typeof value !== "string") {
     return undefined;
   }
@@ -941,7 +959,7 @@ function validateVersion(value: number, context: string): void {
   }
 }
 
-function normalizeNullableBrainRelativePath(value: string | null): string | null {
+export function normalizeNullableBrainRelativePath(value: string | null): string | null {
   if (value === null) {
     return null;
   }
@@ -950,7 +968,7 @@ function normalizeNullableBrainRelativePath(value: string | null): string | null
   return normalized || null;
 }
 
-function normalizeBrainRelativePath(value: string): string {
+export function normalizeBrainRelativePath(value: string): string {
   return value
     .replace(/\\/g, "/")
     .trim()
@@ -1209,17 +1227,89 @@ function parseActivityEntry(value: unknown): MemoryActivityEntry | null {
   };
 }
 
-function isNonEmptyIsoDateString(value: string): boolean {
+export function isNonEmptyIsoDateString(value: string): boolean {
   return Boolean(value.trim()) && !Number.isNaN(Date.parse(value));
 }
 
-function isIsoDateOnly(value: string): boolean {
+export function isIsoDateOnly(value: string): boolean {
   return /^\d{4}-\d{2}-\d{2}$/.test(value);
 }
 
-function isoDateOnlyFromKnownDate(value: string): string {
+export function isoDateOnlyFromKnownDate(value: string): string {
   const normalized = normalizeOptionalIsoDateOnly(value);
   return normalized ?? value.slice(0, 10);
+}
+
+function normalizeTagArray(values: string[]): string[] {
+  return normalizeStringArray(values).sort((left, right) => left.localeCompare(right));
+}
+
+function normalizeSkillArray(values: string[]): string[] {
+  return normalizeStringArray(values).sort((left, right) =>
+    left.localeCompare(right, undefined, { sensitivity: "base" }),
+  );
+}
+
+function normalizeRelativePathArray(values: string[]): string[] {
+  return normalizeStringArray(values.map((value) => normalizeBrainRelativePath(value)))
+    .sort((left, right) => left.localeCompare(right));
+}
+
+function normalizePathArray(values: string[]): string[] {
+  return normalizeStringArray(values.map((value) => normalizeRepoPathPattern(value)))
+    .filter((value) => !isMeaninglessScopeValue(value))
+    .sort((left, right) => left.localeCompare(right));
+}
+
+function normalizeRepoPathPattern(value: string): string {
+  return value
+    .replace(/\\/g, "/")
+    .trim()
+    .replace(/^\.\//, "")
+    .replace(/^\/+/, "")
+    .replace(/\/{2,}/g, "/")
+    .replace(/\/+$/, "");
+}
+
+function isMeaninglessScopeValue(value: string): boolean {
+  const normalized = value.trim().toLowerCase();
+  return !normalized || normalized === "." || normalized === "*" || normalized === "**" || normalized === "/";
+}
+
+function normalizeCreatedAt(
+  createdAt: string | undefined,
+  created: string | undefined,
+  fallbackDate: string,
+): string {
+  const explicit = normalizeIsoDateTime(createdAt);
+  if (explicit) {
+    return explicit;
+  }
+
+  const createdDate = normalizeOptionalIsoDateOnly(created);
+  if (createdDate) {
+    return `${createdDate}T00:00:00.000Z`;
+  }
+
+  return normalizeIsoDateTime(fallbackDate) ?? fallbackDate;
+}
+
+function normalizeIsoDateTime(value: string | undefined): string | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return undefined;
+  }
+
+  const parsed = Date.parse(trimmed);
+  if (Number.isNaN(parsed)) {
+    return trimmed;
+  }
+
+  return new Date(parsed).toISOString();
 }
 
 async function touchFile(filePath: string): Promise<void> {

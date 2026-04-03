@@ -129,11 +129,11 @@ await runTest("new skill routing fields round-trip through save and load", async
 
     const stored = records[0]?.memory;
     assert.ok(stored);
-    assert.deepEqual(stored.path_scope, ["src/browser/", "src/web/**"]);
+    assert.deepEqual(stored.path_scope, ["src/browser", "src/web/**"]);
     assert.deepEqual(stored.recommended_skills, ["github:gh-fix-ci"]);
     assert.deepEqual(stored.required_skills, ["playwright"]);
     assert.deepEqual(stored.suppressed_skills, ["imagegen"]);
-    assert.deepEqual(stored.skill_trigger_paths, ["tests/e2e/", "playwright.config.ts"]);
+    assert.deepEqual(stored.skill_trigger_paths, ["playwright.config.ts", "tests/e2e"]);
     assert.deepEqual(stored.skill_trigger_tasks, ["debug flaky browser tests"]);
     assert.equal(stored.score, 82);
     assert.equal(stored.hit_count, 4);
@@ -811,7 +811,7 @@ await runTest("cli extract writes initial memory metadata with legal frontmatter
     assert.equal(stored.memory.score, 75);
     assert.equal(stored.memory.hit_count, 0);
     assert.equal(stored.memory.last_used, null);
-    assert.equal(stored.memory.created_at?.length, 10);
+    assert.equal(stored.memory.created_at?.length, 24);
     assert.equal(stored.memory.stale, false);
 
     const raw = await readFile(stored.filePath, "utf8");
@@ -828,7 +828,7 @@ await runTest("cli extract writes initial memory metadata with legal frontmatter
     assert.ok(createdAtIndex > lastUsedIndex);
     assert.ok(staleIndex > createdAtIndex);
     assert.ok(dateIndex > staleIndex);
-    assert.match(raw, /created_at: "\d{4}-\d{2}-\d{2}"/);
+    assert.match(raw, /created_at: "\d{4}-\d{2}-\d{2}T00:00:00.000Z"/);
   });
 });
 

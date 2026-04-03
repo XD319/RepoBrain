@@ -86,7 +86,7 @@ await runTest("suggest-skills renders a markdown routing plan from matched activ
     assert.match(stdout, /Matched memories:/);
     assert.match(stdout, /Route browser test work through Playwright guidance/);
     assert.match(stdout, /task: debug flaky browser tests/);
-    assert.match(stdout, /path: tests\/e2e\/ -> tests\/e2e\/login\.spec\.ts/);
+    assert.match(stdout, /path: tests\/e2e -> tests\/e2e\/login\.spec\.ts/);
     assert.match(stdout, /path: playwright\.config\.ts -> playwright\.config\.ts/);
     assert.match(stdout, /Resolved skills:/);
     assert.match(stdout, /- playwright \| required \| plan=required \| score=/);

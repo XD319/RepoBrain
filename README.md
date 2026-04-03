@@ -511,6 +511,99 @@ If you want a memory to help downstream agent or skill routing, add these option
 
 When these fields are omitted, RepoBrain keeps old entries compatible by defaulting each list to `[]`, `invocation_mode` to `optional`, `risk_level` to `low`, `score` to `60`, `hit_count` to `0`, `last_used` to `null`, `created_at` to the memory `date`, `created` to the date part of `created_at`, `updated` to `created`, `stale` to `false`, `supersedes` to `null`, `superseded_by` to `null`, `version` to `1`, `related` to `[]`, `files` to `[]`, `status` to `active` for `goal`, and `origin` to unset.
 
+### Schema Best Practices
+
+Keep most memories light. The common fields are:
+
+- `type`, `title`, `summary`, `detail`, `importance`, `date`
+- `tags`: use a short deduplicated keyword list
+- `created_at`, `created`, `updated`: keep lifecycle metadata aligned, but let RepoBrain autofill them when possible
+- `status`: mainly for `goal`, `candidate`, and lineage workflows
+
+Treat these as advanced fields and only add them when they improve routing or maintenance:
+
+- `path_scope`, `files`: use only when the memory is meaningfully scoped to part of the repo
+- `recommended_skills`, `required_skills`, `suppressed_skills`
+- `skill_trigger_paths`, `skill_trigger_tasks`, `invocation_mode`, `risk_level`
+- `supersedes`, `superseded_by`, `related`, `version`
+- `area`, `expires`, `origin`
+
+Good habits:
+
+- Prefer one clear scope over repeating the same paths in both `path_scope` and `files`
+- Prefer a few stable tags over large keyword dumps
+- Add skill metadata only when you can also explain when it should apply
+- Let old memories stay minimal; RepoBrain now lints and normalizes missing modern metadata without forcing a one-time migration
+
+Schema governance commands:
+
+```bash
+brain lint-memory
+brain normalize-memory
+```
+
+`brain lint-memory` reports missing required fields, invalid enums, conflicting metadata, meaningless scope fields, and missing or duplicated skill metadata. `brain normalize-memory` safely autofills and rewrites compatible files by aligning `created` / `updated` / `created_at`, deduplicating and sorting `tags`, normalizing `path_scope` / `files`, and deduplicating skill lists. Files that still need manual fixes are reported but not rewritten.
+
+Before:
+
+```md
+---
+type: "pattern"
+title: "Normalize metadata"
+summary: "Keep frontmatter compact and consistent."
+tags:
+  - "zeta"
+  - "alpha"
+  - "alpha"
+importance: "medium"
+date: "2026-04-03T10:30:00.000Z"
+created: "2026-04-01"
+path_scope:
+  - "./src/api//"
+  - "."
+  - "src/api"
+files:
+  - "src/api/user.ts"
+  - ".\\src\\api\\user.ts"
+recommended_skills:
+  - "playwright"
+  - "playwright"
+---
+```
+
+After `brain normalize-memory`:
+
+```md
+---
+type: "pattern"
+title: "Normalize metadata"
+summary: "Keep frontmatter compact and consistent."
+tags:
+  - "alpha"
+  - "zeta"
+importance: "medium"
+score: 60
+hit_count: 0
+last_used: null
+created_at: "2026-04-01T00:00:00.000Z"
+created: "2026-04-01"
+updated: "2026-04-01"
+stale: false
+supersedes: null
+superseded_by: null
+version: 1
+date: "2026-04-03T10:30:00.000Z"
+path_scope:
+  - "src/api"
+files:
+  - "src/api/user.ts"
+recommended_skills:
+  - "playwright"
+invocation_mode: "optional"
+risk_level: "low"
+---
+```
+
 Minimal example:
 
 ```md
@@ -797,8 +890,10 @@ brain mcp
 - `brain sweep`: clean stale memory hygiene issues after `brain score` or `brain status` has told you what needs attention; use the default interactive mode to confirm each action, `--dry-run` for a report, or `--auto` to apply safe cleanup rules without prompts
 - `brain list`: list stored memories; use `--type <memory-type>` to filter or `--goals` to group goal memories by status
 - `brain stats`: show memory counts by type and importance, including `working` and `goal`
+- `brain lint-memory`: inspect frontmatter schema health, including fixable vs manual issues
+- `brain normalize-memory`: apply safe schema autofill and normalization in place, while leaving incompatible files untouched
 - `brain goal done`: mark a matching goal memory as done and refresh its `updated` date
-- `brain status`: show the current workflow mode, pending reminders, and recent activity for the current repo
+- `brain status`: show the current workflow mode, pending reminders, recent activity, and a schema health summary for the current repo
 - `brain next`: suggest the next RepoBrain command so you do not have to remember the review / approve / sweep / score order yourself
 - `brain review`: inspect candidate memories waiting for approval
 - `brain approve`: promote one candidate, all candidates, or only `--safe` low-risk candidates to active memory
@@ -806,7 +901,7 @@ brain mcp
 - `brain supersede`: manually link a newer memory to an older memory, update `supersedes` / `superseded_by`, carry the old version forward as `old.version + 1`, and mark the older memory as stale
 - `brain lineage`: print ASCII lineage trees for all related memories, or for the chain that contains a specific memory file
 - `brain score`: review low-quality or outdated memories, sorted by severity, before you decide whether to sweep, mark stale, or delete
-- `brain audit-memory`: audit stored memories for stale, conflict, low-signal, and overscoped entries
+- `brain audit-memory`: audit stored memories for stale, conflict, low-signal, and overscoped entries, plus a schema health summary
 - `brain reinforce`: apply queued reinforcement suggestions with `--pending`, or manually run failure analysis plus memory reinforcement from `stdin`; use `--yes` to skip confirmation for automation or CI
 - `brain suggest-skills`: build a deterministic skill routing plan from task text, changed paths, and matched active memories
 - `brain share`: suggest the next `git add` and `git commit` commands for one memory or all active memories

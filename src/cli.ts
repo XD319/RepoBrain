@@ -16,6 +16,14 @@ import {
   writeConfig,
 } from "./config.js";
 import { buildMemoryAudit, renderMemoryAuditResult } from "./audit-memory.js";
+import {
+  buildMemorySchemaReport,
+  loadSchemaValidatedMemoryRecords,
+  normalizeMemorySchemas,
+  renderMemoryNormalizeReport,
+  renderMemorySchemaReport,
+  renderSchemaHealthSummary,
+} from "./memory-schema.js";
 import { extractMemories } from "./extract.js";
 import { detectFailures } from "./failure-detector.js";
 import { buildCommitExtractionInput } from "./git-commit.js";
@@ -272,7 +280,10 @@ program
   .description("Show high-level memory counts for the current project.")
   .action(async () => {
     const projectRoot = process.cwd();
-    const memories = await loadAllMemories(projectRoot);
+    const [{ records, schema }] = await Promise.all([
+      loadSchemaValidatedMemoryRecords(projectRoot),
+    ]);
+    const memories = records.map((entry) => entry.memory);
     const byType = new Map<string, number>(MEMORY_TYPES.map((type) => [type, 0]));
     const byImportance = new Map<string, number>();
     const byStatus = new Map<string, number>();
@@ -289,6 +300,7 @@ program
     output.write(`By type: ${formatCountMap(byType)}\n`);
     output.write(`By importance: ${formatCountMap(byImportance)}\n`);
     output.write(`By status: ${formatCountMap(byStatus)}\n`);
+    output.write(`${renderSchemaHealthSummary(schema.summary)}\n`);
   });
 
 program
@@ -296,7 +308,10 @@ program
   .description("Show the current workflow mode, reminders, and recent RepoBrain activity.")
   .action(async () => {
     const projectRoot = process.cwd();
-    const memories = await loadAllMemories(projectRoot);
+    const [{ records, schema }] = await Promise.all([
+      loadSchemaValidatedMemoryRecords(projectRoot),
+    ]);
+    const memories = records.map((entry) => entry.memory);
     const activity = await loadActivityState(projectRoot);
     const steeringRules = await getSteeringRulesStatus(projectRoot);
     const config = await loadConfig(projectRoot);
@@ -312,9 +327,16 @@ program
     output.write(`Last updated: ${memories[0]?.date ?? "N/A"}\n`);
     output.write(`Last injected: ${activity.lastInjectedAt ?? "N/A"}\n`);
     output.write(`Steering rules: ${formatSteeringRulesStatus(steeringRules)}\n`);
-    if (snapshot.reminders.length > 0) {
+    output.write(`${renderSchemaHealthSummary(schema.summary)}\n`);
+    const statusReminders = [...snapshot.reminders];
+    if (schema.summary.files_with_errors > 0) {
+      statusReminders.unshift('run "brain lint-memory" to inspect schema errors before the next share or audit');
+    } else if (schema.summary.fixable_files > 0) {
+      statusReminders.unshift('run "brain normalize-memory" to apply safe frontmatter normalization');
+    }
+    if (statusReminders.length > 0) {
       output.write("Reminders:\n");
-      snapshot.reminders.forEach((line) => output.write(`- ${line}\n`));
+      statusReminders.forEach((line) => output.write(`- ${line}\n`));
     }
     if (false && steeringRules.claudeConfigured) {
       output.write("✓ Claude Code steering rules 已配置\n");
@@ -598,6 +620,31 @@ program
       format === "json"
         ? `${renderSkillShortlistJson(result)}\n`
         : `${renderSkillShortlist(result)}\n`,
+    );
+  });
+
+program
+  .command("lint-memory")
+  .description("Lint memory frontmatter schema health without modifying files.")
+  .option("--json", "Print the schema report as JSON.")
+  .action(async (options: { json?: boolean }) => {
+    const projectRoot = process.cwd();
+    const result = await buildMemorySchemaReport(projectRoot);
+    output.write(
+      options.json ? `${JSON.stringify(result, null, 2)}\n` : `${renderMemorySchemaReport(result)}\n`,
+    );
+  });
+
+program
+  .command("normalize-memory")
+  .description("Normalize compatible memory frontmatter in place and report any manual-fix schema issues.")
+  .option("--json", "Print the normalization result as JSON.")
+  .action(async (options: { json?: boolean }) => {
+    const projectRoot = process.cwd();
+    const result = await normalizeMemorySchemas(projectRoot);
+    await updateIndex(projectRoot);
+    output.write(
+      options.json ? `${JSON.stringify(result, null, 2)}\n` : `${renderMemoryNormalizeReport(result)}\n`,
     );
   });
 

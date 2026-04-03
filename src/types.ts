@@ -28,6 +28,7 @@ export const MEMORY_REVIEW_REASONS = [
   "insufficient_signal",
 ] as const;
 export const MEMORY_AUDIT_ISSUE_TYPES = ["stale", "conflict", "low_signal", "overscoped"] as const;
+export const MEMORY_SCHEMA_ISSUE_SEVERITIES = ["error", "warning"] as const;
 
 export type MemoryType = (typeof MEMORY_TYPES)[number];
 export type Importance = (typeof IMPORTANCE_LEVELS)[number];
@@ -44,6 +45,7 @@ export type MemoryReviewRelation = (typeof MEMORY_REVIEW_RELATIONS)[number];
 export type MemoryScopeRelation = (typeof MEMORY_SCOPE_RELATIONS)[number];
 export type MemoryReviewReason = (typeof MEMORY_REVIEW_REASONS)[number];
 export type MemoryAuditIssueType = (typeof MEMORY_AUDIT_ISSUE_TYPES)[number];
+export type MemorySchemaIssueSeverity = (typeof MEMORY_SCHEMA_ISSUE_SEVERITIES)[number];
 
 export interface Memory {
   type: MemoryType;
@@ -182,12 +184,60 @@ export interface MemoryAuditIssue {
 export interface MemoryAuditSummary {
   total_issues: number;
   by_issue_type: Record<MemoryAuditIssueType, number>;
+  schema_health?: MemorySchemaHealthSummary;
 }
 
 export interface MemoryAuditResult {
   generated_at: string;
   summary: MemoryAuditSummary;
   issues: MemoryAuditIssue[];
+}
+
+export interface MemorySchemaIssue {
+  code:
+    | "missing_field"
+    | "invalid_enum"
+    | "conflict_field"
+    | "meaningless_scope"
+    | "missing_skill_metadata"
+    | "duplicate_skill_metadata";
+  severity: MemorySchemaIssueSeverity;
+  field?: string;
+  message: string;
+}
+
+export interface MemorySchemaFileReport {
+  file_path: string;
+  relative_path: string;
+  memory_id: string;
+  healthy: boolean;
+  normalized: boolean;
+  fixable: boolean;
+  issues: MemorySchemaIssue[];
+}
+
+export interface MemorySchemaHealthSummary {
+  total_files: number;
+  healthy_files: number;
+  files_with_warnings: number;
+  files_with_errors: number;
+  fixable_files: number;
+  total_issues: number;
+}
+
+export interface MemorySchemaScanResult {
+  generated_at: string;
+  summary: MemorySchemaHealthSummary;
+  files: MemorySchemaFileReport[];
+}
+
+export interface MemoryNormalizeResult {
+  generated_at: string;
+  summary: MemorySchemaHealthSummary & {
+    normalized_files: number;
+    skipped_files: number;
+  };
+  files: MemorySchemaFileReport[];
 }
 
 export interface ReviewedMemoryCandidate {

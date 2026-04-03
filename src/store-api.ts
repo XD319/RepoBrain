@@ -19,6 +19,13 @@ export {
   renderMemoryAuditResult,
 } from "./audit-memory.js";
 export {
+  buildMemorySchemaReport,
+  normalizeMemorySchemas,
+  renderMemoryNormalizeReport,
+  renderMemorySchemaReport,
+  renderSchemaHealthSummary,
+} from "./memory-schema.js";
+export {
   buildFailureDetectionPrompt,
   detectFailures,
 } from "./failure-detector.js";
@@ -57,6 +64,7 @@ export type {
   MemoryAuditIssue,
   MemoryAuditResult,
   MemoryAuditSummary,
+  MemoryNormalizeResult,
   MemoryReviewContext,
   MemoryReviewEvidenceBucket,
   MemoryReviewEvidenceItem,
@@ -64,6 +72,10 @@ export type {
   MemoryReviewMatch,
   MemoryReviewRelation,
   MemoryReviewer,
+  MemorySchemaFileReport,
+  MemorySchemaHealthSummary,
+  MemorySchemaIssue,
+  MemorySchemaScanResult,
   MemoryScopeRelation,
   ReviewCandidateMemoriesOptions,
   ReviewedMemoryCandidate,

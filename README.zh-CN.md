@@ -482,6 +482,99 @@ When TypeScript is already enforcing unused locals, enabling both rules creates 
 
 新增字段里，`created` 默认取 `created_at` 的日期部分，`updated` 默认等于 `created`，`files` 默认是 `[]`，`goal` 的 `status` 默认是 `active`。
 
+### Schema 最佳实践
+
+大多数 memory 应该保持轻量。常用字段是：
+
+- `type`、`title`、`summary`、`detail`、`importance`、`date`
+- `tags`：少量、去重、可读的关键词
+- `created_at`、`created`、`updated`：生命周期字段，能不手填就让 RepoBrain 自动补齐
+- `status`：主要给 `goal`、`candidate` 和 lineage 场景使用
+
+这些属于高级字段，只有确实能提升路由或维护性时再加：
+
+- `path_scope`、`files`
+- `recommended_skills`、`required_skills`、`suppressed_skills`
+- `skill_trigger_paths`、`skill_trigger_tasks`、`invocation_mode`、`risk_level`
+- `supersedes`、`superseded_by`、`related`、`version`
+- `area`、`expires`、`origin`
+
+建议：
+
+- `path_scope` 和 `files` 不要重复表达同一组路径，保留真正有用的一层
+- `tags` 保持少而稳，不要把 summary 拆成一长串关键词
+- 只有在能说明“什么时候该用这个 skill”时，再补 skill metadata
+- 旧 memory 可以继续保持精简，不需要一次性手工迁移；RepoBrain 会补默认值、做 lint，并尽量自动 normalize
+
+治理命令：
+
+```bash
+brain lint-memory
+brain normalize-memory
+```
+
+`brain lint-memory` 会检查缺字段、无效枚举、冲突字段、无意义的 `path_scope` / `files`，以及 skill metadata 的缺失或重复。`brain normalize-memory` 会对可兼容的 memory 做安全归一化：对齐 `created` / `updated` / `created_at`，去重并排序 `tags`，规范化 `path_scope` / `files`，并去重 skill 列表。需要人工处理的文件会保留原样，只在报告里提示。
+
+修复前：
+
+```md
+---
+type: "pattern"
+title: "Normalize metadata"
+summary: "Keep frontmatter compact and consistent."
+tags:
+  - "zeta"
+  - "alpha"
+  - "alpha"
+importance: "medium"
+date: "2026-04-03T10:30:00.000Z"
+created: "2026-04-01"
+path_scope:
+  - "./src/api//"
+  - "."
+  - "src/api"
+files:
+  - "src/api/user.ts"
+  - ".\\src\\api\\user.ts"
+recommended_skills:
+  - "playwright"
+  - "playwright"
+---
+```
+
+运行 `brain normalize-memory` 后：
+
+```md
+---
+type: "pattern"
+title: "Normalize metadata"
+summary: "Keep frontmatter compact and consistent."
+tags:
+  - "alpha"
+  - "zeta"
+importance: "medium"
+score: 60
+hit_count: 0
+last_used: null
+created_at: "2026-04-01T00:00:00.000Z"
+created: "2026-04-01"
+updated: "2026-04-01"
+stale: false
+supersedes: null
+superseded_by: null
+version: 1
+date: "2026-04-03T10:30:00.000Z"
+path_scope:
+  - "src/api"
+files:
+  - "src/api/user.ts"
+recommended_skills:
+  - "playwright"
+invocation_mode: "optional"
+risk_level: "low"
+---
+```
+
 最小示例：
 
 ```md
@@ -775,8 +868,10 @@ brain mcp
   当仍有待审核的 candidate memories 时，注入结果底部会提醒你运行 `brain review`。
 - `brain sweep`：扫描陈旧 memory；默认交互式逐条确认，`--dry-run` 只看报告，`--auto` 自动执行安全清理规则
 - `brain list`：列出当前仓库里的 memory
-- `brain stats`：按类型和重要度查看统计
-- `brain status`：查看最近一次注入的 memories，以及最近沉淀的 memories
+- `brain stats`：按类型和重要度查看统计，并附带 schema 健康度摘要
+- `brain lint-memory`：只读检查 frontmatter schema 健康度，区分可自动修复与需要人工修复的问题
+- `brain normalize-memory`：对兼容的 memory 原地做 schema autofill / normalize，并保留需要人工修复的文件
+- `brain status`：查看最近一次注入的 memories、最近沉淀的 memories，以及 schema 健康度摘要
   同时会显示 Claude Code / Codex 的 steering rules 是否已配置；如果两者都不存在，会给出补充配置提示。
 - `brain review`：列出等待审批的 candidate memories
 - `brain approve`：将单条 candidate memory、全部 candidates，或仅 `--safe` 的低风险 candidates 提升为 active
@@ -784,7 +879,7 @@ brain mcp
 - `brain supersede`：手动把新 memory 和旧 memory 建立取代关系，更新 `supersedes` / `superseded_by`，把新 memory 的 `version` 设为 `旧 version + 1`，并把旧 memory 标记为 stale
 - `brain lineage`：以 ASCII 树形式打印所有有血缘关系的 memory，或只打印包含指定 memory 文件的那条血缘链
 - `brain score`：按严重度排序检查低质量或过旧的 memories，并支持交互式或批量标记 stale、删除、跳过或导出 JSON
-- `brain audit-memory`：审计 `.brain/` 中疑似 stale、conflict、low-signal 或 overscoped 的条目
+- `brain audit-memory`：审计 `.brain/` 中疑似 stale、conflict、low-signal 或 overscoped 的条目，并附带 schema 健康度摘要
 - `brain reinforce`：从 `stdin` 手动执行失败分析和记忆强化；自动化或 CI 场景可加 `--yes` 跳过确认
 - `brain suggest-skills`：根据任务文本、变更路径和命中的 active memories 输出一份 deterministic skill routing plan
 - `brain share`：为单条 memory 或全部 active memories 输出建议的 `git add` / `git commit` 命令

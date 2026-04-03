@@ -133,6 +133,7 @@ await runTest("audit-memory flags overscoped entries with overly broad applicabi
     const stdout = renderMemoryAuditResult(result);
     assert.match(stdout, /overscoped/);
     assert.match(stdout, new RegExp(path.basename(filePath, ".md")));
+    assert.match(stdout, /Schema health:/);
   });
 });
 
