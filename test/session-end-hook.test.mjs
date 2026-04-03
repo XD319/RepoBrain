@@ -11,7 +11,7 @@ const hookPath = path.join(repoRoot, "dist", "hooks", "session-end.js");
 const fixturePath = path.join(repoRoot, "test", "fixtures", "reinforce-llm-fixture.mjs");
 const fixtureCommand = `"${process.execPath}" "${fixturePath}"`;
 
-await runTest("session-end hook detects failures and reinforces memories at the end", async () => {
+await runTest("session-end hook queues reinforcement suggestions instead of applying them immediately", async () => {
   await withTempRepo(async (projectRoot) => {
     const existingPath = await saveMemory(
       {
@@ -47,17 +47,18 @@ await runTest("session-end hook detects failures and reinforces memories at the 
     );
 
     assert.equal(result.code, 0);
-    assert.match(result.stdout, new RegExp(`\\[brain\\] reinforcing: ${escapeRegex(path.basename(existingPath))}`));
-    assert.match(result.stdout, /\[brain\] reinforcing: \d{4}-\d{2}-\d{2}-.+\.md/);
 
     const existingRaw = await readFile(existingPath, "utf8");
-    assert.match(existingRaw, /score: 75/);
-    assert.match(existingRaw, /> ⚡ score 因 session 失败而提升，日期：\d{4}-\d{2}-\d{2}/);
+    assert.match(existingRaw, /score: 60/);
+
+    const pendingRaw = await readFile(path.join(projectRoot, ".brain", "reinforce-pending.json"), "utf8");
+    const pending = JSON.parse(pendingRaw);
+    assert.equal(pending.events.length, 2);
+    assert.equal(pending.events[0]?.suggestedAction, "boost_score");
+    assert.equal(pending.events[1]?.suggestedAction, "extract_new");
 
     const records = await loadStoredMemoryRecords(projectRoot);
-    const extracted = records.find((entry) => entry.memory.origin === "failure");
-    assert.ok(extracted);
-    assert.equal(extracted.memory.type, "gotcha");
+    assert.equal(records.some((entry) => entry.memory.origin === "failure"), false);
   });
 });
 
@@ -117,8 +118,4 @@ async function runTest(name, callback) {
     console.error(`not ok - ${name}`);
     throw error;
   }
-}
-
-function escapeRegex(value) {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }

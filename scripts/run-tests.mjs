@@ -13,6 +13,7 @@ const testFiles = [
   "test/sweep.test.mjs",
   "test/setup-command.test.mjs",
   "test/init-status-command.test.mjs",
+  "test/next-command.test.mjs",
   "test/extract-commit-command.test.mjs",
   "test/approve-safe-command.test.mjs",
   "test/audit-memory.test.mjs",

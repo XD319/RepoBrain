@@ -7,6 +7,7 @@ import { buildInjection } from "../dist/inject.js";
 import { initBrain, loadStoredMemoryRecords, saveMemory } from "../dist/store-api.js";
 
 const DEFAULT_BRAIN_CONFIG = {
+  workflowMode: "recommended-semi-auto",
   maxInjectTokens: 1200,
   extractMode: "suggest",
   language: "zh-CN",

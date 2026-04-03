@@ -2,10 +2,10 @@
 
 import { stdin as input, stderr } from "node:process";
 
-import { findProjectRoot, getBrainDir, loadConfig, renderConfigWarnings } from "../config.js";
+import { findProjectRoot, loadConfig, renderConfigWarnings } from "../config.js";
 import { extractMemories } from "../extract.js";
 import { detectFailures } from "../failure-detector.js";
-import { reinforceMemories } from "../reinforce.js";
+import { savePendingReinforcementEvents } from "../reinforce-pending.js";
 import { reviewCandidateMemories } from "../reviewer.js";
 import { appendErrorLog, initBrain, loadStoredMemoryRecords, saveMemory, updateIndex } from "../store.js";
 import type { Memory } from "../types.js";
@@ -67,7 +67,10 @@ async function main(): Promise<void> {
         relativePath: entry.relativePath,
       })),
     );
-    await reinforceMemories(failureEvents, getBrainDir(projectRoot));
+    if (failureEvents.length > 0) {
+      await savePendingReinforcementEvents(projectRoot, failureEvents);
+      debugLog(`Queued ${failureEvents.length} reinforcement suggestion(s) for later review.`);
+    }
     await updateIndex(projectRoot);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);

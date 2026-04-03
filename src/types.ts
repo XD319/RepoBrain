@@ -4,6 +4,7 @@ export const MEMORY_SOURCES = ["session", "git-commit", "manual", "pr"] as const
 export const MEMORY_STATUSES = ["active", "candidate", "done", "stale", "superseded"] as const;
 export const MEMORY_ORIGINS = ["failure"] as const;
 export const EXTRACT_MODES = ["manual", "suggest", "auto"] as const;
+export const WORKFLOW_MODES = ["ultra-safe-manual", "recommended-semi-auto", "automation-first"] as const;
 export const INVOCATION_MODES = ["required", "prefer", "optional", "suppress"] as const;
 export const RISK_LEVELS = ["high", "medium", "low"] as const;
 export const MEMORY_AREAS = ["auth", "api", "db", "infra", "ui", "testing", "general"] as const;
@@ -34,6 +35,7 @@ export type MemorySource = (typeof MEMORY_SOURCES)[number];
 export type MemoryStatus = (typeof MEMORY_STATUSES)[number];
 export type MemoryOrigin = (typeof MEMORY_ORIGINS)[number];
 export type ExtractMode = (typeof EXTRACT_MODES)[number];
+export type WorkflowMode = (typeof WORKFLOW_MODES)[number];
 export type InvocationMode = (typeof INVOCATION_MODES)[number];
 export type RiskLevel = (typeof RISK_LEVELS)[number];
 export type MemoryArea = (typeof MEMORY_AREAS)[number];
@@ -79,6 +81,7 @@ export interface Memory {
 }
 
 export interface BrainConfig {
+  workflowMode: WorkflowMode;
   maxInjectTokens: number;
   extractMode: ExtractMode;
   language: string;

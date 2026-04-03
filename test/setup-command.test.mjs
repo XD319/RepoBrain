@@ -15,8 +15,16 @@ await runTest("brain setup initializes .brain and installs the post-commit hook"
     assert.equal(result.code, 0);
     assert.match(result.stdout, /Initialized RepoBrain in/);
     assert.match(result.stdout, /Installed the post-commit hook at/);
+    assert.match(result.stdout, /Workflow: Recommended semi-auto/);
+    assert.match(result.stdout, /Steering rules:/);
 
     await access(path.join(projectRoot, ".brain", "config.yaml"));
+    await access(path.join(projectRoot, ".claude", "rules", "brain-session.md"));
+    await access(path.join(projectRoot, ".codex", "brain-session.md"));
+
+    const configRaw = await readFile(path.join(projectRoot, ".brain", "config.yaml"), "utf8");
+    assert.match(configRaw, /workflowMode: recommended-semi-auto/);
+    assert.match(configRaw, /extractMode: suggest/);
 
     const hookContent = await readFile(path.join(projectRoot, ".git", "hooks", "post-commit"), "utf8");
     assert.match(hookContent, /project-brain post-commit hook/);
@@ -39,6 +47,22 @@ await runTest("brain setup backs up an existing custom post-commit hook before i
     const backupPath = path.join(projectRoot, ".git", "hooks", "post-commit.project-brain.bak");
     const backupContent = await readFile(backupPath, "utf8");
     assert.equal(backupContent, existingHook);
+  });
+});
+
+await runTest("brain setup respects the ultra-safe manual workflow preset", async () => {
+  await withTempRepo(async (projectRoot) => {
+    await runCommand("git", ["init"], projectRoot);
+
+    const result = await runCliProcess(["setup", "--workflow", "ultra-safe-manual"], projectRoot);
+    assert.equal(result.code, 0);
+    assert.match(result.stdout, /Workflow: Ultra-safe manual/);
+    assert.match(result.stdout, /Git hook installation skipped/);
+
+    const configRaw = await readFile(path.join(projectRoot, ".brain", "config.yaml"), "utf8");
+    assert.match(configRaw, /workflowMode: ultra-safe-manual/);
+    assert.match(configRaw, /extractMode: manual/);
+    assert.match(configRaw, /sweepOnInject: false/);
   });
 });
 

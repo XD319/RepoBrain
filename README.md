@@ -122,6 +122,28 @@ In practice, that means:
 
 If you want a fully manual flow, set `extractMode: manual`. If you want immediate writes from hooks, set `extractMode: auto`.
 
+## Workflow Modes
+
+RepoBrain now treats workflow choice as a first-class setup decision instead of making you stitch together low-level flags by hand.
+
+- `ultra-safe manual`
+  Best for teams that want every extract, review, approval, and cleanup step to stay manual. RepoBrain still helps with `brain inject`, but setup skips the Git hook by default and uses `extractMode: manual`.
+- `recommended semi-auto`
+  Best for most repos and now the default for `brain init` and `brain setup`. Session start stays easy with `brain inject`, session end can queue reviewable candidates, and humans keep the final `review` / `approve` control.
+- `automation-first`
+  Best for teams already comfortable with RepoBrain. Clear low-risk extractions can go active automatically, `brain inject` can run cleanup first, and ambiguous items still stay reviewable instead of becoming a black box.
+
+The practical loop for the default `recommended semi-auto` mode is:
+
+1. Session start: `brain inject`
+2. Session end: queue extract candidates
+3. Review queue: `brain review`
+4. Fast promotion pass: `brain approve --safe`
+5. Manual edge cases: `brain approve <id>`
+6. Hygiene pass when needed: `brain score` and `brain sweep --dry-run`
+
+`brain status` and `brain next` are now the high-level dashboard commands. `status` shows the current mode plus pending reminders. `next` tells you the most natural next command so you do not have to remember whether review, reinforce, score, or sweep comes first.
+
 ## Knowledge History
 
 Because RepoBrain stores durable knowledge in `.brain/`, the project can keep that knowledge under normal Git version control. That makes repo memory inspectable, reviewable, and reversible in the same place the code already lives.
@@ -335,9 +357,9 @@ Create the local RepoBrain workspace in the current repository:
 brain setup
 ```
 
-`brain setup` is the fastest recommended entry point. It still initializes `.brain/` like `brain init`, and when you run it from the Git root it also installs the lightweight `post-commit` hook for richer commit-context extraction.
+`brain setup` is the fastest recommended entry point. It now defaults to the `recommended-semi-auto` workflow, writes steering rules for Claude Code and Codex, and when you run it from the Git root it also installs the lightweight `post-commit` hook for richer commit-context extraction.
 
-If you only want the workspace without Git hook automation, `brain init` remains the lightweight entry point. After `.brain/` is initialized it now also offers to generate steering rules for Claude Code, Codex, or both:
+If you only want the workspace without Git hook automation, `brain init` remains the lightweight entry point. It now uses the same workflow presets and steering-rule generation, but skips Git hook installation:
 
 ```text
 已初始化 .brain/ 目录。
@@ -348,7 +370,16 @@ If you only want the workspace without Git hook automation, `brain init` remains
 4. 跳过
 ```
 
-Those generated Markdown files are plain-text workflow rules for your agent, so future sessions remember to run `brain inject` and extract durable memory at the right times.
+Those generated Markdown files are plain-text workflow rules for your agent, so future sessions remember to run `brain inject`, extract reviewable candidates at session end, and keep approval in the loop at the right times.
+
+Workflow preset examples:
+
+```bash
+brain init --workflow recommended-semi-auto
+brain setup --workflow recommended-semi-auto
+brain setup --workflow ultra-safe-manual
+brain setup --workflow automation-first
+```
 
 After setup, `.brain/` should look like this:
 
@@ -367,6 +398,7 @@ The generated `config.yaml` starts small on purpose:
 
 - `maxInjectTokens`: approximate token budget for `brain inject`
 - `extractMode`: controls whether hooks stay manual, save candidates, or write active memories
+- `workflowMode`: sets the default workflow preset and recommended command cadence
 - `language`: preferred output language for extraction prompts
 
 ### Step 2: Capture Your First Memory
@@ -734,6 +766,7 @@ brain list --goals
 brain stats
 brain goal done <keyword>
 brain status
+brain next
 brain review
 brain approve --safe
 brain approve <memory-id>
@@ -742,6 +775,7 @@ brain supersede <new-memory-file> <old-memory-file>
 brain lineage
 brain lineage <file>
 brain audit-memory
+brain reinforce --pending
 brain reinforce < session-summary.txt
 brain suggest-skills --task "debug flaky browser tests" --path tests/e2e/login.spec.ts
 brain suggest-skills --format json --task "debug flaky browser tests" --path tests/e2e/login.spec.ts
@@ -752,29 +786,28 @@ brain mcp
 
 ### Commands
 
-- `brain init`: create the `.brain/` workspace in the current repo
-  After initialization, RepoBrain can also generate `.claude/rules/brain-session.md` and/or `.codex/brain-session.md` steering rules for your agent workflow.
-- `brain setup`: initialize `.brain/` and install the low-risk `post-commit` Git hook when run from the Git root
+- `brain init`: create the `.brain/` workspace in the current repo, apply a workflow preset, and generate steering rules by default
+- `brain setup`: initialize `.brain/`, apply a workflow preset, generate steering rules, and install the low-risk `post-commit` Git hook when run from the Git root
 - `brain extract`: extract long-lived repo knowledge from `stdin`
   The command prints a review decision for each extracted memory before writing it.
   Use `--type working` or `--type goal` when you want to force the extracted memory type.
 - `brain extract-commit`: extract from a richer git commit context that includes commit metadata, changed files, and diff stat
 - `brain inject`: build a compact memory block for the next session, optionally ranked by `--task`, `--path`, and `--module`
   When candidate memories are waiting for review, the injected footer now reminds you to run `brain review`.
-- `brain sweep`: scan stale memory hygiene issues; use the default interactive mode to confirm each action, `--dry-run` for a report, or `--auto` to apply safe cleanup rules without prompts
+- `brain sweep`: clean stale memory hygiene issues after `brain score` or `brain status` has told you what needs attention; use the default interactive mode to confirm each action, `--dry-run` for a report, or `--auto` to apply safe cleanup rules without prompts
 - `brain list`: list stored memories; use `--type <memory-type>` to filter or `--goals` to group goal memories by status
 - `brain stats`: show memory counts by type and importance, including `working` and `goal`
 - `brain goal done`: mark a matching goal memory as done and refresh its `updated` date
-- `brain status`: show the most recently injected memories and most recently captured memories for the current repo
-  It also reports whether Claude Code or Codex steering rules are already configured, and warns when neither file exists yet.
-- `brain review`: list candidate memories waiting for approval
+- `brain status`: show the current workflow mode, pending reminders, and recent activity for the current repo
+- `brain next`: suggest the next RepoBrain command so you do not have to remember the review / approve / sweep / score order yourself
+- `brain review`: inspect candidate memories waiting for approval
 - `brain approve`: promote one candidate, all candidates, or only `--safe` low-risk candidates to active memory
 - `brain dismiss`: mark one candidate, or all candidates, as dismissed
 - `brain supersede`: manually link a newer memory to an older memory, update `supersedes` / `superseded_by`, carry the old version forward as `old.version + 1`, and mark the older memory as stale
 - `brain lineage`: print ASCII lineage trees for all related memories, or for the chain that contains a specific memory file
-- `brain score`: review low-quality or outdated memories, sorted by severity, and interactively or non-interactively mark stale, delete, keep, or export JSON
+- `brain score`: review low-quality or outdated memories, sorted by severity, before you decide whether to sweep, mark stale, or delete
 - `brain audit-memory`: audit stored memories for stale, conflict, low-signal, and overscoped entries
-- `brain reinforce`: manually run failure analysis plus memory reinforcement from `stdin`; use `--yes` to skip confirmation for automation or CI
+- `brain reinforce`: apply queued reinforcement suggestions with `--pending`, or manually run failure analysis plus memory reinforcement from `stdin`; use `--yes` to skip confirmation for automation or CI
 - `brain suggest-skills`: build a deterministic skill routing plan from task text, changed paths, and matched active memories
 - `brain share`: suggest the next `git add` and `git commit` commands for one memory or all active memories
 - `brain mcp`: run RepoBrain as a minimal MCP stdio server
@@ -786,6 +819,7 @@ RepoBrain stores config in `.brain/config.yaml`.
 Current options:
 
 ```yaml
+workflowMode: recommended-semi-auto
 maxInjectTokens: 1200
 extractMode: suggest
 language: zh-CN
@@ -795,6 +829,7 @@ injectDiversity: true
 injectExplainMaxItems: 4
 ```
 
+- `workflowMode`: high-level workflow preset; use `ultra-safe-manual`, `recommended-semi-auto`, or `automation-first`
 - `maxInjectTokens`: approximate token budget used when building injected context, with Unicode-aware estimation for mixed English/CJK content
 - `extractMode`: controls hook-based extraction behavior
 - `manual`: never write from hooks; use `brain extract` yourself
@@ -827,7 +862,7 @@ RepoBrain keeps lifecycle rules intentionally small for the current MVP:
 - `brain inject` only loads `active` memories into the generated context block, then additionally filters out entries with `stale: true` or a non-null `superseded_by`, so superseded lineage entries never become the baseline for normal matching or injection again
 - if a memory sets `supersedes`, inject checks whether the older file points back with `superseded_by`; if not, RepoBrain prints a warning to stderr so the lineage can be repaired without breaking compatibility
 - external review input is optional and advisory only; Core validates the structure, ignores malformed input, and keeps the local final decision
-- the session-end hook can also reinforce failures: it detects violated memories or repeated mistakes, boosts or rewrites the affected memory, and can save a new `gotcha` with `origin: failure`
+- the session-end workflow can queue reinforce suggestions when it detects violated memories or repeated mistakes; review them later with `brain reinforce --pending`
 
 This keeps the current write path compatible for clear accepts while still allowing higher-level agent workflows to attach structured candidate review suggestions around the same deterministic baseline.
 

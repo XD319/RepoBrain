@@ -7,13 +7,21 @@ import { stdin as input, stdout as output } from "node:process";
 import { createInterface } from "node:readline/promises";
 import { Command } from "commander";
 
-import { getBrainDir, loadConfig, renderConfigWarnings } from "./config.js";
+import {
+  getBrainDir,
+  getWorkflowPreset,
+  loadConfig,
+  parseWorkflowMode,
+  renderConfigWarnings,
+  writeConfig,
+} from "./config.js";
 import { buildMemoryAudit, renderMemoryAuditResult } from "./audit-memory.js";
 import { extractMemories } from "./extract.js";
 import { detectFailures } from "./failure-detector.js";
 import { buildCommitExtractionInput } from "./git-commit.js";
 import { buildInjection } from "./inject.js";
 import { runMcpServer } from "./mcp/server.js";
+import { clearPendingReinforcementEvents, loadPendingReinforcementState } from "./reinforce-pending.js";
 import { reinforceMemories } from "./reinforce.js";
 import { reviewCandidateMemories, reviewCandidateMemory } from "./reviewer.js";
 import { buildSharePlan } from "./share.js";
@@ -48,7 +56,15 @@ import {
   updateStoredMemoryStatus,
 } from "./store.js";
 import type { FailureEvent } from "./failure-detector.js";
-import type { BrainConfig, CandidateMemoryReviewResult, Memory, MemoryActivityEntry, StoredMemoryRecord, MemoryType } from "./types.js";
+import type {
+  BrainConfig,
+  CandidateMemoryReviewResult,
+  Memory,
+  MemoryActivityEntry,
+  StoredMemoryRecord,
+  MemoryType,
+  WorkflowMode,
+} from "./types.js";
 import { MEMORY_TYPES } from "./types.js";
 
 const program = new Command();
@@ -60,34 +76,55 @@ program
 
 program
   .command("init")
-  .description("Initialize the .brain workspace in the current project.")
-  .action(async () => {
+  .description("Initialize .brain with a workflow preset and steering rules for agent sessions.")
+  .option("--workflow <mode>", "Workflow mode: ultra-safe-manual | recommended-semi-auto | automation-first", parseWorkflowMode)
+  .option("--steering-rules <target>", "Generate steering rules for claude, codex, both, or skip.")
+  .option("--skip-steering-rules", "Do not generate steering rules during initialization.")
+  .action(async (options: { workflow?: WorkflowMode; steeringRules?: string; skipSteeringRules?: boolean }) => {
     const projectRoot = process.cwd();
     await initBrain(projectRoot);
+    const workflowMode = options.workflow ?? "recommended-semi-auto";
+    await applyWorkflowPresetConfig(projectRoot, workflowMode);
+    output.write("Initialized .brain workspace.\n");
     output.write("已初始化 .brain/ 目录。\n");
-    const steeringChoice = await promptSteeringRulesChoice();
+    const steeringChoice = resolveSteeringRulesChoice(options.steeringRules, options.skipSteeringRules);
     const writtenPaths = await writeSteeringRules(projectRoot, steeringChoice);
     if (writtenPaths.length > 0) {
       output.write(`已生成 steering rules: ${writtenPaths.join(", ")}\n`);
     }
+    renderWorkflowSummaryLines(workflowMode).forEach((line) => output.write(`${line}\n`));
+    renderSetupNextSteps(workflowMode).forEach((line) => output.write(`${line}\n`));
     output.write(`Initialized Project Brain in ${projectRoot}\n`);
   });
 
 program
   .command("setup")
-  .description("Initialize RepoBrain and install low-risk automation for the current project.")
+  .description("Initialize RepoBrain, apply a workflow preset, and install the matching low-risk automation.")
+  .option("--workflow <mode>", "Workflow mode: ultra-safe-manual | recommended-semi-auto | automation-first", parseWorkflowMode)
+  .option("--steering-rules <target>", "Generate steering rules for claude, codex, both, or skip.")
+  .option("--skip-steering-rules", "Do not generate steering rules during setup.")
   .option("--no-git-hook", "Skip installing the post-commit Git hook.")
-  .action(async (options: { gitHook?: boolean }) => {
+  .action(async (options: { workflow?: WorkflowMode; steeringRules?: string; skipSteeringRules?: boolean; gitHook?: boolean }) => {
     const projectRoot = process.cwd();
+    const workflowMode = options.workflow ?? "recommended-semi-auto";
+    const preset = getWorkflowPreset(workflowMode);
+    const gitHook = options.gitHook === false ? false : preset.gitHookDefault;
     const result = await setupRepoBrain(
       projectRoot,
-      options.gitHook === undefined ? {} : { gitHook: options.gitHook },
+      { gitHook },
     );
+    await applyWorkflowPresetConfig(projectRoot, workflowMode);
+    const steeringChoice = resolveSteeringRulesChoice(options.steeringRules, options.skipSteeringRules);
+    const writtenPaths = await writeSteeringRules(projectRoot, steeringChoice);
 
     output.write(`Initialized RepoBrain in ${projectRoot}\n`);
     output.write(`- Brain directory: ${result.brainDir}\n`);
+    renderWorkflowSummaryLines(workflowMode).forEach((line) => output.write(`- ${line}\n`));
     output.write(`- ${result.gitHook.message}\n`);
-    output.write('- Next step: run "brain inject" at session start, or wire it into your agent hook.\n');
+    if (writtenPaths.length > 0) {
+      output.write(`- Steering rules: ${writtenPaths.join(", ")}\n`);
+    }
+    renderSetupNextSteps(workflowMode).forEach((line) => output.write(`- ${line}\n`));
   });
 
 program
@@ -170,7 +207,7 @@ program
 
 program
   .command("sweep")
-  .description("Scan and clean stale memories in the current .brain store.")
+  .description("Clean stale, expired, duplicate, or archive-ready memories after score/review has told you what to inspect.")
   .option("--auto", "Apply all safe sweep rules without prompting.")
   .option("--dry-run", "Print the sweep report without changing any files.")
   .action(async (options: { auto?: boolean; dryRun?: boolean }) => {
@@ -256,33 +293,66 @@ program
 
 program
   .command("status")
-  .description("Show recent Project Brain activity for the current project.")
+  .description("Show the current workflow mode, reminders, and recent RepoBrain activity.")
   .action(async () => {
     const projectRoot = process.cwd();
     const memories = await loadAllMemories(projectRoot);
     const activity = await loadActivityState(projectRoot);
     const steeringRules = await getSteeringRulesStatus(projectRoot);
+    const config = await loadConfig(projectRoot);
+    const snapshot = await buildWorkflowSnapshot(projectRoot, config, memories);
     const recentCapturedMemories = memories.slice(0, 5);
-    const candidateCount = memories.filter((memory) => getMemoryStatus(memory) === "candidate").length;
 
     output.write(`Project root: ${projectRoot}\n`);
+    output.write(`Workflow: ${snapshot.workflow.label} (${snapshot.workflow.mode})\n`);
     output.write(`Total memories: ${memories.length}\n`);
-    output.write(`Pending review: ${candidateCount}\n`);
+    output.write(`Pending review: ${snapshot.candidateCount}\n`);
+    output.write(`Pending reinforce: ${snapshot.pendingReinforceCount}\n`);
+    output.write(`Pending cleanup: ${snapshot.cleanupCount}\n`);
     output.write(`Last updated: ${memories[0]?.date ?? "N/A"}\n`);
     output.write(`Last injected: ${activity.lastInjectedAt ?? "N/A"}\n`);
-    if (steeringRules.claudeConfigured) {
+    output.write(`Steering rules: ${formatSteeringRulesStatus(steeringRules)}\n`);
+    if (snapshot.reminders.length > 0) {
+      output.write("Reminders:\n");
+      snapshot.reminders.forEach((line) => output.write(`- ${line}\n`));
+    }
+    if (false && steeringRules.claudeConfigured) {
       output.write("✓ Claude Code steering rules 已配置\n");
     }
-    if (steeringRules.codexConfigured) {
+    if (false && steeringRules.codexConfigured) {
       output.write("✓ Codex steering rules 已配置\n");
     }
-    if (!steeringRules.claudeConfigured && !steeringRules.codexConfigured) {
+    if (false && !steeringRules.claudeConfigured && !steeringRules.codexConfigured) {
       output.write("⚠ 未配置 steering rules，运行 brain init 可生成（建议配置后 Agent 会自动使用记忆）\n");
     }
     output.write("Recent loaded memories:\n");
     output.write(`${formatMemoryList(activity.recentLoadedMemories)}\n`);
     output.write("Recent captured memories:\n");
     output.write(`${formatMemoryList(recentCapturedMemories)}\n`);
+    output.write("Suggested next steps:\n");
+    snapshot.nextSteps.forEach((line) => output.write(`- ${line}\n`));
+  });
+
+program
+  .command("next")
+  .description("Show the next recommended RepoBrain step for the current repo state.")
+  .action(async () => {
+    const projectRoot = process.cwd();
+    const config = await loadConfig(projectRoot);
+    const memories = await loadAllMemories(projectRoot);
+    const snapshot = await buildWorkflowSnapshot(projectRoot, config, memories);
+
+    output.write(`Workflow: ${snapshot.workflow.label} (${snapshot.workflow.mode})\n`);
+    if (snapshot.nextSteps.length === 0) {
+      output.write('Next: run "brain inject" before the next coding session.\n');
+      return;
+    }
+
+    output.write(`Next: ${snapshot.nextSteps[0]}\n`);
+    if (snapshot.nextSteps.length > 1) {
+      output.write("After that:\n");
+      snapshot.nextSteps.slice(1, 4).forEach((line) => output.write(`- ${line}\n`));
+    }
   });
 
 const goalProgram = program
@@ -337,7 +407,7 @@ goalProgram
 
 program
   .command("review")
-  .description("List candidate memories waiting for approval.")
+  .description("Inspect candidate memories before approval; pairs naturally with brain approve --safe.")
   .action(async () => {
     const projectRoot = process.cwd();
     const records = await loadStoredMemoryRecords(projectRoot);
@@ -349,16 +419,27 @@ program
     }
 
     output.write(`Candidate memories: ${candidates.length}\n`);
+    const safeCandidates = candidates.filter((entry) =>
+      isSafeCandidateReview(
+        reviewCandidateMemory(
+          entry.memory,
+          records.filter((record) => record.filePath !== entry.filePath),
+        ),
+      ),
+    );
     for (const entry of candidates) {
       output.write(
         `- ${getStoredMemoryId(entry)} | ${entry.memory.type} | ${entry.memory.importance} | ${entry.memory.title}\n`,
       );
     }
+    output.write(
+      `Next: run "brain approve --safe" for ${safeCandidates.length} low-risk candidate memor${safeCandidates.length === 1 ? "y" : "ies"}, then "brain approve <id>" for anything that still needs manual judgment.\n`,
+    );
   });
 
 program
   .command("approve [memoryId]")
-  .description("Approve one candidate memory, or all candidates with --all.")
+  .description("Promote candidate memories to active; use --safe for the normal low-risk review pass.")
   .option("--all", "Approve all candidate memories.")
   .option("--safe", "Approve only candidates that still review as low-risk novel memories.")
   .action(async (memoryId: string | undefined, options: { all?: boolean; safe?: boolean }) => {
@@ -534,29 +615,39 @@ program
 
 program
   .command("reinforce")
-  .description("Analyze stdin for repeated failures, then reinforce affected memories.")
+  .description("Apply queued reinforcement suggestions, or analyze stdin for repeated failures and then reinforce memories.")
   .option("--source <source>", "Input source label for analysis context", "session")
+  .option("--pending", "Apply pending reinforcement suggestions saved by the session-end workflow.")
   .option("--yes", "Skip confirmation and apply reinforcement immediately.")
-  .action(async (options: { source: "session" | "git-commit"; yes?: boolean }) => {
+  .action(async (options: { source: "session" | "git-commit"; pending?: boolean; yes?: boolean }) => {
     const projectRoot = process.cwd();
     await initBrain(projectRoot);
 
-    const stdinText = await readStdin();
-    if (!stdinText.trim()) {
+    const records = await loadStoredMemoryRecords(projectRoot);
+    const pendingState = await loadPendingReinforcementState(projectRoot);
+    const stdinText = options.pending ? "" : await readStdin();
+    if (!options.pending && !stdinText.trim()) {
+      if (pendingState.events.length > 0) {
+        throw new Error('Provide stdin, or run "brain reinforce --pending" to apply queued reinforcement suggestions.');
+      }
       throw new Error("Provide a session summary or commit message over stdin.");
     }
 
-    const records = await loadStoredMemoryRecords(projectRoot);
-    const analysisText =
-      options.source === "git-commit" ? `Source: git-commit\n\n${stdinText}` : stdinText;
-    const events = detectFailures(
-      analysisText,
-      records.map((entry) => ({
-        ...entry.memory,
-        filePath: entry.filePath,
-        relativePath: entry.relativePath,
-      })),
-    );
+    const events = options.pending
+      ? pendingState.events
+      : detectFailures(
+          options.source === "git-commit" ? `Source: git-commit\n\n${stdinText}` : stdinText,
+          records.map((entry) => ({
+            ...entry.memory,
+            filePath: entry.filePath,
+            relativePath: entry.relativePath,
+          })),
+        );
+
+    if (events.length === 0 && options.pending) {
+      output.write("[brain] No pending reinforcement suggestions were queued.\n");
+      return;
+    }
 
     if (events.length === 0) {
       output.write("[brain] 本次 session 未发现需要强化的记忆 ✓\n");
@@ -577,6 +668,9 @@ program
     }
 
     const result = await reinforceMemories(events, getBrainDir(projectRoot));
+    if (options.pending) {
+      await clearPendingReinforcementEvents(projectRoot);
+    }
     await updateIndex(projectRoot);
     output.write(
       `[brain] reinforcement complete: boosted=${result.boosted.length}, rewritten=${result.rewritten.length}, extracted=${result.extracted.length}\n`,
@@ -585,7 +679,7 @@ program
 
 program
   .command("score")
-  .description("Review low-quality or outdated memories and optionally mark them stale or delete them.")
+  .description("Find low-quality or outdated memories before running brain sweep to clean them up.")
   .option("--mark-all", "Mark all matched memories as stale without prompting.")
   .option("--delete-all", "Delete all matched memories without prompting.")
   .option("--json", "Print matched memories as JSON and do not prompt.")
@@ -932,6 +1026,164 @@ async function promptSteeringRulesChoice(): Promise<"claude" | "codex" | "both" 
   } finally {
     rl.close();
   }
+}
+
+interface WorkflowSnapshot {
+  workflow: ReturnType<typeof getWorkflowPreset>;
+  candidateCount: number;
+  safeCandidateCount: number;
+  pendingReinforceCount: number;
+  cleanupCount: number;
+  reminders: string[];
+  nextSteps: string[];
+}
+
+async function applyWorkflowPresetConfig(projectRoot: string, workflowMode: WorkflowMode): Promise<void> {
+  const currentConfig = await loadConfig(projectRoot);
+  const preset = getWorkflowPreset(workflowMode);
+  await writeConfig(projectRoot, {
+    ...currentConfig,
+    workflowMode,
+    extractMode: preset.extractMode,
+    sweepOnInject: preset.sweepOnInject,
+  });
+}
+
+function resolveSteeringRulesChoice(
+  value: string | undefined,
+  skip: boolean | undefined,
+): "claude" | "codex" | "both" | "skip" {
+  if (skip) {
+    return "skip";
+  }
+
+  if (!value) {
+    return "both";
+  }
+
+  const normalized = value.trim().toLowerCase();
+  if (normalized === "claude" || normalized === "codex" || normalized === "both" || normalized === "skip") {
+    return normalized;
+  }
+
+  throw new Error('Use "--steering-rules claude", "--steering-rules codex", "--steering-rules both", or "--skip-steering-rules".');
+}
+
+function renderWorkflowSummaryLines(workflowMode: WorkflowMode): string[] {
+  const preset = getWorkflowPreset(workflowMode);
+  return [
+    `Workflow: ${preset.label} (${preset.mode})`,
+    `Automation: ${preset.automationLevel}`,
+    `Fit: ${preset.audience}`,
+    `Risk: ${preset.risk}`,
+  ];
+}
+
+function renderSetupNextSteps(workflowMode: WorkflowMode): string[] {
+  const preset = getWorkflowPreset(workflowMode);
+  const steps = [
+    'Start each session with "brain inject".',
+    'End sessions by extracting candidates with "brain extract" or let the hook queue them for review.',
+    'Use "brain review" and "brain approve --safe" as the normal daily promotion loop.',
+  ];
+
+  if (preset.mode === "ultra-safe-manual") {
+    steps[1] = 'End sessions with "brain extract" or "brain extract-commit" because this mode keeps extraction manual.';
+  }
+
+  if (preset.mode === "automation-first") {
+    steps.push('Check "brain status" regularly because this mode auto-applies the clearest low-risk paths.');
+  }
+
+  return steps;
+}
+
+function formatSteeringRulesStatus(status: {
+  claudeConfigured: boolean;
+  codexConfigured: boolean;
+}): string {
+  const configured: string[] = [];
+  if (status.claudeConfigured) {
+    configured.push("claude");
+  }
+  if (status.codexConfigured) {
+    configured.push("codex");
+  }
+
+  return configured.length > 0 ? configured.join(", ") : 'missing (run "brain init --steering-rules both")';
+}
+
+async function buildWorkflowSnapshot(
+  projectRoot: string,
+  config: BrainConfig,
+  memories: Memory[],
+): Promise<WorkflowSnapshot> {
+  const records = await loadStoredMemoryRecords(projectRoot);
+  const candidateRecords = getCandidateRecords(records);
+  const safeCandidateCount = candidateRecords.filter((entry) =>
+    isSafeCandidateReview(
+      reviewCandidateMemory(
+        entry.memory,
+        records.filter((record) => record.filePath !== entry.filePath),
+      ),
+    ),
+  ).length;
+  const pendingReinforcement = await loadPendingReinforcementState(projectRoot);
+  const sweepResult = await scanSweepCandidates(projectRoot, config).catch(() => null);
+  const cleanupCount = sweepResult
+    ? sweepResult.expiredWorking.length +
+      sweepResult.staleMemories.length +
+      sweepResult.archiveGoals.length +
+      sweepResult.duplicatePairs.length
+    : buildScoreCandidates(records).length;
+  const reminders: string[] = [];
+  const nextSteps: string[] = [];
+  const workflow = getWorkflowPreset(config.workflowMode);
+
+  if (candidateRecords.length > 0) {
+    reminders.push(
+      `You have ${candidateRecords.length} candidate memor${candidateRecords.length === 1 ? "y" : "ies"} waiting for review.`,
+    );
+    nextSteps.push(
+      safeCandidateCount > 0
+        ? `run "brain review" and then "brain approve --safe" for ${safeCandidateCount} low-risk candidate memor${safeCandidateCount === 1 ? "y" : "ies"}`
+        : 'run "brain review" to inspect the pending candidate queue before approving anything',
+    );
+  }
+
+  if (pendingReinforcement.events.length > 0) {
+    reminders.push(
+      `You have ${pendingReinforcement.events.length} reinforcement suggestion${pendingReinforcement.events.length === 1 ? "" : "s"} waiting to be applied.`,
+    );
+    nextSteps.push(
+      `run "brain reinforce --pending" to apply ${pendingReinforcement.events.length} queued reinforcement suggestion${pendingReinforcement.events.length === 1 ? "" : "s"}`,
+    );
+  }
+
+  if (cleanupCount > 0) {
+    reminders.push(
+      `You have ${cleanupCount} stale, expired, duplicate, or archive-ready memor${cleanupCount === 1 ? "y" : "ies"} to clean up.`,
+    );
+    nextSteps.push('run "brain score" or "brain sweep --dry-run" to inspect cleanup candidates');
+  }
+
+  if (memories.length === 0) {
+    nextSteps.push('capture your first durable lesson with "brain extract" after the next meaningful task');
+  }
+
+  if (nextSteps.length === 0) {
+    nextSteps.push('run "brain inject" before the next coding session');
+  }
+
+  return {
+    workflow,
+    candidateCount: candidateRecords.length,
+    safeCandidateCount,
+    pendingReinforceCount: pendingReinforcement.events.length,
+    cleanupCount,
+    reminders,
+    nextSteps,
+  };
 }
 
 async function readOptionalStdin(): Promise<string | undefined> {

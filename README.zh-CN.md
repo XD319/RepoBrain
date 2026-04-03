@@ -106,6 +106,28 @@ RepoBrain 刻意把闭环做得很小：
 
 因为 RepoBrain 把 durable knowledge 存在 `.brain/` 里，这些知识天然就可以进入普通的 Git 版本控制流程。也就是说，repo memory 可以像代码一样被查看、被 review、被回滚，而不是躲在另一个黑盒系统里。
 
+## Workflow Modes
+
+RepoBrain 现在把 workflow 选择提升成一等概念，不再要求新用户自己拼 `extractMode`、hook 和 review 命令。
+
+- `ultra-safe manual`
+  适合希望所有 extract、review、approve、cleanup 都手动执行的团队。默认不装 Git hook，`extractMode` 会落到 `manual`。
+- `recommended semi-auto`
+  适合大多数仓库，也是现在 `brain init` / `brain setup` 的默认模式。session start 更顺滑，session end 更省命令，但 `review / approve` 控制权仍然在人手里。
+- `automation-first`
+  适合已经熟悉 RepoBrain 的团队。低风险、明确的提取结果可以自动生效，但有歧义的内容仍然会停留在 review 队列里，不会变成黑盒。
+
+默认 `recommended semi-auto` 的日常节奏可以记成：
+
+1. session start 用 `brain inject`
+2. session end 让 RepoBrain 生成 candidate
+3. 用 `brain review` 看队列
+4. 用 `brain approve --safe` 走一遍低风险快速审批
+5. 用 `brain approve <id>` 处理需要人工判断的边界情况
+6. 需要清理时再跑 `brain score` / `brain sweep --dry-run`
+
+`brain status` 现在负责告诉你“现在堆了什么待处理项”，`brain next` 负责告诉你“下一步最值得跑什么命令”。
+
 一个把 repo knowledge 当成代码来维护的团队，最终可能会留下这样的历史：
 
 ```bash
@@ -717,6 +739,7 @@ brain list --goals
 brain stats
 brain goal done <keyword>
 brain status
+brain next
 brain review
 brain approve --safe
 brain approve <memory-id>
@@ -725,6 +748,7 @@ brain supersede <new-memory-file> <old-memory-file>
 brain lineage
 brain lineage <file>
 brain audit-memory
+brain reinforce --pending
 brain reinforce < session-summary.txt
 brain suggest-skills --task "debug flaky browser tests" --path tests/e2e/login.spec.ts
 brain suggest-skills --format json --task "debug flaky browser tests" --path tests/e2e/login.spec.ts
@@ -773,6 +797,7 @@ RepoBrain 的配置文件位于 `.brain/config.yaml`。
 当前配置项：
 
 ```yaml
+workflowMode: recommended-semi-auto
 maxInjectTokens: 1200
 extractMode: suggest
 language: zh-CN
@@ -781,6 +806,8 @@ sweepOnInject: false
 injectDiversity: true
 injectExplainMaxItems: 4
 ```
+
+- `workflowMode`：高层 workflow 预设，可选 `ultra-safe-manual`、`recommended-semi-auto`、`automation-first`
 
 - `maxInjectTokens`：生成注入上下文时使用的近似 token 预算，针对中英混合内容做了更稳的估算
 - `extractMode`：控制 hook 提取走手动、候选写入，还是直接写入 active memory
