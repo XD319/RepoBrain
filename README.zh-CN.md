@@ -446,10 +446,48 @@ risk_level: "medium"
 brain suggest-skills --task "debug flaky browser tests in CI" --path tests/e2e/login.spec.ts --path playwright.config.ts
 ```
 
-这个命令只会读取 `active` 状态的 memories。它会用 `skill_trigger_tasks` 匹配任务描述，用 `skill_trigger_paths` 匹配你传入的路径，然后输出：
+这个命令只会读取 `active` 状态的 memories。它会用 `skill_trigger_tasks` 匹配任务描述，用 `skill_trigger_paths` 匹配你传入的路径，然后生成一份可追溯、deterministic 的路由结果：
 
-- 命中的 memories，以及各自命中的原因
-- 一份 `required`、`recommended`、`suppressed` 或 `conflicted` 的 skill shortlist
+- `matched_memories`：哪些 memories 命中了，以及为什么命中
+- `resolved_skills`：把本地规则应用到每个 skill 之后的结果
+- `conflicts`：冲突记录，包含 required-vs-suppressed 这类冲突的本地策略结果
+- `invocation_plan`：稳定的 adapter-facing plan，至少包含 `required`、`prefer_first`、`optional_fallback`、`suppress`，并在需要时额外给出 `blocked`、`human_review`
+
+默认仍然输出给人看的 markdown：
+
+```bash
+brain suggest-skills --task "debug flaky browser tests in CI" --path tests/e2e/login.spec.ts
+```
+
+如果上层 agent adapter 需要直接消费 plan，可以切到 JSON：
+
+```bash
+brain suggest-skills --format json --task "debug flaky browser tests in CI" --path tests/e2e/login.spec.ts
+# 或
+brain suggest-skills --json --task "debug flaky browser tests in CI" --path tests/e2e/login.spec.ts
+```
+
+JSON 结构示例：
+
+```json
+{
+  "contract_version": "repobrain.skill-plan.v1",
+  "kind": "repobrain.skill_invocation_plan",
+  "task": "debug flaky browser tests in CI",
+  "paths": ["tests/e2e/login.spec.ts"],
+  "matched_memories": [],
+  "resolved_skills": [],
+  "conflicts": [],
+  "invocation_plan": {
+    "required": [],
+    "prefer_first": [],
+    "optional_fallback": [],
+    "suppress": [],
+    "blocked": [],
+    "human_review": []
+  }
+}
+```
 
 如果任务描述已经在文件里，或者来自另一个命令，也可以直接从 `stdin` 管道输入：
 
@@ -457,12 +495,19 @@ brain suggest-skills --task "debug flaky browser tests in CI" --path tests/e2e/l
 cat task.txt | brain suggest-skills --path src/cli.ts --path test/store.test.mjs
 ```
 
-### 什么时候用 `inject`，什么时候用 `suggest-skills`
+### 什么时候用 `inject`，什么时候用 `suggest-skills`，什么时候消费 `invocation_plan`
 
-如果你需要在开始编码前先把 repo 的 durable context 压缩带进 session，用 `brain inject`。如果你已经知道当前任务，只是想让 RepoBrain 帮你缩小 skill / workflow 选择范围，用 `brain suggest-skills`。
+如果你需要在开始编码前先把 repo 的 durable context 压缩带进 session，用 `brain inject`。如果你已经知道当前任务，只是想让 RepoBrain 帮你缩小 skill / workflow 选择范围，用 `brain suggest-skills`。如果你在写 Claude Code / Codex 之类的上层 adapter，并且已经有任务上下文，只需要一个稳定 contract 来路由 skill，就直接消费 `invocation_plan`。
 
 - `brain inject`：更适合 session 开始前、方案实现前、风险较高的改动前，用来先看 repo 级上下文和历史约束
-- `brain suggest-skills`：更适合任务已经明确之后，决定该交给哪个 skill 或执行流来处理
+- `brain suggest-skills`：更适合任务已经明确之后，把 task/path 信号解析成一份本地 deterministic 的 skill 路由结果
+- `invocation_plan`：更适合薄 adapter 直接消费 RepoBrain 的路由结论，而不是再二次理解 prose
+
+边界保持不变：
+
+- `brain inject` 负责给上下文
+- `brain suggest-skills` 负责把 metadata 解析成 plan
+- 上层 adapter 决定是否、何时、以及如何真正调用 skill
 
 `brain inject` 现在会按综合注入优先级对 `active` memories 排序，跳过 frontmatter 中 `stale: true` 或 `superseded_by` 非空的条目；当 `version >= 2` 时，会在标题前加上 `[更新 vN]` 前缀；如果 `supersedes` 指向的旧文件没有正确回填 `superseded_by`，inject 还会在终端输出警告。成功注入后，RepoBrain 仍会以原子方式回写更高的 `hit_count` 和最新的 `last_used` 日期。默认情况下，它还会读取当前 Git 分支名和 `git diff --name-only HEAD`，对 `files`、`area`、`tags` 能命中当前改动上下文的 memories 额外加分；如果当前不在 Git 仓库中，或者旧 memories 没有填写 `files` 和 `area`，则会自动退回旧的排序逻辑。如果你传入任务信号，RepoBrain 仍会给出简短的命中原因，主要包括：
 
@@ -609,6 +654,7 @@ brain lineage <file>
 brain audit-memory
 brain reinforce < session-summary.txt
 brain suggest-skills --task "debug flaky browser tests" --path tests/e2e/login.spec.ts
+brain suggest-skills --format json --task "debug flaky browser tests" --path tests/e2e/login.spec.ts
 brain share <memory-id>
 brain share --all-active
 brain mcp
@@ -643,7 +689,7 @@ brain mcp
 - `brain score`：按严重度排序检查低质量或过旧的 memories，并支持交互式或批量标记 stale、删除、跳过或导出 JSON
 - `brain audit-memory`：审计 `.brain/` 中疑似 stale、conflict、low-signal 或 overscoped 的条目
 - `brain reinforce`：从 `stdin` 手动执行失败分析和记忆强化；自动化或 CI 场景可加 `--yes` 跳过确认
-- `brain suggest-skills`：根据任务文本、变更路径和命中的 active memories 输出一份 skill shortlist
+- `brain suggest-skills`：根据任务文本、变更路径和命中的 active memories 输出一份 deterministic skill routing plan
 - `brain share`：为单条 memory 或全部 active memories 输出建议的 `git add` / `git commit` 命令
 - `brain mcp`：以最小 MCP stdio server 的形式运行 RepoBrain
 

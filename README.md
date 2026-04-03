@@ -456,16 +456,54 @@ Use Playwright-oriented guidance first when the task touches browser test infras
 
 ### Suggest A Skill Shortlist
 
-Once some memories carry routing metadata, you can ask RepoBrain to turn the current task and changed paths into a skill shortlist:
+Once some memories carry routing metadata, you can ask RepoBrain to turn the current task and changed paths into a deterministic routing plan:
 
 ```bash
 brain suggest-skills --task "debug flaky browser tests in CI" --path tests/e2e/login.spec.ts --path playwright.config.ts
 ```
 
-The command only considers `active` memories. It matches the task against `skill_trigger_tasks`, matches each provided path against `skill_trigger_paths`, then prints:
+The command only considers `active` memories. It matches the task against `skill_trigger_tasks`, matches each provided path against `skill_trigger_paths`, then produces:
 
-- the matched memories and why they matched
-- a shortlist of `required`, `recommended`, `suppressed`, or `conflicted` skills
+- `matched_memories`: which memories matched and why
+- `resolved_skills`: the per-skill resolution after applying local rules
+- `conflicts`: deterministic conflict records, including local strategy outcomes for required-vs-suppressed collisions
+- `invocation_plan`: a stable adapter-facing plan with `required`, `prefer_first`, `optional_fallback`, and `suppress` buckets, plus `blocked` and `human_review` when the local rules refuse to auto-resolve
+
+Markdown stays the default human-readable output:
+
+```bash
+brain suggest-skills --task "debug flaky browser tests in CI" --path tests/e2e/login.spec.ts
+```
+
+JSON is available for agent adapters that want a stable machine contract:
+
+```bash
+brain suggest-skills --format json --task "debug flaky browser tests in CI" --path tests/e2e/login.spec.ts
+# or
+brain suggest-skills --json --task "debug flaky browser tests in CI" --path tests/e2e/login.spec.ts
+```
+
+Example JSON shape:
+
+```json
+{
+  "contract_version": "repobrain.skill-plan.v1",
+  "kind": "repobrain.skill_invocation_plan",
+  "task": "debug flaky browser tests in CI",
+  "paths": ["tests/e2e/login.spec.ts"],
+  "matched_memories": [],
+  "resolved_skills": [],
+  "conflicts": [],
+  "invocation_plan": {
+    "required": [],
+    "prefer_first": [],
+    "optional_fallback": [],
+    "suppress": [],
+    "blocked": [],
+    "human_review": []
+  }
+}
+```
 
 If you already have the task description in a file or another command, you can also pipe it over stdin:
 
@@ -473,12 +511,19 @@ If you already have the task description in a file or another command, you can a
 cat task.txt | brain suggest-skills --path src/cli.ts --path test/store.test.mjs
 ```
 
-### When To Use `inject` Vs `suggest-skills`
+### When To Use `inject` Vs `suggest-skills` Vs `invocation_plan`
 
-Use `brain inject` when the agent needs a compact, durable repo context block before it starts coding. Use `brain suggest-skills` when you already know the task and want RepoBrain to narrow the execution workflow or tool choice.
+Use `brain inject` when the agent needs a compact, durable repo context block before it starts coding. Use `brain suggest-skills` when you already know the task and want RepoBrain to narrow the execution workflow or tool choice. Consume the `invocation_plan` when an adapter already has the task context and needs a stable contract it can route on without re-interpreting prose.
 
 - `brain inject`: best for session start, implementation planning, risky edits, and avoiding old repo-specific mistakes
-- `brain suggest-skills`: best for deciding which skill or workflow should own the task once you already know the target work
+- `brain suggest-skills`: best for turning task text plus changed paths into a local deterministic routing decision
+- `invocation_plan`: best for Claude Code, Codex, or other thin adapters that should consume RepoBrain's routing result directly without letting Core execute the skill for them
+
+The boundary stays strict:
+
+- `brain inject` gives context
+- `brain suggest-skills` resolves routing metadata into a plan
+- the adapter decides whether, when, and how to invoke a skill from that plan
 
 `brain inject` now sorts active memories by computed injection priority, skips memories whose frontmatter sets `stale: true` or `superseded_by` to a newer `.brain/` file, prefixes versioned entries with `[更新 vN]` when `version >= 2`, warns on broken supersede back-links during inject, and atomically writes back a higher `hit_count` plus a fresh `last_used` date for injected memories. By default, it also inspects the current Git branch plus `git diff --name-only HEAD` and boosts memories whose `files`, `area`, or `tags` match the worktree context. If Git context is unavailable, or older memories do not define `files` and `area`, RepoBrain automatically falls back to the legacy ordering. When you provide task signals, RepoBrain still shows short rationale hints based on:
 
@@ -626,6 +671,7 @@ brain lineage <file>
 brain audit-memory
 brain reinforce < session-summary.txt
 brain suggest-skills --task "debug flaky browser tests" --path tests/e2e/login.spec.ts
+brain suggest-skills --format json --task "debug flaky browser tests" --path tests/e2e/login.spec.ts
 brain share <memory-id>
 brain share --all-active
 brain mcp
@@ -656,7 +702,7 @@ brain mcp
 - `brain score`: review low-quality or outdated memories, sorted by severity, and interactively or non-interactively mark stale, delete, keep, or export JSON
 - `brain audit-memory`: audit stored memories for stale, conflict, low-signal, and overscoped entries
 - `brain reinforce`: manually run failure analysis plus memory reinforcement from `stdin`; use `--yes` to skip confirmation for automation or CI
-- `brain suggest-skills`: build a skill shortlist from task text, changed paths, and matched active memories
+- `brain suggest-skills`: build a deterministic skill routing plan from task text, changed paths, and matched active memories
 - `brain share`: suggest the next `git add` and `git commit` commands for one memory or all active memories
 - `brain mcp`: run RepoBrain as a minimal MCP stdio server
 

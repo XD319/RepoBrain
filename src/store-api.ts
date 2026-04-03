@@ -23,6 +23,13 @@ export {
   detectFailures,
 } from "./failure-detector.js";
 export {
+  buildSkillShortlist,
+  renderSkillShortlist,
+  renderSkillShortlistJson,
+  SUGGEST_SKILLS_CONTRACT_KIND,
+  SUGGEST_SKILLS_CONTRACT_VERSION,
+} from "./suggest-skills.js";
+export {
   reinforceMemories,
 } from "./reinforce.js";
 export {
@@ -54,6 +61,15 @@ export type {
   ReviewedMemoryCandidate,
   ValidatedExternalReviewInput,
 } from "./types.js";
+export type {
+  InvocationPlan,
+  MatchedMemory,
+  ResolvedSkill,
+  SkillConflict,
+  SkillSuggestionResult,
+  SuggestSkillsOptions,
+  SuggestSkillsOutputFormat,
+} from "./suggest-skills.js";
 export type {
   FailureEvent,
 } from "./failure-detector.js";

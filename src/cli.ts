@@ -19,7 +19,11 @@ import { reviewCandidateMemories, reviewCandidateMemory } from "./reviewer.js";
 import { buildSharePlan } from "./share.js";
 import { setupRepoBrain } from "./setup.js";
 import { getSteeringRulesStatus, writeSteeringRules } from "./steering-rules.js";
-import { buildSkillShortlist, renderSkillShortlist } from "./suggest-skills.js";
+import {
+  buildSkillShortlist,
+  renderSkillShortlist,
+  renderSkillShortlistJson,
+} from "./suggest-skills.js";
 import {
   applySweepAuto,
   archiveGoalMemory,
@@ -498,7 +502,9 @@ program
     collectValues,
     [] as string[],
   )
-  .action(async (options: { task?: string; path: string[] }) => {
+  .option("--json", 'Print the result as JSON. Equivalent to "--format json".')
+  .option("--format <format>", 'Output format: "markdown" or "json".', "markdown")
+  .action(async (options: { task?: string; path: string[]; json?: boolean; format?: string }) => {
     const projectRoot = process.cwd();
     const task = options.task?.trim() || (await readOptionalStdin());
     const result = await buildSkillShortlist(projectRoot, {
@@ -506,7 +512,12 @@ program
       paths: options.path,
     });
 
-    output.write(`${renderSkillShortlist(result)}\n`);
+    const format = resolveSuggestSkillsOutputFormat(options);
+    output.write(
+      format === "json"
+        ? `${renderSkillShortlistJson(result)}\n`
+        : `${renderSkillShortlist(result)}\n`,
+    );
   });
 
 program
@@ -940,6 +951,22 @@ function collectValues(value: string, previous: string[]): string[] {
       .map((item) => item.trim())
       .filter(Boolean),
   ];
+}
+
+function resolveSuggestSkillsOutputFormat(options: {
+  json?: boolean;
+  format?: string;
+}): "markdown" | "json" {
+  const format = options.format?.trim().toLowerCase() || "markdown";
+  if (format !== "markdown" && format !== "json") {
+    throw new Error('Use "--format markdown" or "--format json".');
+  }
+
+  if (options.json && format !== "json" && options.format) {
+    throw new Error('Use either "--json" or "--format json", not both with different values.');
+  }
+
+  return options.json ? "json" : format;
 }
 
 function parseMemoryTypeOption(value: string): MemoryType {
