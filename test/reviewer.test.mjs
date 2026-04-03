@@ -553,7 +553,7 @@ async function withTempRepo(callback) {
     await initBrain(projectRoot);
     await callback(projectRoot);
   } finally {
-    await rm(projectRoot, { recursive: true, force: true });
+    await rm(projectRoot, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   }
 }
 

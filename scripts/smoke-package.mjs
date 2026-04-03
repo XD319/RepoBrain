@@ -87,7 +87,7 @@ try {
 
   console.log("Package smoke test passed.");
 } finally {
-  await rm(tempRoot, { recursive: true, force: true });
+  await rm(tempRoot, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
 }
 
 async function runCommand(command, args, options) {
