@@ -4,6 +4,8 @@ import { extractMemories } from "../dist/extract.js";
 
 const config = {
   maxInjectTokens: 1200,
+  triggerMode: "detect",
+  captureMode: "candidate",
   extractMode: "suggest",
   language: "en",
   staleDays: 30,

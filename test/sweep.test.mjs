@@ -17,7 +17,8 @@ await runTest("sweep config fields default safely and invalid values emit warnin
       path.join(projectRoot, ".brain", "config.yaml"),
       [
         "maxInjectTokens: 1200",
-        "extractMode: suggest",
+        "triggerMode: detect",
+        "captureMode: candidate",
         "language: zh-CN",
         "staleDays: nope",
         "sweepOnInject: maybe",

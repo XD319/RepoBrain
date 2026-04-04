@@ -108,14 +108,24 @@ RepoBrain 刻意把闭环做得很小：
 
 ## Workflow Modes
 
-RepoBrain 现在把 workflow 选择提升成一等概念，不再要求新用户自己拼 `extractMode`、hook 和 review 命令。
+RepoBrain 现在把 workflow 选择提升成一等概念，不再要求新用户自己拼低层 flag。每个 preset 映射到三个清晰的行为轴：
+
+| Preset | `triggerMode` | `captureMode` | `autoApproveSafeCandidates` |
+|---|---|---|---|
+| `ultra-safe-manual` | `manual` | `direct` | `false` |
+| `recommended-semi-auto` | `detect` | `candidate` | `false` |
+| `automation-first` | `detect` | `candidate` | `true` |
+
+- **`triggerMode`**：`manual` 表示只有手动运行 `brain extract` 时才提取。`detect` 表示 hooks 和 `brain capture` 自动检测是否值得提取。
+- **`captureMode`**：`direct` 表示 accept 的 memory 直接写成 active。`candidate` 表示所有新 memory 先存为 candidate 等待 review。`reviewable` 类似 `candidate` 但还会推迟 merge/supersede 决策。
+- **`autoApproveSafeCandidates`**：为 `true` 时，通过严格安全检查的 candidate（novel、非 working、非临时、无 merge/supersede）会自动提升。
 
 - `ultra-safe manual`
-  适合希望所有 extract、review、approve、cleanup 都手动执行的团队。默认不装 Git hook，`extractMode` 会落到 `manual`。
+  适合希望所有 extract、review、approve、cleanup 都手动执行的团队。默认不装 Git hook，`triggerMode` 为 `manual`。
 - `recommended semi-auto`
-  适合大多数仓库，也是现在 `brain init` / `brain setup` 的默认模式。session start 更顺滑，session end 更省命令，但 `review / approve` 控制权仍然在人手里。
+  适合大多数仓库，也是现在 `brain init` / `brain setup` 的默认模式。hooks 自动检测提取；新 memory 先存为 candidate；审批权留在人手里。
 - `automation-first`
-  适合已经熟悉 RepoBrain 的团队。低风险、明确的提取结果可以自动生效，但有歧义的内容仍然会停留在 review 队列里，不会变成黑盒。此模式默认启用 `autoApproveSafeCandidates`，允许 session-end hook 自动提升通过严格安全检查的 candidate。
+  适合已经熟悉 RepoBrain 的团队。hooks 自动检测提取，candidate-first 加 safe auto-approve；有歧义的内容仍然留在 review 队列里。
 
 默认 `recommended semi-auto` 的日常节奏可以记成：
 
@@ -413,7 +423,8 @@ brain setup
 生成出来的 `config.yaml` 刻意保持很小：
 
 - `maxInjectTokens`：`brain inject` 生成上下文时使用的近似 token 预算
-- `extractMode`：控制 hooks 走手动、候选写入，还是直接写入 active memory
+- `triggerMode`：控制提取是手动触发还是由 hooks 自动检测
+- `captureMode`：控制新 memory 是直接写成 active 还是先存为 candidate 等待 review
 - `language`：提取提示词偏好的输出语言
 
 ### Step 2: Capture Your First Memory
@@ -962,7 +973,8 @@ RepoBrain 的配置文件位于 `.brain/config.yaml`。
 ```yaml
 workflowMode: recommended-semi-auto
 maxInjectTokens: 1200
-extractMode: suggest
+triggerMode: detect
+captureMode: candidate
 language: zh-CN
 staleDays: 90
 sweepOnInject: false
@@ -972,13 +984,19 @@ autoApproveSafeCandidates: false
 ```
 
 - `workflowMode`：高层 workflow 预设，可选 `ultra-safe-manual`、`recommended-semi-auto`、`automation-first`
-
 - `maxInjectTokens`：生成注入上下文时使用的近似 token 预算，针对中英混合内容做了更稳的估算
-- `extractMode`：控制 hook 提取走手动、候选写入，还是直接写入 active memory
+- `triggerMode`：控制提取何时触发
+  - `manual`：只能通过 `brain extract` CLI 手动触发；hooks 不做任何事
+  - `detect`：hooks 和 `brain capture` 自动检测是否值得提取
+- `captureMode`：控制新 memory 如何写入
+  - `direct`：accept 的 memory 直接写成 active
+  - `candidate`：所有新 memory 先存为 candidate，等待 review（默认）
+  - `reviewable`：类似 `candidate`，但还会推迟 merge/supersede 决策
 - `language`：提取提示词偏好的输出语言
 - `staleDays`：非 goal memory 距离 `updated` 超过多少天后，`brain sweep` 会把它判定为陈旧并尝试降权
 - `sweepOnInject`：为 `true` 时，每次 `brain inject` 前都会先执行一次 `brain sweep --auto`；清理日志写到 `stderr`，不会污染 inject 的 markdown 输出
 - `autoApproveSafeCandidates`：为 `true` 时，`brain promote-candidates` 和 session-end hook 会自动提升通过所有安全检查的 candidate（novel、非 working、非临时、无 merge/supersede）；默认 `false`，`automation-first` 工作流默认启用
+- 旧的 `extractMode`（`manual` / `suggest` / `auto`）仍可读取，但已弃用；会自动迁移到等效的 `triggerMode` + `captureMode` 组合，并给出弃用提示
 - 旧的 `provider`、`model`、`apiKey` 一类 review 配置会被忽略，并给出弃用提示；RepoBrain Core 不会调用远程审核服务
 
 ## Memory 生命周期
@@ -987,7 +1005,7 @@ autoApproveSafeCandidates: false
 
 - 新提取出的 memory 会先经过一轮 deterministic review：`accept`、`merge`、`supersede` 或 `reject`
 - 手动执行 `brain extract` 时，`accept` 结果仍会直接写成 `active`
-- hook 在 `suggest` 模式下，会把可接受的结果写成 `candidate`
+- hook 在 `captureMode: candidate` 模式下，会把可接受的结果写成 `candidate`
 - 重复或高度重合的 durable knowledge 会走 `merge`，而不是交给远程 reviewer
 - `merge` 和 `supersede` 目前都保持保守：RepoBrain 只会把新 memory 存成 `candidate`，并输出目标 memory ids，不会自动改写旧文件
 - reviewer 的内部关系现在比公开 decision 更细：`duplicate`、`additive_update`、`full_replacement`、`possible_split`、`ambiguous_overlap`

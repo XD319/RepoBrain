@@ -16,6 +16,8 @@ await runTest("brain setup initializes .brain and installs the post-commit hook"
     assert.match(result.stdout, /Initialized RepoBrain in/);
     assert.match(result.stdout, /Installed the post-commit hook at/);
     assert.match(result.stdout, /Workflow: Recommended semi-auto/);
+    assert.match(result.stdout, /Trigger: auto-detect/);
+    assert.match(result.stdout, /Capture: candidate-first/);
     assert.match(result.stdout, /Steering rules:/);
 
     await access(path.join(projectRoot, ".brain", "config.yaml"));
@@ -24,7 +26,8 @@ await runTest("brain setup initializes .brain and installs the post-commit hook"
 
     const configRaw = await readFile(path.join(projectRoot, ".brain", "config.yaml"), "utf8");
     assert.match(configRaw, /workflowMode: recommended-semi-auto/);
-    assert.match(configRaw, /extractMode: suggest/);
+    assert.match(configRaw, /triggerMode: detect/);
+    assert.match(configRaw, /captureMode: candidate/);
 
     const hookContent = await readFile(path.join(projectRoot, ".git", "hooks", "post-commit"), "utf8");
     assert.match(hookContent, /project-brain post-commit hook/);
@@ -61,7 +64,8 @@ await runTest("brain setup respects the ultra-safe manual workflow preset", asyn
 
     const configRaw = await readFile(path.join(projectRoot, ".brain", "config.yaml"), "utf8");
     assert.match(configRaw, /workflowMode: ultra-safe-manual/);
-    assert.match(configRaw, /extractMode: manual/);
+    assert.match(configRaw, /triggerMode: manual/);
+    assert.match(configRaw, /captureMode: direct/);
     assert.match(configRaw, /sweepOnInject: false/);
   });
 });

@@ -120,18 +120,28 @@ In practice, that means:
 4. You approve good candidates with `brain approve <id>`, `brain approve --safe`, or `brain approve --all`.
 5. Only approved memories affect future `brain inject` output.
 
-If you want a fully manual flow, set `extractMode: manual`. If you want immediate writes from hooks, set `extractMode: auto`.
+If you want a fully manual flow, set `triggerMode: manual`. If you want hook-based detection with candidate-first writes, set `triggerMode: detect` and `captureMode: candidate` (this is the default).
 
 ## Workflow Modes
 
-RepoBrain now treats workflow choice as a first-class setup decision instead of making you stitch together low-level flags by hand.
+RepoBrain now treats workflow choice as a first-class setup decision instead of making you stitch together low-level flags by hand. Each preset maps to three clear axes:
+
+| Preset | `triggerMode` | `captureMode` | `autoApproveSafeCandidates` |
+|---|---|---|---|
+| `ultra-safe-manual` | `manual` | `direct` | `false` |
+| `recommended-semi-auto` | `detect` | `candidate` | `false` |
+| `automation-first` | `detect` | `candidate` | `true` |
+
+- **`triggerMode`**: `manual` means extraction only happens when you run `brain extract` yourself. `detect` means hooks and `brain capture` auto-detect when extraction is worthwhile.
+- **`captureMode`**: `direct` means accepted memories are written as active immediately. `candidate` means all new memories start as candidates for review. `reviewable` is like `candidate` but also defers merge/supersede decisions.
+- **`autoApproveSafeCandidates`**: when `true`, candidates that pass strict safety checks (novel, non-working, non-temporary, no merge/supersede) are auto-promoted.
 
 - `ultra-safe manual`
-  Best for teams that want every extract, review, approval, and cleanup step to stay manual. RepoBrain still helps with `brain inject`, but setup skips the Git hook by default and uses `extractMode: manual`.
+  Best for teams that want every extract, review, approval, and cleanup step to stay manual. RepoBrain still helps with `brain inject`, but setup skips the Git hook by default and uses `triggerMode: manual`.
 - `recommended semi-auto`
-  Best for most repos and now the default for `brain init` and `brain setup`. Session start stays easy with `brain inject`, session end can queue reviewable candidates, and humans keep the final `review` / `approve` control.
+  Best for most repos and now the default for `brain init` and `brain setup`. Hooks auto-detect extraction; new memories start as candidates; approval stays human.
 - `automation-first`
-  Best for teams already comfortable with RepoBrain. Clear low-risk extractions can go active automatically, `brain inject` can run cleanup first, and ambiguous items still stay reviewable instead of becoming a black box. This mode also enables `autoApproveSafeCandidates`, which lets the session-end hook automatically promote candidates that pass strict safety checks.
+  Best for teams already comfortable with RepoBrain. Hooks auto-detect extraction, candidate-first with safe auto-approve enabled; ambiguous items still stay reviewable instead of becoming a black box.
 
 The practical loop for the default `recommended semi-auto` mode is:
 
@@ -442,7 +452,8 @@ After setup, `.brain/` should look like this:
 The generated `config.yaml` starts small on purpose:
 
 - `maxInjectTokens`: approximate token budget for `brain inject`
-- `extractMode`: controls whether hooks stay manual, save candidates, or write active memories
+- `triggerMode`: controls whether extraction is triggered manually or auto-detected by hooks
+- `captureMode`: controls whether new memories are written directly active or as candidates for review
 - `workflowMode`: sets the default workflow preset and recommended command cadence
 - `language`: preferred output language for extraction prompts
 
@@ -1050,7 +1061,8 @@ Current options:
 ```yaml
 workflowMode: recommended-semi-auto
 maxInjectTokens: 1200
-extractMode: suggest
+triggerMode: detect
+captureMode: candidate
 language: zh-CN
 staleDays: 90
 sweepOnInject: false
@@ -1061,16 +1073,20 @@ autoApproveSafeCandidates: false
 
 - `workflowMode`: high-level workflow preset; use `ultra-safe-manual`, `recommended-semi-auto`, or `automation-first`
 - `maxInjectTokens`: approximate token budget used when building injected context, with Unicode-aware estimation for mixed English/CJK content
-- `extractMode`: controls hook-based extraction behavior
-- `manual`: never write from hooks; use `brain extract` yourself
-- `suggest`: store hook-extracted memories as `candidate` records for review
-- `auto`: let hooks write active memories immediately
+- `triggerMode`: controls when extraction happens
+  - `manual`: only extract via `brain extract` CLI; hooks do nothing
+  - `detect`: hooks and `brain capture` auto-detect whether extraction is worthwhile
+- `captureMode`: controls how new memories are written
+  - `direct`: accepted memories are written as active immediately
+  - `candidate`: all new memories start as candidates for review (default)
+  - `reviewable`: like `candidate` but also defers merge/supersede decisions
 - `language`: preferred output language for extraction prompts
 - `staleDays`: number of days before a non-goal memory becomes eligible for sweep downgrading
 - `sweepOnInject`: when `true`, `brain inject` runs `brain sweep --auto` first and prints sweep logs to `stderr` so the injected markdown stays clean
 - `injectDiversity`: when `true`, `brain inject` uses diversity-aware selection so one cluster of similar memories does not consume the entire token budget
 - `injectExplainMaxItems`: maximum number of top score components shown per memory in `--explain` / debug scoring reports
 - `autoApproveSafeCandidates`: when `true`, `brain promote-candidates` and the session-end hook auto-promote candidates that pass all safety checks (novel, non-working, non-temporary, no merge/supersede); defaults to `false`, enabled by default in `automation-first` workflow
+- legacy `extractMode` (`manual` / `suggest` / `auto`) is still accepted but deprecated; it is automatically migrated to the equivalent `triggerMode` + `captureMode` combination with a deprecation warning
 - legacy `provider`, `model`, or `apiKey` style review settings are ignored with a deprecation warning; RepoBrain Core does not call remote review services
 
 ## Memory Lifecycle
@@ -1079,7 +1095,7 @@ RepoBrain keeps lifecycle rules intentionally small for the current MVP:
 
 - New extracted memories go through a deterministic review pass first: `accept`, `merge`, `supersede`, or `reject`
 - Manual `brain extract` still writes `accept` memories immediately as `active`
-- Hook-driven extraction in `suggest` mode saves accepted memories as `candidate`
+- Hook-driven extraction with `captureMode: candidate` saves accepted memories as `candidate`
 - duplicate or near-duplicate durable knowledge merges into the matched memory id instead of being treated as a remote-review problem
 - `merge` and `supersede` results are kept conservative today: the extracted memory is saved as a `candidate`, and RepoBrain prints the target memory ids instead of rewriting old files automatically
 - internal reviewer relationships are richer than the public decision: `duplicate`, `additive_update`, `full_replacement`, `possible_split`, and `ambiguous_overlap`

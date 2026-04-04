@@ -23,7 +23,7 @@ async function main(): Promise<void> {
       return;
     }
 
-    if (config.extractMode === "manual") {
+    if (config.triggerMode === "manual") {
       return;
     }
 
@@ -40,14 +40,11 @@ async function main(): Promise<void> {
         continue;
       }
 
+      const useCandidate = config.captureMode === "candidate" || config.captureMode === "reviewable" || review.decision !== "accept";
       const toSave: Memory = {
         ...memory,
         ...(memory.source ? {} : { source: "session" }),
-        ...(
-          config.extractMode === "suggest" || review.decision !== "accept"
-            ? { status: "candidate" as const }
-            : { status: "active" as const }
-        ),
+        ...(useCandidate ? { status: "candidate" as const } : { status: "active" as const }),
       };
       await saveMemory(toSave, projectRoot);
 

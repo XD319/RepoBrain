@@ -9,6 +9,8 @@ import { initBrain, loadStoredMemoryRecords, saveMemory } from "../dist/store-ap
 const DEFAULT_BRAIN_CONFIG = {
   workflowMode: "recommended-semi-auto",
   maxInjectTokens: 1200,
+  triggerMode: "detect",
+  captureMode: "candidate",
   extractMode: "suggest",
   language: "zh-CN",
   staleDays: 90,

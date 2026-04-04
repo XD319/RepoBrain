@@ -13,7 +13,9 @@ export {
   computeInjectPriority,
 } from "./memory-priority.js";
 export {
+  deriveLegacyExtractMode,
   loadConfig,
+  migrateExtractModeToNewFields,
   renderConfigWarnings,
 } from "./config.js";
 export {

@@ -4,6 +4,8 @@ export const MEMORY_SOURCES = ["session", "git-commit", "manual", "pr"] as const
 export const MEMORY_STATUSES = ["active", "candidate", "done", "stale", "superseded"] as const;
 export const MEMORY_ORIGINS = ["failure"] as const;
 export const EXTRACT_MODES = ["manual", "suggest", "auto"] as const;
+export const TRIGGER_MODES = ["manual", "detect"] as const;
+export const CAPTURE_MODES = ["direct", "candidate", "reviewable"] as const;
 export const WORKFLOW_MODES = ["ultra-safe-manual", "recommended-semi-auto", "automation-first"] as const;
 export const INVOCATION_MODES = ["required", "prefer", "optional", "suppress"] as const;
 export const RISK_LEVELS = ["high", "medium", "low"] as const;
@@ -36,6 +38,8 @@ export type MemorySource = (typeof MEMORY_SOURCES)[number];
 export type MemoryStatus = (typeof MEMORY_STATUSES)[number];
 export type MemoryOrigin = (typeof MEMORY_ORIGINS)[number];
 export type ExtractMode = (typeof EXTRACT_MODES)[number];
+export type TriggerMode = (typeof TRIGGER_MODES)[number];
+export type CaptureMode = (typeof CAPTURE_MODES)[number];
 export type WorkflowMode = (typeof WORKFLOW_MODES)[number];
 export type InvocationMode = (typeof INVOCATION_MODES)[number];
 export type RiskLevel = (typeof RISK_LEVELS)[number];
@@ -85,6 +89,9 @@ export interface Memory {
 export interface BrainConfig {
   workflowMode: WorkflowMode;
   maxInjectTokens: number;
+  triggerMode: TriggerMode;
+  captureMode: CaptureMode;
+  /** @deprecated Use triggerMode + captureMode instead. Kept for backward compat during migration. */
   extractMode: ExtractMode;
   language: string;
   staleDays: number;

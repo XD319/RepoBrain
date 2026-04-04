@@ -741,13 +741,19 @@ await runTest("legacy remote review config fields are ignored with a deprecation
     const warnings = renderConfigWarnings(config);
 
     assert.equal(config.extractMode, "suggest");
+    assert.equal(config.triggerMode, "detect");
+    assert.equal(config.captureMode, "candidate");
     assert.equal(config.maxInjectTokens, 1200);
     assert.equal(config.language, "zh-CN");
-    assert.equal(warnings.length, 1);
-    assert.match(warnings[0], /Ignoring deprecated remote review config fields/);
-    assert.match(warnings[0], /reviewApiKey/);
-    assert.match(warnings[0], /reviewModel/);
-    assert.match(warnings[0], /reviewProvider/);
+    assert.equal(warnings.length, 2);
+    const remoteWarning = warnings.find((w) => w.includes("Ignoring deprecated remote review"));
+    const extractWarning = warnings.find((w) => w.includes("extractMode"));
+    assert.ok(remoteWarning, "should have a remote review deprecation warning");
+    assert.match(remoteWarning, /reviewApiKey/);
+    assert.match(remoteWarning, /reviewModel/);
+    assert.match(remoteWarning, /reviewProvider/);
+    assert.ok(extractWarning, "should have an extractMode deprecation warning");
+    assert.match(extractWarning, /triggerMode: detect/);
   });
 });
 

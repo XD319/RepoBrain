@@ -2,8 +2,8 @@ import { access, readFile, writeFile } from "node:fs/promises";
 import { constants as fsConstants } from "node:fs";
 import path from "node:path";
 
-import type { BrainConfig, ExtractMode, WorkflowMode } from "./types.js";
-import { EXTRACT_MODES, WORKFLOW_MODES } from "./types.js";
+import type { BrainConfig, CaptureMode, ExtractMode, TriggerMode, WorkflowMode } from "./types.js";
+import { CAPTURE_MODES, EXTRACT_MODES, TRIGGER_MODES, WORKFLOW_MODES } from "./types.js";
 
 export interface WorkflowPreset {
   mode: WorkflowMode;
@@ -11,6 +11,9 @@ export interface WorkflowPreset {
   audience: string;
   automationLevel: string;
   risk: string;
+  triggerMode: TriggerMode;
+  captureMode: CaptureMode;
+  /** @deprecated Derived from triggerMode + captureMode for backward compat. */
   extractMode: ExtractMode;
   sweepOnInject: boolean;
   gitHookDefault: boolean;
@@ -24,6 +27,8 @@ export const WORKFLOW_PRESETS: Record<WorkflowMode, WorkflowPreset> = {
     audience: "Teams that want every durable write and cleanup step to stay manual.",
     automationLevel: "No automatic extraction or cleanup.",
     risk: "Lowest automation risk; highest command count.",
+    triggerMode: "manual",
+    captureMode: "direct",
     extractMode: "manual",
     sweepOnInject: false,
     gitHookDefault: false,
@@ -33,8 +38,10 @@ export const WORKFLOW_PRESETS: Record<WorkflowMode, WorkflowPreset> = {
     mode: "recommended-semi-auto",
     label: "Recommended semi-auto",
     audience: "Most repos. Good default for first-time setup and day-to-day work.",
-    automationLevel: "Session-end extraction suggests candidates; review and approve stay human-controlled.",
+    automationLevel: "Hooks auto-detect extraction; new memories start as candidates; approval stays human.",
     risk: "Low risk with fewer repeated commands.",
+    triggerMode: "detect",
+    captureMode: "candidate",
     extractMode: "suggest",
     sweepOnInject: false,
     gitHookDefault: true,
@@ -44,8 +51,10 @@ export const WORKFLOW_PRESETS: Record<WorkflowMode, WorkflowPreset> = {
     mode: "automation-first",
     label: "Automation-first",
     audience: "Teams already comfortable with RepoBrain and willing to auto-accept clear low-risk writes.",
-    automationLevel: "Clear accepts can go active automatically; ambiguous items still stay in review.",
+    automationLevel: "Hooks auto-detect extraction; candidate-first with safe auto-approve; ambiguous items stay in review.",
     risk: "Higher automation; keep an eye on status and pending reminders.",
+    triggerMode: "detect",
+    captureMode: "candidate",
     extractMode: "auto",
     sweepOnInject: true,
     gitHookDefault: true,
@@ -56,6 +65,8 @@ export const WORKFLOW_PRESETS: Record<WorkflowMode, WorkflowPreset> = {
 export const DEFAULT_BRAIN_CONFIG: BrainConfig = {
   workflowMode: "recommended-semi-auto",
   maxInjectTokens: 1200,
+  triggerMode: WORKFLOW_PRESETS["recommended-semi-auto"].triggerMode,
+  captureMode: WORKFLOW_PRESETS["recommended-semi-auto"].captureMode,
   extractMode: WORKFLOW_PRESETS["recommended-semi-auto"].extractMode,
   language: "zh-CN",
   staleDays: 90,
@@ -64,6 +75,25 @@ export const DEFAULT_BRAIN_CONFIG: BrainConfig = {
   injectExplainMaxItems: 4,
   autoApproveSafeCandidates: WORKFLOW_PRESETS["recommended-semi-auto"].autoApproveSafeCandidates,
 };
+
+export function migrateExtractModeToNewFields(
+  extractMode: ExtractMode,
+): { triggerMode: TriggerMode; captureMode: CaptureMode; autoApproveSafeCandidates: boolean } {
+  switch (extractMode) {
+    case "manual":
+      return { triggerMode: "manual", captureMode: "direct", autoApproveSafeCandidates: false };
+    case "suggest":
+      return { triggerMode: "detect", captureMode: "candidate", autoApproveSafeCandidates: false };
+    case "auto":
+      return { triggerMode: "detect", captureMode: "direct", autoApproveSafeCandidates: true };
+  }
+}
+
+export function deriveLegacyExtractMode(triggerMode: TriggerMode, captureMode: CaptureMode): ExtractMode {
+  if (triggerMode === "manual") return "manual";
+  if (captureMode === "candidate" || captureMode === "reviewable") return "suggest";
+  return "auto";
+}
 
 const DEPRECATED_REMOTE_REVIEW_KEY_PATTERNS = [
   /(?:^|_)provider$/i,
@@ -115,20 +145,64 @@ export async function loadConfig(projectRoot: string): Promise<BrainConfig> {
     const parsed = parseSimpleYaml(raw);
     const workflowMode = parsed.workflowMode ?? DEFAULT_BRAIN_CONFIG.workflowMode;
     const preset = getWorkflowPreset(workflowMode);
+    const warnings = parsed.warnings ? [...parsed.warnings] : [];
+
+    const hasNewTrigger = parsed.explicitKeys.has("triggerMode");
+    const hasNewCapture = parsed.explicitKeys.has("captureMode");
+    const hasLegacyExtract = parsed.explicitKeys.has("extractMode") || parsed.explicitKeys.has("autoExtract");
+
+    let triggerMode: TriggerMode;
+    let captureMode: CaptureMode;
+    let extractMode: ExtractMode;
+
+    if (hasNewTrigger || hasNewCapture) {
+      triggerMode = hasNewTrigger
+        ? (parsed.triggerMode ?? preset.triggerMode)
+        : preset.triggerMode;
+      captureMode = hasNewCapture
+        ? (parsed.captureMode ?? preset.captureMode)
+        : preset.captureMode;
+      extractMode = deriveLegacyExtractMode(triggerMode, captureMode);
+
+      if (hasLegacyExtract) {
+        warnings.push(
+          'Both "extractMode" (deprecated) and "triggerMode"/"captureMode" are set. ' +
+          'The new fields take precedence. Remove "extractMode" from .brain/config.yaml to silence this warning.',
+        );
+      }
+    } else if (hasLegacyExtract) {
+      const legacyMode = parsed.extractMode ?? DEFAULT_BRAIN_CONFIG.extractMode;
+      const migrated = migrateExtractModeToNewFields(legacyMode);
+      triggerMode = migrated.triggerMode;
+      captureMode = migrated.captureMode;
+      extractMode = legacyMode;
+      warnings.push(
+        `"extractMode: ${legacyMode}" is deprecated. ` +
+        `Migrated to triggerMode: ${triggerMode}, captureMode: ${captureMode}. ` +
+        'Update .brain/config.yaml to use triggerMode + captureMode instead.',
+      );
+    } else {
+      triggerMode = preset.triggerMode;
+      captureMode = preset.captureMode;
+      extractMode = preset.extractMode;
+    }
+
+    const autoApproveSafeCandidates = parsed.explicitKeys.has("autoApproveSafeCandidates")
+      ? (parsed.autoApproveSafeCandidates ?? DEFAULT_BRAIN_CONFIG.autoApproveSafeCandidates)
+      : preset.autoApproveSafeCandidates;
+
     return {
       ...DEFAULT_BRAIN_CONFIG,
       ...parsed,
       workflowMode,
-      extractMode: parsed.explicitKeys.has("extractMode")
-        ? (parsed.extractMode ?? DEFAULT_BRAIN_CONFIG.extractMode)
-        : preset.extractMode,
+      triggerMode,
+      captureMode,
+      extractMode,
       sweepOnInject: parsed.explicitKeys.has("sweepOnInject")
         ? (parsed.sweepOnInject ?? DEFAULT_BRAIN_CONFIG.sweepOnInject)
         : preset.sweepOnInject,
-      autoApproveSafeCandidates: parsed.explicitKeys.has("autoApproveSafeCandidates")
-        ? (parsed.autoApproveSafeCandidates ?? DEFAULT_BRAIN_CONFIG.autoApproveSafeCandidates)
-        : preset.autoApproveSafeCandidates,
-      ...(parsed.warnings ? { warnings: parsed.warnings } : {}),
+      autoApproveSafeCandidates,
+      ...(warnings.length > 0 ? { warnings } : {}),
     };
   } catch {
     return { ...DEFAULT_BRAIN_CONFIG };
@@ -201,6 +275,30 @@ function parseSimpleYaml(raw: string): Partial<BrainConfig> & {
       const parsed = Number(value);
       if (Number.isFinite(parsed) && parsed > 0) {
         result.maxInjectTokens = parsed;
+      }
+      continue;
+    }
+
+    if (key === "triggerMode") {
+      const normalized = value.toLowerCase() as TriggerMode;
+      if (TRIGGER_MODES.includes(normalized)) {
+        result.triggerMode = normalized;
+      } else {
+        warnings.push(
+          `Ignoring invalid config value triggerMode=${value}. Expected one of: ${TRIGGER_MODES.join(", ")}.`,
+        );
+      }
+      continue;
+    }
+
+    if (key === "captureMode") {
+      const normalized = value.toLowerCase() as CaptureMode;
+      if (CAPTURE_MODES.includes(normalized)) {
+        result.captureMode = normalized;
+      } else {
+        warnings.push(
+          `Ignoring invalid config value captureMode=${value}. Expected one of: ${CAPTURE_MODES.join(", ")}.`,
+        );
       }
       continue;
     }
@@ -312,11 +410,14 @@ function serializeSimpleYaml(config: BrainConfig): string {
     "# Project Brain config",
     "# Workflow modes:",
     "# - ultra-safe-manual: keep inject/review/approve/sweep fully manual",
-    "# - recommended-semi-auto: suggest candidates automatically, keep approval manual",
-    "# - automation-first: auto-accept clear low-risk memories, still review ambiguous items",
+    "# - recommended-semi-auto: hooks auto-detect, candidate-first, approval manual",
+    "# - automation-first: hooks auto-detect, candidate-first, safe auto-approve enabled",
     `workflowMode: ${config.workflowMode}`,
     `maxInjectTokens: ${config.maxInjectTokens}`,
-    `extractMode: ${config.extractMode}`,
+    "# triggerMode: manual = only extract via CLI; detect = hooks/capture auto-detect",
+    `triggerMode: ${config.triggerMode}`,
+    "# captureMode: direct = write active; candidate = write as candidate for review; reviewable = candidate + deferred merge",
+    `captureMode: ${config.captureMode}`,
     `language: ${config.language}`,
     `staleDays: ${config.staleDays}`,
     `sweepOnInject: ${config.sweepOnInject ? "true" : "false"}`,

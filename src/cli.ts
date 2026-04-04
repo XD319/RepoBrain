@@ -334,6 +334,7 @@ program
 
     output.write(`Project root: ${projectRoot}\n`);
     output.write(`Workflow: ${snapshot.workflow.label} (${snapshot.workflow.mode})\n`);
+    output.write(`Trigger: ${config.triggerMode === "detect" ? "auto-detect" : "manual"} | Capture: ${config.captureMode} | Auto-approve: ${config.autoApproveSafeCandidates ? "yes" : "no"}\n`);
     output.write(`Total memories: ${memories.length}\n`);
     output.write(`Pending review: ${snapshot.candidateCount}\n`);
     output.write(`Pending reinforce: ${snapshot.pendingReinforceCount}\n`);
@@ -1404,8 +1405,11 @@ async function applyWorkflowPresetConfig(projectRoot: string, workflowMode: Work
   await writeConfig(projectRoot, {
     ...currentConfig,
     workflowMode,
+    triggerMode: preset.triggerMode,
+    captureMode: preset.captureMode,
     extractMode: preset.extractMode,
     sweepOnInject: preset.sweepOnInject,
+    autoApproveSafeCandidates: preset.autoApproveSafeCandidates,
   });
 }
 
@@ -1436,7 +1440,10 @@ function renderWorkflowSummaryLines(workflowMode: WorkflowMode): string[] {
   const preset = getWorkflowPreset(workflowMode);
   return [
     `Workflow: ${preset.label} (${preset.mode})`,
-    `Automation: ${preset.automationLevel}`,
+    `Trigger: ${preset.triggerMode === "detect" ? "auto-detect (hooks/capture)" : "manual (CLI only)"}`,
+    `Capture: ${preset.captureMode === "candidate" ? "candidate-first (all new memories start as candidate)" : "direct (write active immediately)"}`,
+    `Auto-approve safe candidates: ${preset.autoApproveSafeCandidates ? "yes" : "no"}`,
+    `Sweep on inject: ${preset.sweepOnInject ? "yes" : "no"}`,
     `Fit: ${preset.audience}`,
     `Risk: ${preset.risk}`,
   ];
@@ -1450,12 +1457,12 @@ function renderSetupNextSteps(workflowMode: WorkflowMode): string[] {
     'Use "brain review" and "brain approve --safe" as the normal daily promotion loop.',
   ];
 
-  if (preset.mode === "ultra-safe-manual") {
-    steps[1] = 'End sessions with "brain extract" or "brain extract-commit" because this mode keeps extraction manual.';
+  if (preset.triggerMode === "manual") {
+    steps[1] = 'End sessions with "brain extract" or "brain extract-commit" because triggerMode is manual.';
   }
 
-  if (preset.mode === "automation-first") {
-    steps.push('Check "brain status" regularly because this mode auto-applies the clearest low-risk paths.');
+  if (preset.autoApproveSafeCandidates) {
+    steps.push('Check "brain status" regularly because safe auto-approve is enabled for clear low-risk candidates.');
   }
 
   return steps;
