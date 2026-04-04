@@ -1,10 +1,20 @@
 # RepoBrain Claude Contract
 
-Use RepoBrain as the durable repo-memory layer for Claude Code. This adapter is thin: it consumes RepoBrain inputs and emits RepoBrain-shaped outputs.
+Use RepoBrain as the durable repo-memory layer for Claude Code. This adapter is thin: it consumes RepoBrain inputs and emits RepoBrain-shaped outputs. Claude may already have its own task or action selection behavior; RepoBrain does not replace that. It adds repo-local, deterministic, auditable routing policy on top.
 
 ## Session Start
 
-Consume the markdown contract from:
+Prefer the session-start bundle from:
+
+`brain start --format json --task "<current task>"`
+
+How to use it:
+
+- Read `context_markdown` before planning or editing.
+- Treat `skill_plan` as RepoBrain's routing policy, not as an instruction to bypass Claude's native flow control.
+- Escalate when the payload shows conflicts, warnings, or missing context for the task.
+
+If only compact context is needed, Claude can still consume the markdown contract from:
 
 `brain inject --task "<current task>" --path <changed-path>`
 
@@ -28,6 +38,7 @@ How to use it:
 
 - Route on `invocation_plan`.
 - Use `decision`, `skills`, and `checks` to shape the workflow.
+- Treat this as the canonical task-known routing payload, not as the default everyday manual entrypoint.
 - Do not copy the plan into a second repo note system.
 
 Reference example:
@@ -62,6 +73,7 @@ If the session repeats an old mistake or violates a known memory:
 ## Guardrails
 
 - `.brain/` stays the only durable repo-memory store.
+- `brain start` / `brain route` is the preferred session-start entrypoint.
 - `brain inject` gives context; `brain suggest-skills` gives routing.
 - `brain extract` and `brain reinforce` remain the only durable write paths.
 - Keep Claude integration lightweight; no SDK, no shadow memory, no adapter-owned schema.

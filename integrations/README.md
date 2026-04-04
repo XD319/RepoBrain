@@ -5,6 +5,7 @@ RepoBrain adapters stay thin on purpose, but they now share a stronger contract.
 - `.brain/` remains the only durable repo-memory store.
 - `brain inject` remains the canonical session-start context payload.
 - `brain suggest-skills --format json` remains the canonical task-known routing payload.
+- `brain start --format json` is the preferred adapter and session-start entrypoint when context plus routing should travel together.
 - `brain extract` and `brain reinforce` remain the only durable write paths.
 - Adapters may translate format, but they must not invent a second schema or local memory store.
 
@@ -13,9 +14,10 @@ RepoBrain adapters stay thin on purpose, but they now share a stronger contract.
 The adapter contract is lifecycle-based rather than agent-specific:
 
 1. Session start consumes the markdown payload from `brain inject`.
-2. Once the task is known, the adapter consumes `brain suggest-skills --format json`, especially `invocation_plan`.
-3. Session end emits an extract candidate in the shared markdown or JSON envelope.
-4. If the session failed, the adapter emits a reinforce event instead of silently discarding the failure.
+2. For the preferred session-start path, the adapter consumes `brain start --format json` and reads both `context_markdown` and `skill_plan`.
+3. Once the task is known and only routing is needed, the adapter consumes `brain suggest-skills --format json`, especially `invocation_plan`.
+4. Session end emits an extract candidate in the shared markdown or JSON envelope.
+5. If the session failed, the adapter emits a reinforce event instead of silently discarding the failure.
 
 This keeps adapters lightweight while giving Core a stable input-output boundary.
 
@@ -26,6 +28,7 @@ Core layer responsibilities:
 - define and validate the `.brain/` Markdown plus frontmatter schema
 - rank and render durable context for `brain inject`
 - derive task-aware routing hints and `invocation_plan` through `brain suggest-skills`
+- package context plus routing for session start through `brain start` / `brain route`
 - review extraction results locally and make the final `accept` / `merge` / `supersede` / `reject` decision
 - own compatibility rules, defaults, and error messages when schema or config fields expand
 
@@ -33,8 +36,12 @@ Adapter layer responsibilities:
 
 - place RepoBrain payloads at the right point in the target agent workflow
 - translate the same contract into the agent's native instruction format
+- decide whether and how to apply RepoBrain routing inside the agent's native skill, subagent, or workflow system
 - emit extract candidates or reinforce events without bypassing RepoBrain Core
 - provide a markdown fallback when the agent cannot emit the preferred JSON envelope
+- never write directly into `.brain/`
+
+Claude Code, Codex, Cursor, and Copilot may already have their own task or action selection behavior. RepoBrain does not replace that native automation. It adds repo-local, deterministic, auditable routing policy on top.
 
 ## Canonical Inputs And Outputs
 
@@ -51,6 +58,14 @@ Adapter layer responsibilities:
 - Canonical shape: JSON object with `decision`, matched memories, and `invocation_plan`
 - Contract example: [`contracts/task-known.invocation-plan.json`](./contracts/task-known.invocation-plan.json)
 - Adapter rule: route on `invocation_plan`; do not reinterpret prose into agent-specific memory
+- Manual inspection example: `brain suggest-skills --task "debug flaky browser tests in CI"`
+
+### Preferred Session Start: `start` / `route`
+
+- Input command: `brain start --format json --task "<task>"`
+- Canonical shape: JSON bundle with `context_markdown`, `skill_plan`, and the same task/path metadata used by `suggest-skills`
+- Adapter rule: prefer this when bootstrapping a session so context and routing stay in one auditable payload
+- Adapter example: `brain start --format json --task "debug flaky browser tests in CI"`
 
 ### 3. Session End: extract candidate
 
@@ -79,8 +94,8 @@ Adapters should follow the same fallback ladder:
 
 | Adapter | Session start | Task known | Session end | Failure handling |
 | --- | --- | --- | --- | --- |
-| Claude Code | Skill/hook consumes inject markdown | Skill or hook reads `invocation_plan` JSON | Hook or operator emits extract candidate | Hook can emit reinforce event or call `brain reinforce` |
-| Codex | Session instructions consume inject markdown | SKILL routes on `invocation_plan` JSON | Operator or automation emits extract candidate | Operator or automation runs reinforce event |
+| Claude Code | Hook or operator usually starts from `brain start --format json`, or falls back to inject markdown | Skill or hook reads `invocation_plan` JSON when only routing is needed | Hook or operator emits extract candidate | Hook can emit reinforce event or call `brain reinforce` |
+| Codex | Session instructions usually start from `brain start --format json`, or fall back to inject markdown | SKILL routes on `invocation_plan` JSON when only routing is needed | Operator or automation emits extract candidate | Operator or automation runs reinforce event |
 | Cursor | Rule file points operator to inject markdown | Rule file points operator to `invocation_plan` JSON | Usually markdown fallback | Usually markdown fallback plus manual CLI |
 | Copilot | Custom instructions consume inject markdown | Custom instructions point to `invocation_plan` JSON | Usually markdown fallback | Usually shell or CI-driven reinforce |
 

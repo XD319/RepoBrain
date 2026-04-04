@@ -23,7 +23,7 @@ The point is much simpler: stop re-explaining the same repo context every time a
 - repeated "how this repo works" setup at the start of every agent session
 - repo-specific gotchas that agents keep rediscovering from code or failed runs
 - reviewable long-lived knowledge that belongs next to the code, not in a hidden cloud memory
-- task-known routing hints via `brain suggest-skills` and `invocation_plan`
+- deterministic task-known routing payloads via `brain suggest-skills` and `invocation_plan`
 
 ## Proof Layer
 
@@ -51,7 +51,7 @@ The recommended flow is simple:
 3. Approve it.
 4. Start a new session.
 5. Run `brain inject`.
-6. Route the task with `brain suggest-skills` if needed.
+6. Start the next task with `brain start` or `brain route`, and inspect `brain suggest-skills` directly when you want the raw routing payload.
 7. Watch the agent avoid the same mistake because the repo already remembers it.
 
 ## Quick Start
@@ -215,7 +215,7 @@ node dist/cli.js inject
 
 ## Integrations
 
-RepoBrain keeps the product split into a stable core layer and thin agent adapters. All adapters consume the same `.brain` schema plus the same `brain inject` and `brain suggest-skills` outputs.
+RepoBrain keeps the product split into a stable core layer and thin agent adapters. All adapters consume the same `.brain` schema plus the same `brain inject`, `brain suggest-skills`, and `brain start` / `brain route` outputs.
 
 RepoBrain Core is intentionally local, lightweight, and deterministic. It does not embed any LLM API calls or act as a model middleware layer.
 
@@ -224,25 +224,27 @@ Core layer responsibilities:
 - define and validate the `.brain/` Markdown plus frontmatter schema
 - store durable repo memories in one Git-friendly location
 - run deterministic rule-based review, dedupe, and supersede decisions locally
-- own the baseline query and injection surfaces: `brain inject`, `brain review`, and `brain suggest-skills`
+- own the baseline query and injection surfaces: `brain inject`, `brain review`, `brain suggest-skills`, and the higher-level `brain start` / `brain route` bundle
 - rank and render compact session context through `brain inject`
 - derive task-aware routing hints through `brain suggest-skills`
+- package session-start context plus routing into `brain start` / `brain route` without moving execution control out of adapters
 
 Adapter layer responsibilities:
 
 - translate RepoBrain outputs into the target agent's preferred instruction format
-- explain where `brain inject` and `brain suggest-skills` fit into that agent workflow
+- explain where `brain inject`, `brain suggest-skills`, and `brain start` / `brain route` fit into that agent workflow
 - extract durable knowledge candidates from richer agent workflows when needed
 - provide optional structured review suggestions without replacing Core's local final decision
 - stay thin enough that RepoBrain core remains the only durable knowledge model
 
 ### Why thin adapters, but stronger contracts
 
-Thin adapters keep RepoBrain portable. Claude Code, Codex, Cursor, and Copilot all expose different instruction surfaces, but none of them should own repo memory, schema evolution, or final review decisions. That stays in Core.
+Thin adapters keep RepoBrain portable. Claude Code, Codex, Cursor, and Copilot all expose different instruction surfaces, and some of them already have their own task or action selection behavior. RepoBrain does not replace that native behavior. It adds a repo-local, deterministic, auditable routing policy on top, while keeping repo memory, schema evolution, and final review decisions in Core.
 
 Stronger contracts make those thin adapters reliable. Instead of "copy this template and improvise", RepoBrain now defines shared lifecycle contracts for:
 
 - session start via `brain inject`
+- preferred session-start bundle via `brain start` / `brain route`
 - task-known routing via `brain suggest-skills --format json` and `invocation_plan`
 - session-end extraction via extract-candidate markdown or JSON
 - failure reinforcement via reinforce-event markdown or JSON
@@ -278,11 +280,16 @@ Install the Git hook:
 sh scripts/setup-git-hooks.sh
 ```
 
-Before a new Codex session:
+Before a new Codex session, prefer the higher-level routing bundle:
 
 ```bash
-brain inject
-brain suggest-skills --format json --task "current task" --path src/example.ts
+brain start --format json --task "current task"
+```
+
+If you want to inspect the task-known routing payload directly, `suggest-skills` remains available:
+
+```bash
+brain suggest-skills --task "current task"
 ```
 
 Templates and setup notes:
@@ -636,9 +643,11 @@ risk_level: "medium"
 Use Playwright-oriented guidance first when the task touches browser test infrastructure.
 ```
 
-### Suggest A Skill Shortlist
+### Inspect The Task-Known Routing Payload
 
-Once some memories carry routing metadata, you can ask RepoBrain to turn the current task and changed paths into a deterministic routing plan. The simplest usage only needs a task:
+Once some memories carry routing metadata, you can ask RepoBrain to turn the current task and changed paths into a deterministic routing plan. `brain suggest-skills` remains a valid manual command, but it is best treated as the canonical task-known routing payload for adapters and for humans who want to inspect the raw routing decision directly. For most new sessions, prefer `brain start` or `brain route`.
+
+Manual inspection still only needs a task:
 
 ```bash
 brain suggest-skills --task "fix refund bug"
@@ -658,13 +667,13 @@ The command only considers `active` memories. It matches the task against `skill
 - `invocation_plan`: a stable adapter-facing plan with `required`, `prefer_first`, `optional_fallback`, and `suppress` buckets, plus `blocked` and `human_review` when the local rules refuse to auto-resolve
 - `path_source`: indicates where the paths came from — `"explicit"` (from `--path`), `"git_diff"` (auto-collected), or `"none"` (task-only routing)
 
-Markdown stays the default human-readable output:
+Markdown stays the default human-readable output, so the routing plan is still easy to inspect manually:
 
 ```bash
 brain suggest-skills --task "debug flaky browser tests in CI"
 ```
 
-JSON is available for agent adapters that want a stable machine contract:
+JSON is the canonical adapter-facing contract when an integration already knows the task and wants to consume routing deterministically:
 
 ```bash
 brain suggest-skills --format json --task "debug flaky browser tests in CI"
@@ -703,12 +712,18 @@ cat task.txt | brain suggest-skills --path src/cli.ts --path test/store.test.mjs
 
 ### Start A Session With One Routing Bundle
 
-If your adapter wants one high-level entry point instead of calling `inject` and `suggest-skills` separately, use `brain route` or its alias `brain start`:
+If you want the recommended session-start entrypoint, or your adapter wants one high-level command instead of calling `inject` and `suggest-skills` separately, use `brain route` or its alias `brain start`:
 
 ```bash
 brain route --task "fix refund bug"
 # or
 brain start --task "fix refund bug"
+```
+
+For adapter consumption, prefer the structured form:
+
+```bash
+brain start --format json --task "fix refund bug"
 ```
 
 This command:
@@ -718,8 +733,9 @@ This command:
 - reuses the existing `brain inject` context builder
 - reuses the existing `brain suggest-skills --format json` routing logic
 - returns one combined bundle for human readers or thin adapters
+- keeps the raw `brain suggest-skills` routing payload available for direct inspection when needed
 
-Markdown remains the default output. JSON is available for adapters:
+Markdown remains the default output. JSON is the preferred format for adapters or session-start automations:
 
 ```bash
 brain route --task "fix refund bug" --format json
@@ -760,19 +776,23 @@ Example JSON shape:
 - `Human review required: migration-runner.`
 - `Required/suppress conflict: playwright (required kept).`
 
-### When To Use `inject` Vs `suggest-skills` Vs `invocation_plan`
+### When To Use `start` / `route` Vs `inject` Vs `suggest-skills` Vs `invocation_plan`
 
-Use `brain inject` when the agent needs a compact, durable repo context block before it starts coding. Use `brain suggest-skills` when you already know the task and want RepoBrain to narrow the execution workflow or tool choice. Consume the `invocation_plan` when an adapter already has the task context and needs a stable contract it can route on without re-interpreting prose.
+Use `brain start` or `brain route` as the preferred entrypoint for a new session when you want RepoBrain to hand back both context and routing together. Use `brain inject` when you only need the compact durable repo context block. Use `brain suggest-skills` when you already know the task and specifically want the raw task-known routing payload. Consume the `invocation_plan` when an adapter already has the task context and needs a stable contract it can route on without re-interpreting prose.
 
+- `brain start` / `brain route`: best for session start, adapter bootstrapping, and any workflow that wants one auditable bundle with both context and routing
 - `brain inject`: best for session start, implementation planning, risky edits, and avoiding old repo-specific mistakes
-- `brain suggest-skills`: best for turning task text plus changed paths into a local deterministic routing decision
+- `brain suggest-skills`: best for turning task text plus changed paths into a local deterministic routing decision that remains manually inspectable
 - `invocation_plan`: best for Claude Code, Codex, or other thin adapters that should consume RepoBrain's routing result directly without letting Core execute the skill for them
 
 The boundary stays strict:
 
+- `brain start` / `brain route` packages context plus routing for session start
 - `brain inject` gives context
 - `brain suggest-skills` resolves routing metadata into a plan
-- the adapter decides whether, when, and how to invoke a skill from that plan
+- the adapter decides whether, when, and how to invoke a skill, subagent, workflow, or native tool path from that plan
+
+Claude Code and Codex may already have their own task or action selection behavior. RepoBrain does not replace that native automation. It adds repo-local, deterministic, auditable routing policy on top.
 
 `brain inject` now behaves more like a task-understanding-driven context builder while keeping the same CLI surface. It still skips memories whose frontmatter sets `stale: true` or `superseded_by` to a newer `.brain/` file, prefixes versioned entries with `[Updated vN]` when `version >= 2`, warns on broken supersede back-links during inject, and atomically writes back a higher `hit_count` plus a fresh `last_used` date for injected memories.
 
