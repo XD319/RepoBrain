@@ -10,6 +10,8 @@ import {
   renderTaskRoutingBundleJson,
   resolveSuggestedSkillPaths,
   saveMemory,
+  shouldEscalateRoutingPlan,
+  summarizeRoutingEscalation,
 } from "../dist/store-api.js";
 
 await runTest("task routing returns a combined bundle", async () => {
@@ -98,6 +100,76 @@ await runTest("no-git fallback keeps task-only routing available", async () => {
     assert.equal(bundle.display_mode, "silent-ok");
     assert.match(bundle.warnings.join("\n"), /Git diff paths were unavailable/);
   });
+});
+
+await runTest("conflict-free routing stays silent", async () => {
+  const plan = {
+    required: ["refund-handler"],
+    prefer_first: ["lint-fix"],
+    optional_fallback: ["notes-updater"],
+    suppress: [],
+    blocked: [],
+    human_review: [],
+  };
+
+  assert.equal(shouldEscalateRoutingPlan(plan, []), false);
+  assert.deepEqual(summarizeRoutingEscalation(plan, []), []);
+});
+
+await runTest("blocked routing escalates with a concise warning", async () => {
+  const plan = {
+    required: [],
+    prefer_first: [],
+    optional_fallback: [],
+    suppress: [],
+    blocked: ["prod-deploy"],
+    human_review: [],
+  };
+
+  assert.equal(shouldEscalateRoutingPlan(plan, []), true);
+  assert.deepEqual(summarizeRoutingEscalation(plan, []), ["Routing blocked: prod-deploy."]);
+});
+
+await runTest("human-review routing escalates with a concise warning", async () => {
+  const plan = {
+    required: [],
+    prefer_first: [],
+    optional_fallback: [],
+    suppress: [],
+    blocked: [],
+    human_review: ["migration-runner"],
+  };
+
+  assert.equal(shouldEscalateRoutingPlan(plan, []), true);
+  assert.deepEqual(summarizeRoutingEscalation(plan, []), ["Human review required: migration-runner."]);
+});
+
+await runTest("required and suppress conflicts escalate even when the plan keeps the required skill", async () => {
+  const plan = {
+    required: ["playwright"],
+    prefer_first: [],
+    optional_fallback: [],
+    suppress: [],
+    blocked: [],
+    human_review: [],
+  };
+  const conflicts = [
+    {
+      skill: "playwright",
+      kind: "required_vs_suppressed",
+      strategy_result: "choose-required",
+      reason: "Required evidence outweighs suppression, but the conflict should still be surfaced.",
+      required_score: 10,
+      recommended_score: 0,
+      suppressed_score: 4,
+      sources: [],
+    },
+  ];
+
+  assert.equal(shouldEscalateRoutingPlan(plan, conflicts), true);
+  assert.deepEqual(summarizeRoutingEscalation(plan, conflicts), [
+    "Required/suppress conflict: playwright (required kept).",
+  ]);
 });
 
 console.log("All task routing tests passed.");

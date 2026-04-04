@@ -42,6 +42,8 @@ export {
   buildTaskRoutingBundle,
   renderTaskRoutingBundle,
   renderTaskRoutingBundleJson,
+  shouldEscalateRoutingPlan,
+  summarizeRoutingEscalation,
   TASK_ROUTING_BUNDLE_CONTRACT_VERSION,
 } from "./task-routing.js";
 export {

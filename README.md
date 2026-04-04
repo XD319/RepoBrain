@@ -751,8 +751,14 @@ Example JSON shape:
 
 `display_mode` is:
 
-- `silent-ok` when RepoBrain found no blocked or human-review routing outcome
-- `needs-review` when `blocked`, `human_review`, or severe conflicts require a human check
+- `silent-ok` when routing can be consumed silently and the plan only needs normal slots such as `required`, `prefer_first`, or `optional_fallback`
+- `needs-review` when RepoBrain finds `blocked`, `human_review`, or any required-vs-suppress conflict that should be surfaced explicitly
+
+`warnings` stays empty for silent cases. When `display_mode` is `needs-review`, RepoBrain adds concise escalation summaries such as:
+
+- `Routing blocked: prod-deploy.`
+- `Human review required: migration-runner.`
+- `Required/suppress conflict: playwright (required kept).`
 
 ### When To Use `inject` Vs `suggest-skills` Vs `invocation_plan`
 

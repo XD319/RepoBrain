@@ -36,6 +36,39 @@ export interface TaskRoutingBundle {
   display_mode: TaskRoutingDisplayMode;
 }
 
+export function shouldEscalateRoutingPlan(
+  plan: InvocationPlan,
+  conflicts: SkillConflict[],
+): boolean {
+  return plan.blocked.length > 0 || plan.human_review.length > 0 || hasStrongRoutingConflict(conflicts);
+}
+
+export function summarizeRoutingEscalation(
+  plan: InvocationPlan,
+  conflicts: SkillConflict[],
+): string[] {
+  const warnings: string[] = [];
+
+  if (plan.blocked.length > 0) {
+    warnings.push(`Routing blocked: ${plan.blocked.join(", ")}.`);
+  }
+
+  if (plan.human_review.length > 0) {
+    warnings.push(`Human review required: ${plan.human_review.join(", ")}.`);
+  }
+
+  const strongConflicts = conflicts.filter(isStrongRequiredSuppressionConflict);
+  if (strongConflicts.length > 0) {
+    warnings.push(
+      `Required/suppress conflict: ${strongConflicts
+        .map((entry) => `${entry.skill} (${describeConflictOutcome(entry)})`)
+        .join(", ")}.`,
+    );
+  }
+
+  return warnings;
+}
+
 export async function buildTaskRoutingBundle(
   projectRoot: string,
   config: BrainConfig,
@@ -63,29 +96,14 @@ export async function buildTaskRoutingBundle(
     }),
   ]);
 
-  const severeConflicts = shortlist.conflicts.filter(isSevereConflict);
-  if (shortlist.invocation_plan.blocked.length > 0) {
-    warnings.push(
-      `Blocked skills require human review: ${shortlist.invocation_plan.blocked.join(", ")}.`,
-    );
-  }
-  if (shortlist.invocation_plan.human_review.length > 0) {
-    warnings.push(
-      `Human review is required before invoking: ${shortlist.invocation_plan.human_review.join(", ")}.`,
-    );
-  }
-  if (severeConflicts.length > 0) {
-    warnings.push(
-      `Severe routing conflicts detected: ${severeConflicts.map((entry) => entry.skill).join(", ")}.`,
-    );
-  }
+  warnings.push(...summarizeRoutingEscalation(shortlist.invocation_plan, shortlist.conflicts));
 
-  const display_mode: TaskRoutingDisplayMode =
-    shortlist.invocation_plan.blocked.length > 0 ||
-    shortlist.invocation_plan.human_review.length > 0 ||
-    severeConflicts.length > 0
-      ? "needs-review"
-      : "silent-ok";
+  const display_mode: TaskRoutingDisplayMode = shouldEscalateRoutingPlan(
+    shortlist.invocation_plan,
+    shortlist.conflicts,
+  )
+    ? "needs-review"
+    : "silent-ok";
 
   return {
     contract_version: TASK_ROUTING_BUNDLE_CONTRACT_VERSION,
@@ -148,6 +166,23 @@ export function renderTaskRoutingBundleJson(bundle: TaskRoutingBundle): string {
   return JSON.stringify(bundle, null, 2);
 }
 
-function isSevereConflict(conflict: SkillConflict): boolean {
-  return conflict.strategy_result === "block" || conflict.strategy_result === "human-review";
+function hasStrongRoutingConflict(conflicts: SkillConflict[]): boolean {
+  return conflicts.some(isStrongRequiredSuppressionConflict);
+}
+
+function isStrongRequiredSuppressionConflict(conflict: SkillConflict): boolean {
+  return conflict.kind === "required_vs_suppressed";
+}
+
+function describeConflictOutcome(conflict: SkillConflict): string {
+  switch (conflict.strategy_result) {
+    case "block":
+      return "blocked";
+    case "human-review":
+      return "needs review";
+    case "choose-required":
+      return "required kept";
+    default:
+      return conflict.strategy_result;
+  }
 }

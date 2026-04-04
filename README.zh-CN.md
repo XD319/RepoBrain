@@ -1066,4 +1066,13 @@ JSON bundle 会包含这些核心字段：
 - `warnings`
 - `display_mode`
 
-其中 `display_mode` 在没有严重冲突时为 `silent-ok`；如果出现 `blocked`、`human_review` 或严重冲突，则为 `needs-review`。
+其中 `display_mode` 的含义是：
+
+- `silent-ok`：routing 可以被 adapter 静默消费，plan 里只有 `required`、`prefer_first`、`optional_fallback` 这类常规结果
+- `needs-review`：出现 `blocked`、`human_review`，或者存在需要显式提示的 required-vs-suppress 冲突
+
+静默场景下 `warnings` 会保持为空；当 `display_mode` 为 `needs-review` 时，RepoBrain 会补充简短的升级提示，例如：
+
+- `Routing blocked: prod-deploy.`
+- `Human review required: migration-runner.`
+- `Required/suppress conflict: playwright (required kept).`
