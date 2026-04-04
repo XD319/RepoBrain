@@ -292,7 +292,7 @@ Stronger contracts make those thin adapters reliable. Instead of "copy this temp
 - session-end extraction via extract-candidate markdown or JSON
 - failure reinforcement via reinforce-event markdown or JSON
 
-All adapters share the same detection triggers for phase completion: recurring bug fix, submodule completion, multi-file refactor, tests passing, user signaling done, or agent outputting "fixed / implemented / completed". When `brain capture` reports `should_extract=true`, the result is saved as a candidate by default, not active. When `should_extract=false`, the adapter takes no action and does not prompt the user.
+All adapters share the same phase-completion detection triggers, organized into three tiers. **Strong signals** (user phrases like "done / move on / ship it", agent summaries like "implementation complete / all tests passing", test status improving from fail to pass, or diff scope exceeding 30 lines / 4 files) prompt immediate detection. **Context-dependent signals** (recurring bug fix, submodule completion, multi-file refactor) require content-value evidence to proceed. **Weak signals** (bare "ok / thanks / sure" without substantive context) are explicitly excluded to prevent false triggers. Phase-completion signals act as a confidence booster within `brain capture`, not as a direct `should_extract=true` gate. When `brain capture` reports `should_extract=true`, the result is saved as a candidate by default, not active. When `should_extract=false`, the adapter takes no action and does not prompt the user.
 
 This gives each adapter the same consumption and output semantics without turning the adapter layer into a heavy SDK.
 

@@ -15,6 +15,13 @@ export interface ExtractSuggestionSuppression {
   detail: string;
 }
 
+export interface PhaseCompletionSignal {
+  name: string;
+  category: "user_text" | "agent_text" | "test_status" | "diff_scope";
+  detail: string;
+  boost: number;
+}
+
 export interface ExtractSuggestionResult {
   should_extract: boolean;
   confidence: number;
@@ -22,6 +29,7 @@ export interface ExtractSuggestionResult {
   reasons: string[];
   evidence: ExtractSuggestionEvidence[];
   suppressions: ExtractSuggestionSuppression[];
+  phase_completion_signals: PhaseCompletionSignal[];
   summary: string;
 }
 
@@ -84,6 +92,20 @@ const TEST_FIX_PATTERN =
   /\b(?:fix(?:ed|es)?|failure|failing|broken|flaky)\b/iu;
 const TEST_FILE_PATTERN =
   /(?:\.test\.|\.spec\.|__tests__|test\/|tests\/|fixture)/i;
+
+// --- Phase-completion signal patterns ---
+
+const USER_PHASE_DONE_PATTERN =
+  /(?:好了|先这样|这一版可以|继续下一个|这版可以|可以了|就这样|就先这样|到这里|差不多了|阶段完成|这部分搞定了|先到这|\bmove on\b|\blet'?s move on\b|\bnext step\b|\blooks good\b|\bgood enough\b|\bthat'?s it\b|\bwrap up\b|\bship it\b|\bready for review\b|\bdone with this\b|\bthis part is done\b|\blet'?s continue\b)/iu;
+
+const AGENT_PHASE_DONE_PATTERN =
+  /(?:已完成|已修复|已实现|测试已通过|实现完成|修复完成|重构完成|已全部通过|\ball tests pass(?:ing|ed)?\b|\bimplementation complete\b|\bfix(?:ed)? (?:and|&) verified\b|\brefactor(?:ing)? complete\b|\bfeature implemented\b|\bbug fix confirmed\b|\bsuccessfully (?:implemented|completed|fixed|resolved)\b)/iu;
+
+const TEST_STATUS_IMPROVEMENT_PATTERN =
+  /(?:(?:from|从)\s*(?:fail|red|broken|失败|不通过)\s*(?:to|→|->|变为|变成)\s*(?:pass|green|通过|成功)|\btests?\s+(?:now\s+)?pass(?:ing|ed)?\b|测试(?:已|全部)?通过|(?:all|全部)\s+(?:tests?\s+)?(?:green|pass))/iu;
+
+const WEAK_ACKNOWLEDGMENT_PATTERN =
+  /^(?:ok|okay|好的?|谢谢|thanks?|thank you|嗯|行|收到|got it|alright|sure|fine|知道了|了解|明白|mm?hmm|yep|yeah?|是的)\s*[.!。！]?\s*$/iu;
 
 interface SignalRule {
   name: string;
@@ -305,6 +327,92 @@ const NEGATIVE_RULES: SignalRule[] = [
   },
 ];
 
+const PHASE_COMPLETION_DIFF_THRESHOLD = 30;
+const PHASE_COMPLETION_FILE_THRESHOLD = 4;
+
+const PHASE_BOOST_MAX = 1.5;
+
+interface PhaseCompletionRule {
+  name: string;
+  category: PhaseCompletionSignal["category"];
+  test: (input: ExtractSuggestionInput, combined: string) => boolean;
+  boost: number;
+  detail: (input: ExtractSuggestionInput) => string;
+}
+
+const PHASE_COMPLETION_RULES: PhaseCompletionRule[] = [
+  {
+    name: "user_phase_done",
+    category: "user_text",
+    test: (input) => {
+      const text = input.task ?? "";
+      if (WEAK_ACKNOWLEDGMENT_PATTERN.test(text.trim())) return false;
+      return USER_PHASE_DONE_PATTERN.test(text);
+    },
+    boost: 1.0,
+    detail: () => "User indicated phase completion (e.g. '好了', 'move on', 'this part is done').",
+  },
+  {
+    name: "agent_phase_done",
+    category: "agent_text",
+    test: (input) => {
+      const text = input.sessionSummary ?? "";
+      return AGENT_PHASE_DONE_PATTERN.test(text);
+    },
+    boost: 1.0,
+    detail: () => "Agent summary indicates completion (e.g. '已完成', 'implementation complete').",
+  },
+  {
+    name: "test_status_improvement",
+    category: "test_status",
+    test: (input) => {
+      const text = input.testResultSummary ?? "";
+      return TEST_STATUS_IMPROVEMENT_PATTERN.test(text);
+    },
+    boost: 1.2,
+    detail: () => "Test status improved from fail to pass.",
+  },
+  {
+    name: "diff_scope_threshold",
+    category: "diff_scope",
+    test: (input) => {
+      const lines = parseDiffStatTotalLines(input.diffStat ?? "");
+      const files = (input.changedFiles ?? []).length;
+      return lines >= PHASE_COMPLETION_DIFF_THRESHOLD || files >= PHASE_COMPLETION_FILE_THRESHOLD;
+    },
+    boost: 0.8,
+    detail: (input) => {
+      const lines = parseDiffStatTotalLines(input.diffStat ?? "");
+      const files = (input.changedFiles ?? []).length;
+      return `Diff scope exceeds phase-completion threshold (${lines} lines, ${files} files).`;
+    },
+  },
+];
+
+function detectPhaseCompletionSignals(
+  input: ExtractSuggestionInput,
+  combined: string,
+): PhaseCompletionSignal[] {
+  const signals: PhaseCompletionSignal[] = [];
+  for (const rule of PHASE_COMPLETION_RULES) {
+    if (rule.test(input, combined)) {
+      signals.push({
+        name: rule.name,
+        category: rule.category,
+        detail: rule.detail(input),
+        boost: rule.boost,
+      });
+    }
+  }
+  return signals;
+}
+
+function computePhaseBoost(signals: PhaseCompletionSignal[]): number {
+  if (signals.length === 0) return 0;
+  const raw = signals.reduce((sum, s) => sum + s.boost, 0);
+  return Math.min(raw, PHASE_BOOST_MAX);
+}
+
 export function evaluateExtractWorthiness(
   input: ExtractSuggestionInput,
 ): ExtractSuggestionResult {
@@ -347,23 +455,51 @@ export function evaluateExtractWorthiness(
   const negativeScore = evidence
     .filter((e) => e.signal === "negative")
     .reduce((sum, e) => sum + e.weight, 0);
-  const totalScore = positiveScore + negativeScore;
+
+  const phaseSignals = detectPhaseCompletionSignals(input, combined);
+  const phaseBoost = computePhaseBoost(phaseSignals);
+
+  const baseScore = positiveScore + negativeScore;
+  const boostedScore = baseScore + phaseBoost;
 
   let should_extract: boolean;
   let confidence: number;
 
-  if (totalScore >= POSITIVE_THRESHOLD) {
-    should_extract = true;
-    confidence = clamp(totalScore / MAX_CONFIDENCE_SCORE, 0.5, 0.95);
-    reasons.push("Positive signals exceed the extraction threshold.");
-  } else if (totalScore <= NEGATIVE_THRESHOLD) {
+  if (boostedScore >= POSITIVE_THRESHOLD) {
+    if (positiveScore <= 0 && phaseBoost > 0) {
+      should_extract = false;
+      confidence = clamp(0.3 + phaseBoost * 0.1, 0.1, 0.45);
+      reasons.push("Phase completion detected but no content-value signals present; extraction suppressed.");
+      suppressions.push({
+        rule: "phase_completion_without_content_value",
+        detail: "Phase-completion signals alone are insufficient without positive content evidence.",
+      });
+    } else {
+      should_extract = true;
+      confidence = clamp(boostedScore / MAX_CONFIDENCE_SCORE, 0.5, 0.95);
+      if (phaseBoost > 0 && baseScore < POSITIVE_THRESHOLD) {
+        reasons.push("Phase-completion signals boosted confidence past the extraction threshold.");
+      } else {
+        reasons.push("Positive signals exceed the extraction threshold.");
+      }
+      if (phaseBoost > 0) {
+        reasons.push(`${phaseSignals.length} phase-completion signal(s) contributed +${phaseBoost.toFixed(1)} boost.`);
+      }
+    }
+  } else if (boostedScore <= NEGATIVE_THRESHOLD) {
     should_extract = false;
-    confidence = clamp(Math.abs(totalScore) / MAX_NEGATIVE_CONFIDENCE_SCORE, 0.5, 0.95);
+    confidence = clamp(Math.abs(boostedScore) / MAX_NEGATIVE_CONFIDENCE_SCORE, 0.5, 0.95);
     reasons.push("Negative signals indicate low-value change.");
+    if (phaseBoost > 0) {
+      reasons.push("Phase-completion signals detected but insufficient to overcome negative evidence.");
+    }
   } else {
     should_extract = false;
-    confidence = clamp(0.3 + Math.abs(totalScore) * 0.05, 0.1, 0.45);
+    confidence = clamp(0.3 + Math.abs(boostedScore) * 0.05, 0.1, 0.45);
     reasons.push("Signals are ambiguous; manual judgment recommended.");
+    if (phaseBoost > 0) {
+      reasons.push(`${phaseSignals.length} phase-completion signal(s) detected but total score remains ambiguous.`);
+    }
   }
 
   const suggested_type = pickSuggestedType(evidence);
@@ -378,7 +514,7 @@ export function evaluateExtractWorthiness(
     );
   }
 
-  const summary = buildSummary(should_extract, confidence, suggested_type, reasons, evidence);
+  const summary = buildSummary(should_extract, confidence, suggested_type, reasons, evidence, phaseSignals);
 
   return {
     should_extract,
@@ -387,6 +523,7 @@ export function evaluateExtractWorthiness(
     reasons,
     evidence,
     suppressions,
+    phase_completion_signals: phaseSignals,
     summary,
   };
 }
@@ -422,6 +559,14 @@ export function renderExtractSuggestionMarkdown(result: ExtractSuggestionResult)
     lines.push("## Suppressions");
     for (const entry of result.suppressions) {
       lines.push(`- ${entry.rule}: ${entry.detail}`);
+    }
+    lines.push("");
+  }
+
+  if (result.phase_completion_signals.length > 0) {
+    lines.push("## Phase Completion Signals");
+    for (const entry of result.phase_completion_signals) {
+      lines.push(`- [+${entry.boost.toFixed(1)}] ${entry.name} (${entry.category}): ${entry.detail}`);
     }
     lines.push("");
   }
@@ -530,18 +675,20 @@ function buildSummary(
   suggested_type: MemoryType | null,
   reasons: string[],
   evidence: ExtractSuggestionEvidence[],
+  phaseSignals: PhaseCompletionSignal[] = [],
 ): string {
   const positiveCount = evidence.filter((e) => e.signal === "positive").length;
   const negativeCount = evidence.filter((e) => e.signal === "negative").length;
+  const phaseSuffix = phaseSignals.length > 0 ? ` ${phaseSignals.length} phase-completion signal(s).` : "";
 
   if (should_extract) {
     const typeHint = suggested_type ? ` as "${suggested_type}"` : "";
-    return `Recommend extracting durable memory${typeHint} (${(confidence * 100).toFixed(0)}% confidence). ${positiveCount} positive signal(s), ${negativeCount} suppression(s).`;
+    return `Recommend extracting durable memory${typeHint} (${(confidence * 100).toFixed(0)}% confidence). ${positiveCount} positive signal(s), ${negativeCount} suppression(s).${phaseSuffix}`;
   }
 
   if (confidence >= 0.5) {
-    return `Extraction not recommended (${(confidence * 100).toFixed(0)}% confidence). ${negativeCount} suppression signal(s) outweigh ${positiveCount} positive signal(s).`;
+    return `Extraction not recommended (${(confidence * 100).toFixed(0)}% confidence). ${negativeCount} suppression signal(s) outweigh ${positiveCount} positive signal(s).${phaseSuffix}`;
   }
 
-  return `Ambiguous signals (${(confidence * 100).toFixed(0)}% confidence). ${reasons[0] ?? "Consider manual judgment."}`;
+  return `Ambiguous signals (${(confidence * 100).toFixed(0)}% confidence). ${reasons[0] ?? "Consider manual judgment."}${phaseSuffix}`;
 }

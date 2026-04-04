@@ -27,6 +27,7 @@ const testFiles = [
   "test/demo-proof.test.mjs",
   "test/proof-evals.test.mjs",
   "test/integrations.test.mjs",
+  "test/extract-suggestion.test.mjs",
   "test/capture-command.test.mjs",
   "test/promote-candidates.test.mjs",
 ];

@@ -49,12 +49,20 @@ Reference example:
 
 When one of the following triggers fires, **run the local detection command** instead of relying on subjective judgment:
 
+**Strong signals (run detection immediately):**
+- User signals phase completion ("done / ship it / looks good / move on / ready for review")
+- Agent just output a completion summary ("fixed / implemented / completed / all tests passing")
+- Tests went from failing to passing
+- Diff scope exceeds threshold: 30+ lines changed or 4+ files modified
+
+**Signals that require content-value context:**
 - Fixed a recurring bug
 - Completed a submodule implementation
 - Refactored across multiple files
-- Tests went from failing to passing
-- User signals completion ("done / ship it / looks good / next task")
-- Agent just output "fixed / implemented / completed"
+
+**Weak signals that should NOT trigger detection:**
+- User only said "ok / thanks / sure / got it" without substantive context
+- No meaningful changes or learnings accompany the acknowledgment
 
 Detection command:
 
@@ -64,7 +72,7 @@ brain capture --task "<task description>" --path <changed-path>
 
 Rules:
 
-- `brain capture` uses local deterministic rules to decide whether extraction is worthwhile.
+- `brain capture` uses phase-completion signals as a confidence booster, not a direct trigger. Even when phase completion is detected, `should_extract` stays `false` if the content lacks durable value (e.g. typo fix, debug log).
 - When `should_extract=true`, the result is saved as a **candidate** by default, not active.
 - When `should_extract=false`, do not prompt the user.
 - Do not repeat the same capture suggestion in the same conversation turn unless the change scope or task state changed significantly.

@@ -272,7 +272,7 @@ contract 变强，是为了让这些轻 adapter 仍然有统一边界。RepoBrai
 - session end：产出 extract candidate（如果 capture 还未运行）
 - failure path：产出 reinforce event
 
-所有 adapter 共享同一组阶段完成触发条件：修复了重复 bug、完成了子模块实现、跨多文件重构、测试从失败变成功、用户表示完成、agent 输出"已修复/已实现/已完成"。当 `brain capture` 报告 `should_extract=true` 时，结果默认存为 candidate 而非 active；当 `should_extract=false` 时不做任何动作、不打扰用户。
+所有 adapter 共享同一组阶段完成检测触发条件，分为三个层级。**强信号**（用户说"好了 / 先这样 / 继续下一个 / move on / ship it"、agent 输出"已完成 / implementation complete / all tests passing"、测试从失败变为成功、diff 超过 30 行 / 涉及 4+ 文件）会立即触发检测。**需要上下文的信号**（修复了重复 bug、完成了子模块实现、跨多文件重构）需要同时存在内容价值证据。**弱信号**（单纯的"好的 / 谢谢 / ok / thanks"等不含实质内容的确认）被明确排除以防止误触发。阶段完成信号在 `brain capture` 内部作为 confidence booster 使用，而非直接等同于 `should_extract=true`。当 `brain capture` 报告 `should_extract=true` 时，结果默认存为 candidate 而非 active；当 `should_extract=false` 时不做任何动作、不打扰用户。
 
 这样 adapter 仍然只是格式翻译层，而不是重型 integration SDK。
 

@@ -36,12 +36,20 @@ brain suggest-skills --format json --task "<当前任务描述>"
 
 以下场景出现时，**优先运行本地检测命令**，而不是仅凭主观判断提议提取：
 
+**强信号（识别到后应立即运行检测）：**
+- 用户明确表示阶段结束："好了 / 先这样 / 这一版可以 / 继续下一个 / move on / ship it / ready for review"
+- 你刚输出了汇总性完成语句："已修复 / 已实现 / 已完成 / implementation complete / all tests passing"
+- 测试状态从失败变为成功
+- 变更范围达到阈值：diff 超过 30 行 或 涉及 4+ 个文件
+
+**需要和内容价值组合判断的场景：**
 - 修复了重复出现的 bug
 - 完成了一个子模块实现
-- 跨多个文件做了重构
-- 测试从失败变为成功
-- 用户明确表示"好了 / 先这样 / 这版可以 / 继续下一个"
-- 你刚输出了"已修复 / 已实现 / 已完成"
+- 跨多个文件 / 多个模块做了重构
+
+**不应触发检测的弱信号（避免误触发）：**
+- 用户只说"好的 / 谢谢 / ok / thanks / 嗯 / 收到"等简单确认词
+- 没有配合任何实质变更或有价值的经验描述
 
 检测命令：
 
@@ -49,7 +57,9 @@ brain suggest-skills --format json --task "<当前任务描述>"
 brain capture --task "<任务描述>" --path <变更路径>
 ```
 
-`brain capture` 会用本地规则判断是否值得提取。`should_extract=true` 时默认生成 candidate（不是直接写 active）。`should_extract=false` 时不要打扰用户。
+`brain capture` 内部使用"阶段完成"信号作为 confidence booster，与内容价值信号共同决定是否提取。即使检测到阶段完成，如果没有值得保留的经验（如只修了 typo、只加了 debug log），`should_extract` 仍会返回 `false`。
+
+`should_extract=true` 时默认生成 candidate（不是直接写 active）。`should_extract=false` 时不要打扰用户。
 
 **同一轮对话中不要重复提出相同的 capture 建议**，除非变更范围或任务状态发生了显著变化。
 

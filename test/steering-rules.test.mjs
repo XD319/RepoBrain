@@ -30,6 +30,12 @@ const DETECTION_TRIGGER_PHRASES = [
   "测试从失败变为成功",
 ];
 
+const PHASE_COMPLETION_PHRASES = [
+  "强信号",
+  "不应触发检测的弱信号",
+  "confidence booster",
+];
+
 const ANTI_REPETITION_PHRASE = "不要重复提出相同的 capture 建议";
 
 const CANDIDATE_FIRST_PHRASE = "candidate";
@@ -139,6 +145,24 @@ await runTest("cursor generated rules include alwaysApply frontmatter", async ()
     const content = await readFile(cursorPath, "utf8");
     assert.ok(content.includes("alwaysApply: true"));
     assert.ok(content.includes("brain capture"));
+  } finally {
+    await rm(tmpDir, { recursive: true, force: true });
+  }
+});
+
+await runTest("all generated rules include phase-completion signal guidance with weak-signal suppression", async () => {
+  const tmpDir = await mkdtemp(path.join(os.tmpdir(), "brain-steering-"));
+  try {
+    const paths = await writeSteeringRules(tmpDir, "all");
+    for (const relativePath of paths) {
+      const content = await readFile(path.join(tmpDir, relativePath), "utf8");
+      for (const phrase of PHASE_COMPLETION_PHRASES) {
+        assert.ok(
+          content.includes(phrase),
+          `${relativePath} is missing phase-completion phrase: ${phrase}`,
+        );
+      }
+    }
   } finally {
     await rm(tmpDir, { recursive: true, force: true });
   }

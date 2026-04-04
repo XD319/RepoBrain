@@ -294,6 +294,7 @@ await runTest("result has stable shape with all required fields", () => {
   assert.ok(Array.isArray(result.reasons));
   assert.ok(Array.isArray(result.evidence));
   assert.ok(Array.isArray(result.suppressions));
+  assert.ok(Array.isArray(result.phase_completion_signals));
   assert.equal(typeof result.summary, "string");
 
   for (const e of result.evidence) {
@@ -306,6 +307,13 @@ await runTest("result has stable shape with all required fields", () => {
   for (const s of result.suppressions) {
     assert.equal(typeof s.rule, "string");
     assert.equal(typeof s.detail, "string");
+  }
+
+  for (const p of result.phase_completion_signals) {
+    assert.equal(typeof p.name, "string");
+    assert.ok(["user_text", "agent_text", "test_status", "diff_scope"].includes(p.category));
+    assert.equal(typeof p.detail, "string");
+    assert.equal(typeof p.boost, "number");
   }
 });
 
@@ -322,6 +330,187 @@ await runTest("confidence is always between 0 and 1", () => {
     const result = evaluateExtractWorthiness(input);
     assert.ok(result.confidence >= 0, `confidence ${result.confidence} < 0`);
     assert.ok(result.confidence <= 1, `confidence ${result.confidence} > 1`);
+  }
+});
+
+// === Phase-completion signal tests ===
+
+await runTest("phase completion + high-value experience => should_extract=true", () => {
+  const result = evaluateExtractWorthiness({
+    task: "好了，先这样",
+    sessionSummary:
+      "Decided to adopt a retry wrapper for all S3 upload calls because direct calls were causing intermittent data loss.",
+    changedFiles: ["src/s3/uploader.ts", "src/s3/retry.ts", "test/s3/retry.test.ts"],
+  });
+
+  assert.equal(result.should_extract, true);
+  assert.ok(result.confidence >= 0.5);
+  assert.ok(result.phase_completion_signals.length > 0);
+  assert.ok(result.phase_completion_signals.some((p) => p.name === "user_phase_done"));
+});
+
+await runTest("phase completion + low-value change => should_extract=false", () => {
+  const result = evaluateExtractWorthiness({
+    task: "好了，先这样",
+    commitMessage: "fix typo in README",
+    changedFiles: ["README.md"],
+  });
+
+  assert.equal(result.should_extract, false);
+  assert.ok(result.phase_completion_signals.some((p) => p.name === "user_phase_done"));
+  assert.ok(result.suppressions.some((s) => s.rule === "typo_fix"));
+});
+
+await runTest("cross-module completion without explicit end signal => should_extract=true", () => {
+  const result = evaluateExtractWorthiness({
+    sessionSummary:
+      "Implementation complete. Refactored the authentication flow because the old pattern was causing race conditions. Added retry logic to prevent data loss.",
+    changedFiles: [
+      "src/auth/login.ts",
+      "src/api/middleware.ts",
+      "src/db/session.ts",
+      "test/auth/login.test.ts",
+      "test/api/middleware.test.ts",
+    ],
+    diffStat: " 5 files changed, 120 insertions(+), 40 deletions(-)",
+  });
+
+  assert.equal(result.should_extract, true);
+  assert.ok(result.confidence >= 0.5);
+  assert.ok(result.phase_completion_signals.some((p) => p.name === "agent_phase_done"));
+  assert.ok(result.phase_completion_signals.some((p) => p.name === "diff_scope_threshold"));
+});
+
+await runTest("agent says 已完成 but content is trivial debug work => should_extract=false", () => {
+  const result = evaluateExtractWorthiness({
+    sessionSummary: "已完成。Added console.log statements for debugging. This is temporary for now.",
+    changedFiles: ["src/debug.ts"],
+    diffStat: " 1 file changed, 2 insertions(+)",
+  });
+
+  assert.equal(result.should_extract, false);
+  assert.ok(result.phase_completion_signals.some((p) => p.name === "agent_phase_done"));
+  assert.ok(result.suppressions.some((s) => s.rule === "debug_only" || s.rule === "single_line_change"));
+});
+
+await runTest("test status improvement from fail to pass with meaningful fix => should_extract=true", () => {
+  const result = evaluateExtractWorthiness({
+    sessionSummary: "Fixed the flaky payment test by adding a distributed lock to prevent race conditions.",
+    testResultSummary: "Tests went from fail to pass. All 42 tests now passing.",
+    changedFiles: ["src/payments/handler.ts", "test/payments/handler.test.ts"],
+    diffStat: " 2 files changed, 35 insertions(+), 10 deletions(-)",
+  });
+
+  assert.equal(result.should_extract, true);
+  assert.ok(result.phase_completion_signals.some((p) => p.name === "test_status_improvement"));
+});
+
+await runTest("weak acknowledgment '好的' alone does NOT trigger phase completion", () => {
+  const result = evaluateExtractWorthiness({
+    task: "好的",
+    sessionSummary: "Updated the login page styling.",
+    changedFiles: ["src/login.css"],
+  });
+
+  assert.ok(!result.phase_completion_signals.some((p) => p.name === "user_phase_done"));
+});
+
+await runTest("weak acknowledgment 'thanks' alone does NOT trigger phase completion", () => {
+  const result = evaluateExtractWorthiness({
+    task: "thanks",
+    sessionSummary: "Minor CSS tweak.",
+    changedFiles: ["src/style.css"],
+  });
+
+  assert.ok(!result.phase_completion_signals.some((p) => p.name === "user_phase_done"));
+});
+
+await runTest("weak acknowledgment 'ok' alone does NOT trigger phase completion", () => {
+  const result = evaluateExtractWorthiness({
+    task: "ok",
+  });
+
+  assert.ok(!result.phase_completion_signals.some((p) => p.name === "user_phase_done"));
+});
+
+await runTest("phase completion without any content-value signals => suppressed", () => {
+  const result = evaluateExtractWorthiness({
+    task: "继续下一个",
+    sessionSummary: "Adjusted spacing in the header component.",
+    changedFiles: ["src/header.tsx"],
+  });
+
+  assert.equal(result.should_extract, false);
+  assert.ok(result.phase_completion_signals.some((p) => p.name === "user_phase_done"));
+});
+
+await runTest("diff scope threshold acts as phase-completion signal", () => {
+  const result = evaluateExtractWorthiness({
+    sessionSummary: "Decided to standardize all API error responses because inconsistent formats were confusing the frontend team.",
+    changedFiles: [
+      "src/api/users.ts", "src/api/products.ts", "src/api/orders.ts",
+      "src/api/payments.ts", "src/api/errors.ts",
+    ],
+    diffStat: " 5 files changed, 85 insertions(+), 30 deletions(-)",
+  });
+
+  assert.equal(result.should_extract, true);
+  assert.ok(result.phase_completion_signals.some((p) => p.name === "diff_scope_threshold"));
+});
+
+await runTest("Chinese user text '这一版可以' triggers user_phase_done", () => {
+  const result = evaluateExtractWorthiness({
+    task: "这一版可以，不要再改了",
+    sessionSummary: "决定采用 tsup 构建，因为它一次输出 ESM 和类型声明。",
+  });
+
+  assert.equal(result.should_extract, true);
+  assert.ok(result.phase_completion_signals.some((p) => p.name === "user_phase_done"));
+});
+
+await runTest("English user text 'let's move on' triggers user_phase_done", () => {
+  const result = evaluateExtractWorthiness({
+    task: "Looks good, let's move on to the next feature",
+    sessionSummary: "Adopted a convention: always put migration files under db/migrations/ with YYYYMMDD_description.sql naming.",
+  });
+
+  assert.equal(result.should_extract, true);
+  assert.ok(result.phase_completion_signals.some((p) => p.name === "user_phase_done"));
+});
+
+await runTest("phase boost tips ambiguous score over threshold when content has value", () => {
+  const result = evaluateExtractWorthiness({
+    task: "好了先这样",
+    sessionSummary: "We chose to use a shared parser for all incoming webhook payloads.",
+    changedFiles: ["src/webhooks/parser.ts"],
+  });
+
+  assert.ok(result.phase_completion_signals.length > 0);
+  const hasPositiveEvidence = result.evidence.some((e) => e.signal === "positive");
+  assert.ok(hasPositiveEvidence);
+  if (result.should_extract) {
+    assert.ok(result.reasons.some((r) => r.includes("phase-completion") || r.includes("Phase")));
+  }
+});
+
+await runTest("phase_completion_signals field is always present even when empty", () => {
+  const result = evaluateExtractWorthiness({
+    sessionSummary: "Just a regular commit.",
+    changedFiles: ["src/a.ts"],
+  });
+
+  assert.ok(Array.isArray(result.phase_completion_signals));
+});
+
+await runTest("renderExtractSuggestionMarkdown includes phase completion section when signals present", () => {
+  const result = evaluateExtractWorthiness({
+    task: "先这样",
+    sessionSummary: "Decided to adopt tsup because of ESM output. Must not use webpack.",
+  });
+
+  const md = renderExtractSuggestionMarkdown(result);
+  if (result.phase_completion_signals.length > 0) {
+    assert.match(md, /## Phase Completion Signals/);
   }
 });
 

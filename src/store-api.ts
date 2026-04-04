@@ -123,6 +123,7 @@ export type {
   ExtractSuggestionResult,
   ExtractSuggestionSignal,
   ExtractSuggestionSuppression,
+  PhaseCompletionSignal,
 } from "./extract-suggestion.js";
 export type {
   FailureEvent,
