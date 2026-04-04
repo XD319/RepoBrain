@@ -278,7 +278,9 @@ brain suggest-skills --task "current task"
 
 ### Cursor
 
-Cursor 继续保持 rules-first，不做深度集成。可以把 `integrations/cursor/repobrain.mdc` 复制到 `.cursor/rules/repobrain.mdc`，再按共享 contract 消费 inject、`invocation_plan`、extract candidate 和 reinforce event。
+Cursor 现在通过 `alwaysApply: true` 的规则文件实现 agent 指令驱动的自动化。运行 `brain setup` 时，RepoBrain 会生成 `.cursor/rules/brain-session.mdc`，包含会话生命周期指令，让 Cursor agent 在每次对话开始时自动执行 `brain inject`，并在发现持久知识时主动提议 `brain extract`。
+
+如果你更喜欢使用集成模板，也可以手动把 `integrations/cursor/repobrain.mdc` 复制到 `.cursor/rules/repobrain.mdc`。
 
 ### GitHub Copilot
 
@@ -345,18 +347,19 @@ brain setup
 
 `brain setup` 是当前更推荐的入口。它会像 `brain init` 一样初始化 `.brain/`，并且当你在 Git 根目录执行时，还会顺手安装一个轻量的 `post-commit` hook，用于从更丰富的 commit 上下文做自动提取。
 
-如果你只想初始化工作区、不想安装 Git hook 自动化，`brain init` 仍然是最轻量的入口。现在它在 `.brain/` 初始化完成后，还会顺手询问是否生成 Claude Code / Codex 的 steering rules：
+如果你只想初始化工作区、不想安装 Git hook 自动化，`brain init` 仍然是最轻量的入口。现在它在 `.brain/` 初始化完成后，还会顺手询问是否生成 Claude Code / Codex / Cursor 的 steering rules：
 
 ```text
 已初始化 .brain/ 目录。
 ? 你使用哪个 AI 编码工具？（用于生成 steering rules）
 1. Claude Code（生成 .claude/rules/brain-session.md）
 2. Codex（补充 .codex/brain-session.md）
-3. 两者都用
-4. 跳过
+3. Cursor（生成 .cursor/rules/brain-session.mdc）
+4. 全部
+5. 跳过
 ```
 
-这些文件都是纯 Markdown 工作流说明，用来提醒 agent 在新会话开始时先运行 `brain inject`，以及在结束后及时提取 durable memory。
+这些文件都是纯文本工作流指令，用来提醒 agent 在新会话开始时先运行 `brain inject`，以及在结束后及时提取 durable memory。Cursor 的规则文件使用 `alwaysApply: true`，agent 在每次对话开始时会自动读取。
 
 初始化完成后，`.brain/` 大致会是这样的结构：
 
@@ -879,7 +882,7 @@ brain mcp
 - `brain goal done <keyword>`：按标题关键字查找 goal memory，标记成 `done` 并刷新 `updated`
 
 - `brain init`：初始化当前仓库的 `.brain/`
-  初始化后可按提示额外生成 `.claude/rules/brain-session.md` 和/或 `.codex/brain-session.md` steering rules。
+  初始化后可按提示额外生成 `.claude/rules/brain-session.md`、`.codex/brain-session.md` 和/或 `.cursor/rules/brain-session.mdc` steering rules。
 - `brain setup`：初始化 `.brain/`，并在 Git 根目录执行时安装低风险的 `post-commit` Git hook
 - `brain extract`：从 `stdin` 提取长期有价值的仓库知识
   并在写入前输出每条 memory 的 review decision
@@ -892,7 +895,7 @@ brain mcp
 - `brain lint-memory`：只读检查 frontmatter schema 健康度，区分可自动修复与需要人工修复的问题
 - `brain normalize-memory`：对兼容的 memory 原地做 schema autofill / normalize，并保留需要人工修复的文件
 - `brain status`：查看最近一次注入的 memories、最近沉淀的 memories，以及 schema 健康度摘要
-  同时会显示 Claude Code / Codex 的 steering rules 是否已配置；如果两者都不存在，会给出补充配置提示。
+  同时会显示 Claude Code / Codex / Cursor 的 steering rules 是否已配置；如果都不存在，会给出补充配置提示。
 - `brain review`：列出等待审批的 candidate memories
 - `brain approve`：将单条 candidate memory、全部 candidates，或仅 `--safe` 的低风险 candidates 提升为 active
 - `brain dismiss`：将单条 candidate memory，或全部 candidates，标记为 stale

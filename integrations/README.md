@@ -95,8 +95,8 @@ Adapters should follow the same fallback ladder:
 | Adapter | Session start | Task known | Session end | Failure handling |
 | --- | --- | --- | --- | --- |
 | Claude Code | Hook or operator usually starts from `brain start --format json`, or falls back to inject markdown | Skill or hook reads `invocation_plan` JSON when only routing is needed | Hook or operator emits extract candidate | Hook can emit reinforce event or call `brain reinforce` |
-| Codex | Session instructions usually start from `brain start --format json`, or fall back to inject markdown | SKILL routes on `invocation_plan` JSON when only routing is needed | Operator or automation emits extract candidate | Operator or automation runs reinforce event |
-| Cursor | Rule file points operator to inject markdown | Rule file points operator to `invocation_plan` JSON | Usually markdown fallback | Usually markdown fallback plus manual CLI |
+| Codex | Steering rule instructs agent to run `brain inject` or `brain start --format json` at session start | SKILL routes on `invocation_plan` JSON when only routing is needed | Agent proposes `brain extract` when durable lessons appear; post-commit hook queues candidates | Agent proposes `brain reinforce` on failure; operator can also run manually |
+| Cursor | `alwaysApply: true` rule instructs agent to run `brain inject` or `brain start --format json` | Rule file instructs agent to route on `invocation_plan` JSON | Agent proposes `brain extract` when durable lessons appear | Markdown fallback plus manual CLI |
 | Copilot | Custom instructions consume inject markdown | Custom instructions point to `invocation_plan` JSON | Usually markdown fallback | Usually shell or CI-driven reinforce |
 
 ## Included Adapters

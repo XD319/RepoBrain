@@ -1,36 +1,71 @@
 ---
-description: Bootstrap Cursor with RepoBrain thin-adapter contract
+description: RepoBrain session lifecycle — auto-inject repo memory at session start, extract durable lessons at session end
 globs:
-alwaysApply: false
+alwaysApply: true
 ---
 
-Use RepoBrain as the durable repo-memory layer for this repository.
+# RepoBrain 会话规则（Cursor）
 
-Session start:
+## 会话开始时（必须）
 
-- Read the markdown payload from `brain inject --task "<current task>" --path <changed-path>`.
-- Treat `integrations/contracts/session-start.inject.md` as the canonical shape example.
+每次新会话开始时，在回复用户之前先执行：
 
-Task known:
+```bash
+brain inject
+```
 
-- Read the JSON payload from `brain suggest-skills --format json --task "<current task>" --path <changed-path>`.
-- Route on `invocation_plan`, not on a Cursor-local memory schema.
-- Treat `integrations/contracts/task-known.invocation-plan.json` as the canonical shape example.
+将输出内容作为本仓库的背景上下文。如果 `.brain/` 不存在，跳过并提示用户运行 `brain setup`。
 
-Session end:
+如果已知当前任务，优先使用带路由的组合命令：
 
-- If a durable lesson appears, emit the candidate shape from `integrations/contracts/session-end.extract-candidate.json`.
-- If structured JSON is inconvenient, emit the markdown fallback from `integrations/contracts/session-end.extract-candidate.md` and pipe it to `brain extract`.
+```bash
+brain start --format json --task "<当前任务描述>"
+```
 
-Failure path:
+## 会话过程中
 
-- If the task violated a known memory or repeated a previous mistake, emit the event shape from `integrations/contracts/failure.reinforce-event.json`.
-- If structured output is unavailable, write a markdown failure summary and pipe it to `brain reinforce`.
+当用户做出以下操作时，主动提议提取记忆：
+- 修复了一个之前反复出现的 bug → 提议提取 `gotcha`
+- 解释了某个架构决策的原因 → 提议提取 `decision`
+- 描述了一个"绝对不能这样做"的约束 → 提议提取 `gotcha`
+- 明确了仓库命名或结构规范 → 提议提取 `convention`
+- 开始一个跨越多轮对话的功能开发 → 提议提取 `goal`
 
-Rules:
+提议示例：
+> 「这个 JWT refresh 的坑点值得记录下来，我可以帮你提取成 gotcha，下次不会重踩，要保存吗？」
 
-- `.brain/` is the only durable repo-memory store.
-- `brain inject` gives compact context.
-- `brain suggest-skills` gives task-aware routing metadata.
-- `brain extract` and `brain reinforce` remain the only durable write paths.
-- Do not create Cursor-only copies of decisions, gotchas, conventions, or patterns.
+## 临时上下文（working 类型）
+
+只在本次会话有用的上下文，用 working 类型存储（7 天自动过期）：
+
+```bash
+echo "<临时上下文>" | brain extract --type working
+```
+
+## 跨会话目标（goal 类型）
+
+用户描述的多会话任务，用 goal 类型记录：
+
+```bash
+echo "目标：<描述>
+
+进度：
+- [ ] 步骤一" | brain extract --type goal
+```
+
+`brain inject` 会在每次会话开始时优先展示所有 active goal，自动恢复上下文。
+
+## 会话结束时（推荐）
+
+本次会话有重要发现时：
+
+```bash
+git log -1 --pretty=format:"%B" | brain extract --source git-commit
+```
+
+## 规则
+
+- `.brain/` 是唯一的持久知识存储。
+- 不要在 Cursor 内创建独立的知识副本（如自行创建 .cursor/memories/ 等）。
+- `brain inject` 提供上下文，`brain suggest-skills` 提供路由。
+- `brain extract` 和 `brain reinforce` 是唯一的持久写入路径。

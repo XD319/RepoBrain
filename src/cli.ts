@@ -93,7 +93,7 @@ program
   .command("init")
   .description("Initialize .brain with a workflow preset and steering rules for agent sessions.")
   .option("--workflow <mode>", "Workflow mode: ultra-safe-manual | recommended-semi-auto | automation-first", parseWorkflowMode)
-  .option("--steering-rules <target>", "Generate steering rules for claude, codex, both, or skip.")
+  .option("--steering-rules <target>", "Generate steering rules for claude, codex, cursor, all, or skip.")
   .option("--skip-steering-rules", "Do not generate steering rules during initialization.")
   .action(async (options: { workflow?: WorkflowMode; steeringRules?: string; skipSteeringRules?: boolean }) => {
     const projectRoot = process.cwd();
@@ -116,7 +116,7 @@ program
   .command("setup")
   .description("Initialize RepoBrain, apply a workflow preset, and install the matching low-risk automation.")
   .option("--workflow <mode>", "Workflow mode: ultra-safe-manual | recommended-semi-auto | automation-first", parseWorkflowMode)
-  .option("--steering-rules <target>", "Generate steering rules for claude, codex, both, or skip.")
+  .option("--steering-rules <target>", "Generate steering rules for claude, codex, cursor, all, or skip.")
   .option("--skip-steering-rules", "Do not generate steering rules during setup.")
   .option("--no-git-hook", "Skip installing the post-commit Git hook.")
   .action(async (options: { workflow?: WorkflowMode; steeringRules?: string; skipSteeringRules?: boolean; gitHook?: boolean }) => {
@@ -1115,7 +1115,7 @@ async function runSweepInteractive(projectRoot: string, config: BrainConfig): Pr
   }
 }
 
-async function promptSteeringRulesChoice(): Promise<"claude" | "codex" | "both" | "skip"> {
+async function promptSteeringRulesChoice(): Promise<"claude" | "codex" | "cursor" | "all" | "both" | "skip"> {
   const rl = createInterface({
     input,
     output,
@@ -1125,12 +1125,13 @@ async function promptSteeringRulesChoice(): Promise<"claude" | "codex" | "both" 
     output.write("? 你使用哪个 AI 编码工具？（用于生成 steering rules）\n");
     output.write("1. Claude Code（生成 .claude/rules/brain-session.md）\n");
     output.write("2. Codex（补充 .codex/brain-session.md）\n");
-    output.write("3. 两者都用\n");
-    output.write("4. 跳过\n");
+    output.write("3. Cursor（生成 .cursor/rules/brain-session.mdc）\n");
+    output.write("4. 全部\n");
+    output.write("5. 跳过\n");
 
     while (true) {
-      const answer = (await rl.question("选择 [4]: ")).trim().toLowerCase();
-      if (!answer || answer === "4" || answer === "skip") {
+      const answer = (await rl.question("选择 [5]: ")).trim().toLowerCase();
+      if (!answer || answer === "5" || answer === "skip") {
         return "skip";
       }
       if (answer === "1" || answer === "claude" || answer === "claude code") {
@@ -1139,11 +1140,14 @@ async function promptSteeringRulesChoice(): Promise<"claude" | "codex" | "both" 
       if (answer === "2" || answer === "codex") {
         return "codex";
       }
-      if (answer === "3" || answer === "both" || answer === "all" || answer === "两者都用") {
-        return "both";
+      if (answer === "3" || answer === "cursor") {
+        return "cursor";
+      }
+      if (answer === "4" || answer === "all" || answer === "both" || answer === "全部") {
+        return "all";
       }
 
-      output.write('请输入 1、2、3、4，或输入 "claude" / "codex" / "both" / "skip"。\n');
+      output.write('请输入 1-5，或输入 "claude" / "codex" / "cursor" / "all" / "skip"。\n');
     }
   } finally {
     rl.close();
@@ -1174,21 +1178,24 @@ async function applyWorkflowPresetConfig(projectRoot: string, workflowMode: Work
 function resolveSteeringRulesChoice(
   value: string | undefined,
   skip: boolean | undefined,
-): "claude" | "codex" | "both" | "skip" {
+): "claude" | "codex" | "cursor" | "all" | "both" | "skip" {
   if (skip) {
     return "skip";
   }
 
   if (!value) {
-    return "both";
+    return "all";
   }
 
   const normalized = value.trim().toLowerCase();
-  if (normalized === "claude" || normalized === "codex" || normalized === "both" || normalized === "skip") {
+  if (
+    normalized === "claude" || normalized === "codex" || normalized === "cursor" ||
+    normalized === "all" || normalized === "both" || normalized === "skip"
+  ) {
     return normalized;
   }
 
-  throw new Error('Use "--steering-rules claude", "--steering-rules codex", "--steering-rules both", or "--skip-steering-rules".');
+  throw new Error('Use "--steering-rules claude", "--steering-rules codex", "--steering-rules cursor", "--steering-rules all", or "--skip-steering-rules".');
 }
 
 function renderWorkflowSummaryLines(workflowMode: WorkflowMode): string[] {
@@ -1223,6 +1230,7 @@ function renderSetupNextSteps(workflowMode: WorkflowMode): string[] {
 function formatSteeringRulesStatus(status: {
   claudeConfigured: boolean;
   codexConfigured: boolean;
+  cursorConfigured: boolean;
 }): string {
   const configured: string[] = [];
   if (status.claudeConfigured) {
@@ -1231,8 +1239,11 @@ function formatSteeringRulesStatus(status: {
   if (status.codexConfigured) {
     configured.push("codex");
   }
+  if (status.cursorConfigured) {
+    configured.push("cursor");
+  }
 
-  return configured.length > 0 ? configured.join(", ") : 'missing (run "brain init --steering-rules both")';
+  return configured.length > 0 ? configured.join(", ") : 'missing (run "brain init --steering-rules all")';
 }
 
 async function buildWorkflowSnapshot(

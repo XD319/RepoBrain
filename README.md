@@ -299,7 +299,9 @@ Templates and setup notes:
 
 ### Cursor
 
-Cursor support remains rules-first. Copy `integrations/cursor/repobrain.mdc` into `.cursor/rules/repobrain.mdc`, then use the shared contract examples for inject, invocation plans, extract candidates, and reinforce events.
+Cursor support is now rules-first with `alwaysApply: true`. When you run `brain setup`, RepoBrain generates `.cursor/rules/brain-session.mdc` with session lifecycle instructions that tell the Cursor agent to automatically run `brain inject` at the start of every conversation and propose `brain extract` when durable lessons appear.
+
+If you prefer the integration template instead, copy `integrations/cursor/repobrain.mdc` into `.cursor/rules/repobrain.mdc`.
 
 ### GitHub Copilot
 
@@ -364,7 +366,7 @@ Create the local RepoBrain workspace in the current repository:
 brain setup
 ```
 
-`brain setup` is the fastest recommended entry point. It now defaults to the `recommended-semi-auto` workflow, writes steering rules for Claude Code and Codex, and when you run it from the Git root it also installs the lightweight `post-commit` hook for richer commit-context extraction.
+`brain setup` is the fastest recommended entry point. It now defaults to the `recommended-semi-auto` workflow, writes steering rules for Claude Code, Codex, and Cursor, and when you run it from the Git root it also installs the lightweight `post-commit` hook for richer commit-context extraction.
 
 If you only want the workspace without Git hook automation, `brain init` remains the lightweight entry point. It now uses the same workflow presets and steering-rule generation, but skips Git hook installation:
 
@@ -373,11 +375,12 @@ If you only want the workspace without Git hook automation, `brain init` remains
 ? 你使用哪个 AI 编码工具？（用于生成 steering rules）
 1. Claude Code（生成 .claude/rules/brain-session.md）
 2. Codex（补充 .codex/brain-session.md）
-3. 两者都用
-4. 跳过
+3. Cursor（生成 .cursor/rules/brain-session.mdc）
+4. 全部
+5. 跳过
 ```
 
-Those generated Markdown files are plain-text workflow rules for your agent, so future sessions remember to run `brain inject`, extract reviewable candidates at session end, and keep approval in the loop at the right times.
+Those generated files are plain-text workflow rules for your agent, so future sessions remember to run `brain inject`, extract reviewable candidates at session end, and keep approval in the loop at the right times. The Cursor rule uses `alwaysApply: true` so the agent reads it automatically at the start of every conversation.
 
 Workflow preset examples:
 

@@ -5,7 +5,31 @@ import path from "node:path";
 
 import { getSteeringRulesStatus, initBrain, writeSteeringRules } from "../dist/store-api.js";
 
-await runTest("brain init helpers can generate both steering rules files", async () => {
+await runTest("brain init helpers can generate all steering rules files", async () => {
+  await withTempRepo(async (projectRoot) => {
+    await initBrain(projectRoot);
+    const writtenPaths = await writeSteeringRules(projectRoot, "all");
+
+    assert.deepEqual(writtenPaths, [
+      ".claude/rules/brain-session.md",
+      ".codex/brain-session.md",
+      ".cursor/rules/brain-session.mdc",
+    ]);
+
+    const claudeContent = await readFile(path.join(projectRoot, ".claude", "rules", "brain-session.md"), "utf8");
+    const codexContent = await readFile(path.join(projectRoot, ".codex", "brain-session.md"), "utf8");
+    const cursorContent = await readFile(path.join(projectRoot, ".cursor", "rules", "brain-session.mdc"), "utf8");
+
+    assert.match(claudeContent, /# RepoBrain 会话规则/);
+    assert.match(claudeContent, /brain inject/);
+    assert.match(codexContent, /# RepoBrain 会话规则（Codex）/);
+    assert.match(codexContent, /brain inject/);
+    assert.match(cursorContent, /alwaysApply: true/);
+    assert.match(cursorContent, /brain inject/);
+  });
+});
+
+await runTest("brain init helpers generate only claude and codex with both for backward compatibility", async () => {
   await withTempRepo(async (projectRoot) => {
     await initBrain(projectRoot);
     const writtenPaths = await writeSteeringRules(projectRoot, "both");
@@ -13,19 +37,12 @@ await runTest("brain init helpers can generate both steering rules files", async
     assert.deepEqual(writtenPaths, [
       ".claude/rules/brain-session.md",
       ".codex/brain-session.md",
+      ".cursor/rules/brain-session.mdc",
     ]);
-
-    const claudeContent = await readFile(path.join(projectRoot, ".claude", "rules", "brain-session.md"), "utf8");
-    const codexContent = await readFile(path.join(projectRoot, ".codex", "brain-session.md"), "utf8");
-
-    assert.match(claudeContent, /# RepoBrain 会话规则/);
-    assert.match(claudeContent, /brain inject/);
-    assert.match(codexContent, /# RepoBrain Codex 工作流/);
-    assert.match(codexContent, /brain goal done <关键词>/);
   });
 });
 
-await runTest("brain status helper reports missing steering rules when neither file exists", async () => {
+await runTest("brain status helper reports missing steering rules when no file exists", async () => {
   await withTempRepo(async (projectRoot) => {
     await initBrain(projectRoot);
     const status = await getSteeringRulesStatus(projectRoot);
@@ -33,6 +50,7 @@ await runTest("brain status helper reports missing steering rules when neither f
     assert.deepEqual(status, {
       claudeConfigured: false,
       codexConfigured: false,
+      cursorConfigured: false,
     });
   });
 });
@@ -46,6 +64,25 @@ await runTest("brain status helper reports configured steering rules independent
     assert.deepEqual(status, {
       claudeConfigured: false,
       codexConfigured: true,
+      cursorConfigured: false,
+    });
+  });
+});
+
+await runTest("brain init helpers can generate cursor steering rules independently", async () => {
+  await withTempRepo(async (projectRoot) => {
+    await initBrain(projectRoot);
+    const writtenPaths = await writeSteeringRules(projectRoot, "cursor");
+
+    assert.deepEqual(writtenPaths, [
+      ".cursor/rules/brain-session.mdc",
+    ]);
+
+    const status = await getSteeringRulesStatus(projectRoot);
+    assert.deepEqual(status, {
+      claudeConfigured: false,
+      codexConfigured: false,
+      cursorConfigured: true,
     });
   });
 });
