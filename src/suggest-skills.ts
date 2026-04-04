@@ -631,6 +631,41 @@ export function collectGitDiffPaths(projectRoot: string): string[] {
   }
 }
 
+export function resolveSuggestedSkillPaths(
+  projectRoot: string,
+  explicitPaths: string[],
+): {
+  paths: string[];
+  path_source: PathSource;
+  warnings: string[];
+} {
+  const normalizedExplicitPaths = normalizePaths(explicitPaths);
+  if (normalizedExplicitPaths.length > 0) {
+    return {
+      paths: normalizedExplicitPaths,
+      path_source: "explicit",
+      warnings: [],
+    };
+  }
+
+  const gitPaths = collectGitDiffPaths(projectRoot);
+  if (gitPaths.length > 0) {
+    return {
+      paths: gitPaths,
+      path_source: "git_diff",
+      warnings: [],
+    };
+  }
+
+  return {
+    paths: [],
+    path_source: "none",
+    warnings: [
+      "Git diff paths were unavailable, so RepoBrain continued with task-only routing.",
+    ],
+  };
+}
+
 function toDisplayPath(value: string): string {
   return value.replace(/\\/g, "/");
 }

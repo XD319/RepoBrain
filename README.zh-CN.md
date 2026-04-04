@@ -1039,3 +1039,31 @@ Failure detector 契约：
 > RepoBrain 的核心是给 coding agent 沉淀 durable repo knowledge，而不是做一个通用长期聊天记忆系统。
 
 它不是另一个 AI 应用，也不是模型 API 中间层；它是 agent-agnostic 的 repo knowledge infrastructure。
+
+---
+
+## 补充：Session Routing Bundle
+
+现在可以用 `brain route`，或者它的别名 `brain start`，一次性拿到 session context 和 task routing：
+
+```bash
+brain route --task "fix refund bug"
+brain route --task "fix refund bug" --format json
+```
+
+这个命令会在未传 `--path` 时自动读取 `git diff --name-only HEAD`；如果没有可用的 git 上下文，也会自动退回到 task-only routing。内部仍然复用现有的 `brain inject` 和 `brain suggest-skills --format json`，只是把两者合并成一个稳定 bundle，方便 adapter 直接消费。
+
+JSON bundle 会包含这些核心字段：
+
+- `contract_version`
+- `task`
+- `paths`
+- `path_source`
+- `context_markdown`
+- `skill_plan`
+- `resolved_skills`
+- `conflicts`
+- `warnings`
+- `display_mode`
+
+其中 `display_mode` 在没有严重冲突时为 `silent-ok`；如果出现 `blocked`、`human_review` 或严重冲突，则为 `needs-review`。

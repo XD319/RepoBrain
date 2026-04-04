@@ -34,9 +34,16 @@ export {
   collectGitDiffPaths,
   renderSkillShortlist,
   renderSkillShortlistJson,
+  resolveSuggestedSkillPaths,
   SUGGEST_SKILLS_CONTRACT_KIND,
   SUGGEST_SKILLS_CONTRACT_VERSION,
 } from "./suggest-skills.js";
+export {
+  buildTaskRoutingBundle,
+  renderTaskRoutingBundle,
+  renderTaskRoutingBundleJson,
+  TASK_ROUTING_BUNDLE_CONTRACT_VERSION,
+} from "./task-routing.js";
 export {
   reinforceMemories,
 } from "./reinforce.js";
@@ -92,6 +99,11 @@ export type {
   SuggestSkillsOptions,
   SuggestSkillsOutputFormat,
 } from "./suggest-skills.js";
+export type {
+  BuildTaskRoutingBundleOptions,
+  TaskRoutingBundle,
+  TaskRoutingDisplayMode,
+} from "./task-routing.js";
 export type {
   FailureEvent,
 } from "./failure-detector.js";

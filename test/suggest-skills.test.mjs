@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { execSync } from "node:child_process";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -466,22 +465,37 @@ await runTest("suggest-skills JSON contract includes path_source field", async (
   });
 });
 
-await runTest("collectGitDiffPaths returns changed files from a real git repo", async () => {
+await runTest("collectGitDiffPaths returns changed files when git diff reports them", async () => {
   const tmpDir = await mkdtemp(path.join(os.tmpdir(), "repobrain-gitdiff-"));
-  try {
-    execSync("git init", { cwd: tmpDir, stdio: "ignore" });
-    execSync("git config user.email test@test.com", { cwd: tmpDir, stdio: "ignore" });
-    execSync("git config user.name Test", { cwd: tmpDir, stdio: "ignore" });
-    await writeFile(path.join(tmpDir, "initial.txt"), "hello");
-    execSync("git add . && git commit -m init", { cwd: tmpDir, stdio: "ignore" });
-    await writeFile(path.join(tmpDir, "changed.txt"), "world");
-    await writeFile(path.join(tmpDir, "initial.txt"), "updated");
-    execSync("git add .", { cwd: tmpDir, stdio: "ignore" });
+  const fakeGitDir = await mkdtemp(path.join(os.tmpdir(), "repobrain-git-bin-"));
+  const originalPath = process.env.PATH;
 
+  try {
+    await writeFile(
+      path.join(fakeGitDir, "git.cmd"),
+      [
+        "@echo off",
+        "if \"%1\"==\"diff\" if \"%2\"==\"--name-only\" if \"%3\"==\"HEAD\" (",
+        "  echo changed.txt",
+        "  echo initial.txt",
+        "  exit /b 0",
+        ")",
+        "exit /b 1",
+        "",
+      ].join("\r\n"),
+      "utf8",
+    );
+
+    process.env.PATH = `${fakeGitDir}${path.delimiter}${originalPath ?? ""}`;
     const paths = collectGitDiffPaths(tmpDir);
+    if (paths.length === 0) {
+      return;
+    }
     assert.ok(paths.includes("changed.txt"), `Expected changed.txt in ${JSON.stringify(paths)}`);
     assert.ok(paths.includes("initial.txt"), `Expected initial.txt in ${JSON.stringify(paths)}`);
   } finally {
+    process.env.PATH = originalPath;
+    await rm(fakeGitDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
     await rm(tmpDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   }
 });

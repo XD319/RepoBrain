@@ -37,11 +37,16 @@ import { setupRepoBrain } from "./setup.js";
 import { getSteeringRulesStatus, writeSteeringRules } from "./steering-rules.js";
 import {
   buildSkillShortlist,
-  collectGitDiffPaths,
   renderSkillShortlist,
   renderSkillShortlistJson,
+  resolveSuggestedSkillPaths,
 } from "./suggest-skills.js";
 import type { PathSource } from "./suggest-skills.js";
+import {
+  buildTaskRoutingBundle,
+  renderTaskRoutingBundle,
+  renderTaskRoutingBundleJson,
+} from "./task-routing.js";
 import {
   applySweepAuto,
   archiveGoalMemory,
@@ -598,6 +603,65 @@ program
   });
 
 program
+  .command("route")
+  .alias("start")
+  .description(
+    "Build a session/task routing bundle by combining inject context and suggest-skills output. " +
+    'Use "brain route --task \\"fix refund bug\\"" or the alias "brain start".',
+  )
+  .option("--task <task>", "Task description to route.")
+  .option(
+    "--path <path>",
+    "Override changed paths (skips git diff auto-detection). Repeat or pass a comma-separated list.",
+    collectValues,
+    [] as string[],
+  )
+  .option(
+    "--module <module>",
+    "Module or subsystem keywords to prioritize during inject. Repeat or pass a comma-separated list.",
+    collectValues,
+    [] as string[],
+  )
+  .option("--json", 'Print the combined bundle as JSON. Equivalent to "--format json".')
+  .option("--format <format>", 'Output format: "markdown" or "json".', "markdown")
+  .action(async (options: {
+    task?: string;
+    path: string[];
+    module: string[];
+    json?: boolean;
+    format?: string;
+  }) => {
+    const projectRoot = process.cwd();
+    const config = await loadConfig(projectRoot);
+    renderConfigWarnings(config).forEach((warning) => process.stderr.write(`[repobrain] ${warning}\n`));
+    if (config.sweepOnInject) {
+      await initBrain(projectRoot);
+      await runSweepAuto(projectRoot, config, (line) => process.stderr.write(`${line}\n`), true);
+    }
+
+    const task = options.task?.trim() || (await readOptionalStdin());
+    if (!task) {
+      throw new Error('Provide a task with "--task" (or stdin) before running "brain route".');
+    }
+
+    const resolvedPaths = resolveSuggestedSkillPaths(projectRoot, options.path);
+    const bundle = await buildTaskRoutingBundle(projectRoot, config, {
+      task,
+      paths: resolvedPaths.paths,
+      path_source: resolvedPaths.path_source,
+      modules: options.module,
+      warnings: resolvedPaths.warnings,
+    });
+
+    const format = resolveSuggestSkillsOutputFormat(options);
+    output.write(
+      format === "json"
+        ? `${renderTaskRoutingBundleJson(bundle)}\n`
+        : `${renderTaskRoutingBundle(bundle)}\n`,
+    );
+  });
+
+program
   .command("suggest-skills")
   .description(
     "Suggest a skill shortlist from the current task, changed paths, and matched memories. " +
@@ -616,18 +680,9 @@ program
   .action(async (options: { task?: string; path: string[]; json?: boolean; format?: string }) => {
     const projectRoot = process.cwd();
     const task = options.task?.trim() || (await readOptionalStdin());
-
-    let paths: string[];
-    let pathSource: PathSource;
-
-    if (options.path.length > 0) {
-      paths = options.path;
-      pathSource = "explicit";
-    } else {
-      const gitPaths = collectGitDiffPaths(projectRoot);
-      paths = gitPaths;
-      pathSource = gitPaths.length > 0 ? "git_diff" : "none";
-    }
+    const resolvedPaths = resolveSuggestedSkillPaths(projectRoot, options.path);
+    const paths = resolvedPaths.paths;
+    const pathSource: PathSource = resolvedPaths.path_source;
 
     const result = await buildSkillShortlist(projectRoot, {
       ...(task ? { task } : {}),

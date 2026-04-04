@@ -701,6 +701,59 @@ If you already have the task description in a file or another command, you can a
 cat task.txt | brain suggest-skills --path src/cli.ts --path test/store.test.mjs
 ```
 
+### Start A Session With One Routing Bundle
+
+If your adapter wants one high-level entry point instead of calling `inject` and `suggest-skills` separately, use `brain route` or its alias `brain start`:
+
+```bash
+brain route --task "fix refund bug"
+# or
+brain start --task "fix refund bug"
+```
+
+This command:
+
+- auto-collects changed paths from `git diff --name-only HEAD` when `--path` is omitted
+- falls back to task-only routing when git context is unavailable
+- reuses the existing `brain inject` context builder
+- reuses the existing `brain suggest-skills --format json` routing logic
+- returns one combined bundle for human readers or thin adapters
+
+Markdown remains the default output. JSON is available for adapters:
+
+```bash
+brain route --task "fix refund bug" --format json
+```
+
+Example JSON shape:
+
+```json
+{
+  "contract_version": "repobrain.task-routing-bundle.v1",
+  "task": "fix refund bug",
+  "paths": ["src/payments/refund.ts"],
+  "path_source": "git_diff",
+  "context_markdown": "# Project Brain: Repo Knowledge Context\n...",
+  "skill_plan": {
+    "required": ["refund-handler"],
+    "prefer_first": [],
+    "optional_fallback": [],
+    "suppress": [],
+    "blocked": [],
+    "human_review": []
+  },
+  "resolved_skills": [],
+  "conflicts": [],
+  "warnings": [],
+  "display_mode": "silent-ok"
+}
+```
+
+`display_mode` is:
+
+- `silent-ok` when RepoBrain found no blocked or human-review routing outcome
+- `needs-review` when `blocked`, `human_review`, or severe conflicts require a human check
+
 ### When To Use `inject` Vs `suggest-skills` Vs `invocation_plan`
 
 Use `brain inject` when the agent needs a compact, durable repo context block before it starts coding. Use `brain suggest-skills` when you already know the task and want RepoBrain to narrow the execution workflow or tool choice. Consume the `invocation_plan` when an adapter already has the task context and needs a stable contract it can route on without re-interpreting prose.
