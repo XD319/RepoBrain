@@ -26,6 +26,11 @@ export {
   renderSchemaHealthSummary,
 } from "./memory-schema.js";
 export {
+  evaluateExtractWorthiness,
+  renderExtractSuggestionJson,
+  renderExtractSuggestionMarkdown,
+} from "./extract-suggestion.js";
+export {
   buildFailureDetectionPrompt,
   detectFailures,
 } from "./failure-detector.js";
@@ -106,6 +111,13 @@ export type {
   TaskRoutingBundle,
   TaskRoutingDisplayMode,
 } from "./task-routing.js";
+export type {
+  ExtractSuggestionEvidence,
+  ExtractSuggestionInput,
+  ExtractSuggestionResult,
+  ExtractSuggestionSignal,
+  ExtractSuggestionSuppression,
+} from "./extract-suggestion.js";
 export type {
   FailureEvent,
 } from "./failure-detector.js";

@@ -868,6 +868,8 @@ brain reinforce --pending
 brain reinforce < session-summary.txt
 brain suggest-skills --task "debug flaky browser tests" --path tests/e2e/login.spec.ts
 brain suggest-skills --format json --task "debug flaky browser tests" --path tests/e2e/login.spec.ts
+brain suggest-extract --task "fix refund bug" --path src/payments/handler.ts
+brain suggest-extract --json --rev HEAD
 brain share <memory-id>
 brain share --all-active
 brain mcp
@@ -905,6 +907,7 @@ brain mcp
 - `brain audit-memory`：审计 `.brain/` 中疑似 stale、conflict、low-signal 或 overscoped 的条目，并附带 schema 健康度摘要
 - `brain reinforce`：从 `stdin` 手动执行失败分析和记忆强化；自动化或 CI 场景可加 `--yes` 跳过确认
 - `brain suggest-skills`：根据任务文本、变更路径和命中的 active memories 输出一份 deterministic skill routing plan
+- `brain suggest-extract`：用本地确定性规则评估当前 session 或变更是否值得提取为 durable memory；支持 `--task`、`--path`、`--rev`、`--test-summary` 和 `--json`
 - `brain share`：为单条 memory 或全部 active memories 输出建议的 `git add` / `git commit` 命令
 - `brain mcp`：以最小 MCP stdio server 的形式运行 RepoBrain
 

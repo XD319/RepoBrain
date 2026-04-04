@@ -36,7 +36,13 @@ import { buildSharePlan } from "./share.js";
 import { setupRepoBrain } from "./setup.js";
 import { getSteeringRulesStatus, writeSteeringRules } from "./steering-rules.js";
 import {
+  evaluateExtractWorthiness,
+  renderExtractSuggestionJson,
+  renderExtractSuggestionMarkdown,
+} from "./extract-suggestion.js";
+import {
   buildSkillShortlist,
+  collectGitDiffPaths,
   renderSkillShortlist,
   renderSkillShortlistJson,
   resolveSuggestedSkillPaths,
@@ -695,6 +701,55 @@ program
       format === "json"
         ? `${renderSkillShortlistJson(result)}\n`
         : `${renderSkillShortlist(result)}\n`,
+    );
+  });
+
+program
+  .command("suggest-extract")
+  .description(
+    "Evaluate whether the current session or change is worth extracting as durable memory. " +
+    "Uses local deterministic rules only.",
+  )
+  .option("--task <task>", "Current task description.")
+  .option(
+    "--path <path>",
+    "Override changed paths (skips git diff auto-detection). Repeat or pass a comma-separated list.",
+    collectValues,
+    [] as string[],
+  )
+  .option("--rev <revision>", "Git revision for commit context.", "HEAD")
+  .option("--test-summary <text>", "Optional test result summary text.")
+  .option("--json", 'Print the result as JSON. Equivalent to "--format json".')
+  .option("--format <format>", 'Output format: "markdown" or "json".', "markdown")
+  .action(async (options: {
+    task?: string;
+    path: string[];
+    rev?: string;
+    testSummary?: string;
+    json?: boolean;
+    format?: string;
+  }) => {
+    const projectRoot = process.cwd();
+    const task = options.task?.trim() || undefined;
+    const sessionSummary = (await readOptionalStdin())?.trim() || undefined;
+    const changedFiles = resolveChangedFiles(projectRoot, options.path);
+    const commitContext = await safeLoadCommitContext(projectRoot, options.rev ?? "HEAD");
+
+    const result = evaluateExtractWorthiness({
+      task,
+      sessionSummary,
+      changedFiles,
+      commitMessage: commitContext.commitMessage,
+      diffStat: commitContext.diffStat,
+      testResultSummary: options.testSummary?.trim() || undefined,
+      source: commitContext.commitMessage ? "git-commit" : "session",
+    });
+
+    const format = resolveSuggestSkillsOutputFormat(options);
+    output.write(
+      format === "json"
+        ? `${renderExtractSuggestionJson(result)}\n`
+        : `${renderExtractSuggestionMarkdown(result)}\n`,
     );
   });
 
@@ -2162,5 +2217,42 @@ async function createPromptTerminal(): Promise<{
     };
   } catch {
     return null;
+  }
+}
+
+function resolveChangedFiles(projectRoot: string, explicitPaths: string[]): string[] {
+  const normalizedExplicit = explicitPaths
+    .flatMap((p) => p.split(",").map((s) => s.trim()).filter(Boolean))
+    .map((p) => p.replace(/\\/g, "/"));
+
+  if (normalizedExplicit.length > 0) {
+    return normalizedExplicit;
+  }
+
+  return collectGitDiffPaths(projectRoot);
+}
+
+async function safeLoadCommitContext(
+  projectRoot: string,
+  revision: string,
+): Promise<{ commitMessage?: string; diffStat?: string }> {
+  try {
+    const raw = await buildCommitExtractionInput(projectRoot, revision);
+    const commitMessageMatch = raw.match(/Subject:\s*(.+)/);
+    const bodyMatch = raw.match(/Body:\n([\s\S]*?)(?=\n## |$)/);
+    const commitMessage = [
+      commitMessageMatch?.[1]?.trim() ?? "",
+      bodyMatch?.[1]?.trim() ?? "",
+    ]
+      .filter(Boolean)
+      .join("\n");
+    const diffStatMatch = raw.match(/## Diff stat\n([\s\S]*?)$/);
+    const diffStat = diffStatMatch?.[1]?.trim() ?? undefined;
+    return {
+      ...(commitMessage ? { commitMessage } : {}),
+      ...(diffStat ? { diffStat } : {}),
+    };
+  } catch {
+    return {};
   }
 }
