@@ -1,4 +1,6 @@
 export {
+  approveCandidateMemory,
+  getMemoryStatus,
   initBrain,
   loadAllMemories,
   loadStoredMemoryRecords,
@@ -66,6 +68,8 @@ export {
   createDeterministicMemoryReviewer,
   decideCandidateMemoryReview,
   explainCandidateMemoryReview,
+  isSafeForAutoApproval,
+  looksTemporary,
   parseExternalReviewInput,
   renderCandidateMemoryReviewExplanation,
   reviewCandidateMemories,

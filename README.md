@@ -131,7 +131,7 @@ RepoBrain now treats workflow choice as a first-class setup decision instead of 
 - `recommended semi-auto`
   Best for most repos and now the default for `brain init` and `brain setup`. Session start stays easy with `brain inject`, session end can queue reviewable candidates, and humans keep the final `review` / `approve` control.
 - `automation-first`
-  Best for teams already comfortable with RepoBrain. Clear low-risk extractions can go active automatically, `brain inject` can run cleanup first, and ambiguous items still stay reviewable instead of becoming a black box.
+  Best for teams already comfortable with RepoBrain. Clear low-risk extractions can go active automatically, `brain inject` can run cleanup first, and ambiguous items still stay reviewable instead of becoming a black box. This mode also enables `autoApproveSafeCandidates`, which lets the session-end hook automatically promote candidates that pass strict safety checks.
 
 The practical loop for the default `recommended semi-auto` mode is:
 
@@ -141,6 +141,37 @@ The practical loop for the default `recommended semi-auto` mode is:
 4. Fast promotion pass: `brain approve --safe`
 5. Manual edge cases: `brain approve <id>`
 6. Hygiene pass when needed: `brain score` and `brain sweep --dry-run`
+
+### Safe Auto-Approve
+
+RepoBrain supports a conservative auto-promotion path for candidate memories. Instead of making all extracted memories immediately active, only candidates that pass **all** of the following checks are auto-promoted:
+
+- reviewer decision is `accept` with reason `novel_memory`
+- memory type is not `working`
+- content does not look temporary (no "debug only", "for now", "wip", etc.)
+- no merge, supersede, or reject signals from the reviewer
+
+Everything else stays in the candidate queue for manual `brain review` and `brain approve`.
+
+There are two ways to use safe auto-approve:
+
+1. **CLI command:** `brain promote-candidates` evaluates all pending candidates and promotes the safe ones. Use `--dry-run` to preview without changes.
+2. **Session-end hook:** when `autoApproveSafeCandidates: true` is set in config (enabled by default in the `automation-first` workflow), the hook automatically promotes safe candidates after extraction.
+
+The relationship between the three layers:
+
+```
+extract (auto-detect) → candidate-first (all new memories start as candidate)
+                       → safe auto-approve (only strict-pass candidates promoted)
+                       → manual review (everything else stays for human judgment)
+```
+
+This is safer than making all extracted memories active because:
+
+- Ambiguous, conflicting, or merge-worthy memories never bypass review
+- Working memories and temporary content are always excluded
+- The reviewer's deterministic pipeline is the single source of truth
+- Default config keeps auto-approve disabled (`autoApproveSafeCandidates: false`)
 
 `brain status` and `brain next` are now the high-level dashboard commands. `status` shows the current mode plus pending reminders. `next` tells you the most natural next command so you do not have to remember whether review, reinforce, score, or sweep comes first.
 
@@ -957,6 +988,8 @@ brain next
 brain review
 brain approve --safe
 brain approve <memory-id>
+brain promote-candidates
+brain promote-candidates --dry-run
 brain dismiss <memory-id>
 brain supersede <new-memory-file> <old-memory-file>
 brain lineage
@@ -995,6 +1028,7 @@ brain mcp
 - `brain next`: suggest the next RepoBrain command so you do not have to remember the review / approve / sweep / score order yourself
 - `brain review`: inspect candidate memories waiting for approval
 - `brain approve`: promote one candidate, all candidates, or only `--safe` low-risk candidates to active memory
+- `brain promote-candidates`: evaluate all pending candidates and auto-promote those that pass strict safety checks (novel, non-working, non-temporary, no merge/supersede signals); requires `autoApproveSafeCandidates: true` in config; use `--dry-run` to preview
 - `brain dismiss`: mark one candidate, or all candidates, as dismissed
 - `brain supersede`: manually link a newer memory to an older memory, update `supersedes` / `superseded_by`, carry the old version forward as `old.version + 1`, and mark the older memory as stale
 - `brain lineage`: print ASCII lineage trees for all related memories, or for the chain that contains a specific memory file
@@ -1022,6 +1056,7 @@ staleDays: 90
 sweepOnInject: false
 injectDiversity: true
 injectExplainMaxItems: 4
+autoApproveSafeCandidates: false
 ```
 
 - `workflowMode`: high-level workflow preset; use `ultra-safe-manual`, `recommended-semi-auto`, or `automation-first`
@@ -1035,6 +1070,7 @@ injectExplainMaxItems: 4
 - `sweepOnInject`: when `true`, `brain inject` runs `brain sweep --auto` first and prints sweep logs to `stderr` so the injected markdown stays clean
 - `injectDiversity`: when `true`, `brain inject` uses diversity-aware selection so one cluster of similar memories does not consume the entire token budget
 - `injectExplainMaxItems`: maximum number of top score components shown per memory in `--explain` / debug scoring reports
+- `autoApproveSafeCandidates`: when `true`, `brain promote-candidates` and the session-end hook auto-promote candidates that pass all safety checks (novel, non-working, non-temporary, no merge/supersede); defaults to `false`, enabled by default in `automation-first` workflow
 - legacy `provider`, `model`, or `apiKey` style review settings are ignored with a deprecation warning; RepoBrain Core does not call remote review services
 
 ## Memory Lifecycle

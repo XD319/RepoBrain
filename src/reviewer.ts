@@ -622,8 +622,21 @@ function hasInsufficientSignal(memory: Memory): boolean {
   return combinedTokens.size < 8 || normalizedSummary.length < 18 || normalizedDetail.length < 48;
 }
 
-function looksTemporary(memory: Memory): boolean {
+export function looksTemporary(memory: Memory): boolean {
   return TEMPORARY_DETAIL_PATTERN.test(`${memory.title}\n${memory.summary}\n${memory.detail}`);
+}
+
+export function isSafeForAutoApproval(memory: Memory, review: CandidateMemoryReviewResult): boolean {
+  if (review.decision !== "accept" || review.reason !== "novel_memory") {
+    return false;
+  }
+  if (memory.type === "working") {
+    return false;
+  }
+  if (looksTemporary(memory)) {
+    return false;
+  }
+  return true;
 }
 
 function hasReplacementSignal(memory: Memory): boolean {

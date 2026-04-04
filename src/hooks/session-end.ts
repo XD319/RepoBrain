@@ -6,8 +6,8 @@ import { findProjectRoot, loadConfig, renderConfigWarnings } from "../config.js"
 import { extractMemories } from "../extract.js";
 import { detectFailures } from "../failure-detector.js";
 import { savePendingReinforcementEvents } from "../reinforce-pending.js";
-import { reviewCandidateMemories } from "../reviewer.js";
-import { appendErrorLog, initBrain, loadStoredMemoryRecords, saveMemory, updateIndex } from "../store.js";
+import { isSafeForAutoApproval, reviewCandidateMemories, reviewCandidateMemory } from "../reviewer.js";
+import { appendErrorLog, approveCandidateMemory, getMemoryStatus, initBrain, loadStoredMemoryRecords, saveMemory, updateIndex } from "../store.js";
 import type { Memory } from "../types.js";
 
 async function main(): Promise<void> {
@@ -55,6 +55,28 @@ async function main(): Promise<void> {
         debugLog(
           `Deferred extracted memory "${memory.title}" as candidate (${review.decision}: ${review.reason}; targets=${review.target_memory_ids.join(", ") || "-"})`,
         );
+      }
+    }
+
+    if (config.autoApproveSafeCandidates) {
+      const postExtractRecords = await loadStoredMemoryRecords(projectRoot);
+      const candidates = postExtractRecords.filter(
+        (entry) => getMemoryStatus(entry.memory) === "candidate",
+      );
+      let autoPromoted = 0;
+      for (const record of candidates) {
+        const review = reviewCandidateMemory(
+          record.memory,
+          postExtractRecords.filter((entry) => entry.filePath !== record.filePath),
+        );
+        if (isSafeForAutoApproval(record.memory, review)) {
+          await approveCandidateMemory(record, projectRoot);
+          autoPromoted += 1;
+          debugLog(`Auto-promoted safe candidate "${record.memory.title}"`);
+        }
+      }
+      if (autoPromoted > 0) {
+        debugLog(`Auto-promoted ${autoPromoted} safe candidate(s) to active.`);
       }
     }
 

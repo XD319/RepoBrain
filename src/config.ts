@@ -14,6 +14,7 @@ export interface WorkflowPreset {
   extractMode: ExtractMode;
   sweepOnInject: boolean;
   gitHookDefault: boolean;
+  autoApproveSafeCandidates: boolean;
 }
 
 export const WORKFLOW_PRESETS: Record<WorkflowMode, WorkflowPreset> = {
@@ -26,6 +27,7 @@ export const WORKFLOW_PRESETS: Record<WorkflowMode, WorkflowPreset> = {
     extractMode: "manual",
     sweepOnInject: false,
     gitHookDefault: false,
+    autoApproveSafeCandidates: false,
   },
   "recommended-semi-auto": {
     mode: "recommended-semi-auto",
@@ -36,6 +38,7 @@ export const WORKFLOW_PRESETS: Record<WorkflowMode, WorkflowPreset> = {
     extractMode: "suggest",
     sweepOnInject: false,
     gitHookDefault: true,
+    autoApproveSafeCandidates: false,
   },
   "automation-first": {
     mode: "automation-first",
@@ -46,6 +49,7 @@ export const WORKFLOW_PRESETS: Record<WorkflowMode, WorkflowPreset> = {
     extractMode: "auto",
     sweepOnInject: true,
     gitHookDefault: true,
+    autoApproveSafeCandidates: true,
   },
 };
 
@@ -58,6 +62,7 @@ export const DEFAULT_BRAIN_CONFIG: BrainConfig = {
   sweepOnInject: WORKFLOW_PRESETS["recommended-semi-auto"].sweepOnInject,
   injectDiversity: true,
   injectExplainMaxItems: 4,
+  autoApproveSafeCandidates: WORKFLOW_PRESETS["recommended-semi-auto"].autoApproveSafeCandidates,
 };
 
 const DEPRECATED_REMOTE_REVIEW_KEY_PATTERNS = [
@@ -120,6 +125,9 @@ export async function loadConfig(projectRoot: string): Promise<BrainConfig> {
       sweepOnInject: parsed.explicitKeys.has("sweepOnInject")
         ? (parsed.sweepOnInject ?? DEFAULT_BRAIN_CONFIG.sweepOnInject)
         : preset.sweepOnInject,
+      autoApproveSafeCandidates: parsed.explicitKeys.has("autoApproveSafeCandidates")
+        ? (parsed.autoApproveSafeCandidates ?? DEFAULT_BRAIN_CONFIG.autoApproveSafeCandidates)
+        : preset.autoApproveSafeCandidates,
       ...(parsed.warnings ? { warnings: parsed.warnings } : {}),
     };
   } catch {
@@ -262,6 +270,19 @@ function parseSimpleYaml(raw: string): Partial<BrainConfig> & {
           `Ignoring invalid config value injectExplainMaxItems=${value}. Expected a positive integer; using default ${DEFAULT_BRAIN_CONFIG.injectExplainMaxItems}.`,
         );
       }
+      continue;
+    }
+
+    if (key === "autoApproveSafeCandidates") {
+      if (value.toLowerCase() === "true") {
+        result.autoApproveSafeCandidates = true;
+      } else if (value.toLowerCase() === "false") {
+        result.autoApproveSafeCandidates = false;
+      } else {
+        warnings.push(
+          `Ignoring invalid config value autoApproveSafeCandidates=${value}. Expected true or false; using default ${DEFAULT_BRAIN_CONFIG.autoApproveSafeCandidates}.`,
+        );
+      }
     }
   }
 
@@ -301,6 +322,7 @@ function serializeSimpleYaml(config: BrainConfig): string {
     `sweepOnInject: ${config.sweepOnInject ? "true" : "false"}`,
     `injectDiversity: ${config.injectDiversity ? "true" : "false"}`,
     `injectExplainMaxItems: ${config.injectExplainMaxItems}`,
+    `autoApproveSafeCandidates: ${config.autoApproveSafeCandidates ? "true" : "false"}`,
     `# workflowSummary: ${preset.label} | ${preset.automationLevel}`,
     "",
   ].join("\n");

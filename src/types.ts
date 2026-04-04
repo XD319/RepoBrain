@@ -91,6 +91,7 @@ export interface BrainConfig {
   sweepOnInject: boolean;
   injectDiversity: boolean;
   injectExplainMaxItems: number;
+  autoApproveSafeCandidates: boolean;
   warnings?: string[];
 }
 

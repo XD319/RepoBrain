@@ -31,7 +31,7 @@ import { buildInjection } from "./inject.js";
 import { runMcpServer } from "./mcp/server.js";
 import { clearPendingReinforcementEvents, loadPendingReinforcementState } from "./reinforce-pending.js";
 import { reinforceMemories } from "./reinforce.js";
-import { reviewCandidateMemories, reviewCandidateMemory } from "./reviewer.js";
+import { isSafeForAutoApproval, looksTemporary, reviewCandidateMemories, reviewCandidateMemory } from "./reviewer.js";
 import { buildSharePlan } from "./share.js";
 import { setupRepoBrain } from "./setup.js";
 import { getSteeringRulesStatus, writeSteeringRules } from "./steering-rules.js";
@@ -526,6 +526,74 @@ program
 
     await updateIndex(projectRoot);
     output.write(`Dismissed ${matches.length} candidate memor${matches.length === 1 ? "y" : "ies"}.\n`);
+  });
+
+program
+  .command("promote-candidates")
+  .description(
+    "Evaluate candidate memories and auto-promote those that pass strict safety checks. " +
+    "Only novel, non-working, non-temporary candidates with accept/novel_memory review are promoted. " +
+    "The rest stay in the candidate queue for manual review.",
+  )
+  .option("--dry-run", "Print the promotion plan without changing any files.")
+  .action(async (options: { dryRun?: boolean }) => {
+    const projectRoot = process.cwd();
+    const config = await loadConfig(projectRoot);
+
+    if (!config.autoApproveSafeCandidates) {
+      output.write(
+        '[promote-candidates] autoApproveSafeCandidates is disabled in config. ' +
+        'Set "autoApproveSafeCandidates: true" in .brain/config.yaml or use the automation-first workflow to enable.\n',
+      );
+      return;
+    }
+
+    const records = await loadStoredMemoryRecords(projectRoot);
+    const result = evaluateAutoApprovalCandidates(records);
+
+    if (result.promoted.length === 0 && result.kept.length === 0) {
+      output.write("[promote-candidates] No candidate memories found.\n");
+      return;
+    }
+
+    if (result.promoted.length > 0) {
+      output.write(`Auto-promote (safe):\n`);
+      for (const entry of result.promoted) {
+        output.write(
+          `  + ${getStoredMemoryId(entry.record)} | ${entry.record.memory.type} | ${entry.record.memory.importance} | ${entry.record.memory.title}\n`,
+        );
+      }
+    }
+
+    if (result.kept.length > 0) {
+      output.write(`Kept as candidate (requires manual review):\n`);
+      for (const entry of result.kept) {
+        output.write(
+          `  ~ ${getStoredMemoryId(entry.record)} | ${entry.record.memory.type} | ${entry.reason}\n`,
+        );
+      }
+    }
+
+    if (options.dryRun) {
+      output.write(
+        `\n[dry-run] Would promote ${result.promoted.length} candidate${result.promoted.length === 1 ? "" : "s"}, ` +
+        `keep ${result.kept.length} for review.\n`,
+      );
+      return;
+    }
+
+    for (const entry of result.promoted) {
+      await approveCandidateMemory(entry.record, projectRoot);
+    }
+
+    if (result.promoted.length > 0) {
+      await updateIndex(projectRoot);
+    }
+
+    output.write(
+      `\nPromoted ${result.promoted.length} safe candidate${result.promoted.length === 1 ? "" : "s"} to active. ` +
+      `${result.kept.length} candidate${result.kept.length === 1 ? " remains" : "s remain"} for manual review.\n`,
+    );
   });
 
 program
@@ -2017,6 +2085,37 @@ function resolveSafeCandidateRecords(
 
 function isSafeCandidateReview(review: CandidateMemoryReviewResult): boolean {
   return review.decision === "accept" && review.reason === "novel_memory";
+}
+
+interface PromoteCandidatesResult {
+  promoted: Array<{ record: StoredMemoryRecord; review: CandidateMemoryReviewResult }>;
+  kept: Array<{ record: StoredMemoryRecord; review: CandidateMemoryReviewResult; reason: string }>;
+}
+
+function evaluateAutoApprovalCandidates(records: StoredMemoryRecord[]): PromoteCandidatesResult {
+  const candidates = getCandidateRecords(records);
+  const promoted: PromoteCandidatesResult["promoted"] = [];
+  const kept: PromoteCandidatesResult["kept"] = [];
+
+  for (const record of candidates) {
+    const review = reviewCandidateMemory(
+      record.memory,
+      records.filter((entry) => entry.filePath !== record.filePath),
+    );
+
+    if (isSafeForAutoApproval(record.memory, review)) {
+      promoted.push({ record, review });
+    } else {
+      const reason = record.memory.type === "working"
+        ? "working memory excluded from auto-approval"
+        : looksTemporary(record.memory)
+          ? "temporary content excluded from auto-approval"
+          : `review: ${review.decision} / ${review.reason}`;
+      kept.push({ record, review, reason });
+    }
+  }
+
+  return { promoted, kept };
 }
 
 function matchesStoredMemory(entry: StoredMemoryRecord, rawQuery: string): boolean {

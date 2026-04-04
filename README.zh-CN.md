@@ -115,7 +115,7 @@ RepoBrain 现在把 workflow 选择提升成一等概念，不再要求新用户
 - `recommended semi-auto`
   适合大多数仓库，也是现在 `brain init` / `brain setup` 的默认模式。session start 更顺滑，session end 更省命令，但 `review / approve` 控制权仍然在人手里。
 - `automation-first`
-  适合已经熟悉 RepoBrain 的团队。低风险、明确的提取结果可以自动生效，但有歧义的内容仍然会停留在 review 队列里，不会变成黑盒。
+  适合已经熟悉 RepoBrain 的团队。低风险、明确的提取结果可以自动生效，但有歧义的内容仍然会停留在 review 队列里，不会变成黑盒。此模式默认启用 `autoApproveSafeCandidates`，允许 session-end hook 自动提升通过严格安全检查的 candidate。
 
 默认 `recommended semi-auto` 的日常节奏可以记成：
 
@@ -125,6 +125,37 @@ RepoBrain 现在把 workflow 选择提升成一等概念，不再要求新用户
 4. 用 `brain approve --safe` 走一遍低风险快速审批
 5. 用 `brain approve <id>` 处理需要人工判断的边界情况
 6. 需要清理时再跑 `brain score` / `brain sweep --dry-run`
+
+### 安全自动批准
+
+RepoBrain 支持一条保守的 candidate 自动提升路径。不是把所有提取结果直接写成 active memory，而是只有同时满足以下**所有**条件的 candidate 才会被自动提升：
+
+- reviewer 决策为 `accept`，原因为 `novel_memory`
+- memory 类型不是 `working`
+- 内容不包含临时标志（如"debug only"、"暂时"、"wip"等）
+- reviewer 没有发出 merge、supersede 或 reject 信号
+
+其余所有 candidate 仍保留在队列中等待 `brain review` 和 `brain approve` 人工判断。
+
+使用方式有两种：
+
+1. **CLI 命令：** `brain promote-candidates` 会评估所有待审 candidate，自动提升安全的那些。用 `--dry-run` 可以预览但不执行。
+2. **Session-end hook：** 当 config 中设置 `autoApproveSafeCandidates: true` 时（`automation-first` 工作流默认启用），hook 会在提取结束后自动提升安全的 candidate。
+
+三层之间的关系：
+
+```
+extract（自动检测）→ candidate-first（所有新 memory 先存为 candidate）
+                   → safe auto-approve（仅严格通过的 candidate 自动提升）
+                   → manual review（其余留给人工判断）
+```
+
+这比"extract 全自动写 active"更安全，因为：
+
+- 有歧义、冲突、可合并关系的 memory 永远不会绕过 review
+- working memory 和临时内容一律排除
+- reviewer 的确定性流水线是唯一的判断来源
+- 默认配置保持 auto-approve 关闭（`autoApproveSafeCandidates: false`）
 
 `brain status` 现在负责告诉你“现在堆了什么待处理项”，`brain next` 负责告诉你“下一步最值得跑什么命令”。
 
@@ -864,6 +895,8 @@ brain next
 brain review
 brain approve --safe
 brain approve <memory-id>
+brain promote-candidates
+brain promote-candidates --dry-run
 brain dismiss <memory-id>
 brain supersede <new-memory-file> <old-memory-file>
 brain lineage
@@ -907,6 +940,7 @@ brain mcp
   同时会显示 Claude Code / Codex / Cursor 的 steering rules 是否已配置；如果都不存在，会给出补充配置提示。
 - `brain review`：列出等待审批的 candidate memories
 - `brain approve`：将单条 candidate memory、全部 candidates，或仅 `--safe` 的低风险 candidates 提升为 active
+- `brain promote-candidates`：评估所有待审 candidate，自动提升通过严格安全检查的那些（novel、非 working、非临时、无 merge/supersede 信号）；需要在 config 中设置 `autoApproveSafeCandidates: true`；用 `--dry-run` 预览
 - `brain dismiss`：将单条 candidate memory，或全部 candidates，标记为 stale
 - `brain supersede`：手动把新 memory 和旧 memory 建立取代关系，更新 `supersedes` / `superseded_by`，把新 memory 的 `version` 设为 `旧 version + 1`，并把旧 memory 标记为 stale
 - `brain lineage`：以 ASCII 树形式打印所有有血缘关系的 memory，或只打印包含指定 memory 文件的那条血缘链
@@ -934,6 +968,7 @@ staleDays: 90
 sweepOnInject: false
 injectDiversity: true
 injectExplainMaxItems: 4
+autoApproveSafeCandidates: false
 ```
 
 - `workflowMode`：高层 workflow 预设，可选 `ultra-safe-manual`、`recommended-semi-auto`、`automation-first`
@@ -943,6 +978,7 @@ injectExplainMaxItems: 4
 - `language`：提取提示词偏好的输出语言
 - `staleDays`：非 goal memory 距离 `updated` 超过多少天后，`brain sweep` 会把它判定为陈旧并尝试降权
 - `sweepOnInject`：为 `true` 时，每次 `brain inject` 前都会先执行一次 `brain sweep --auto`；清理日志写到 `stderr`，不会污染 inject 的 markdown 输出
+- `autoApproveSafeCandidates`：为 `true` 时，`brain promote-candidates` 和 session-end hook 会自动提升通过所有安全检查的 candidate（novel、非 working、非临时、无 merge/supersede）；默认 `false`，`automation-first` 工作流默认启用
 - 旧的 `provider`、`model`、`apiKey` 一类 review 配置会被忽略，并给出弃用提示；RepoBrain Core 不会调用远程审核服务
 
 ## Memory 生命周期

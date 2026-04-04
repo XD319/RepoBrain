@@ -28,6 +28,7 @@ const testFiles = [
   "test/proof-evals.test.mjs",
   "test/integrations.test.mjs",
   "test/capture-command.test.mjs",
+  "test/promote-candidates.test.mjs",
 ];
 
 for (const relativePath of testFiles) {
