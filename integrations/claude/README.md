@@ -11,10 +11,12 @@ session start hook
 task becomes clear
   -> brain suggest-skills --format json (optional direct routing payload)
   -> Claude routes on invocation_plan when needed
-session end
-  -> emit extract candidate
+phase completion detected (recurring bug fix / submodule done / multi-file refactor / tests pass / user signals done)
+  -> brain capture --task "<task>" --path <path>
+  -> should_extract=true  → candidate saved for review
+  -> should_extract=false → no action, no prompt
 failure detected
-  -> emit reinforce event
+  -> emit reinforce event via brain reinforce
 ```
 
 ## Minimal Integration
@@ -22,15 +24,17 @@ failure detected
 1. Copy [`SKILL.md`](./SKILL.md) into your Claude skill location.
 2. Prefer `brain start --format json --task "<task>"` before non-trivial work.
 3. Use `brain suggest-skills --task "<task>"` when you want to inspect the raw routing payload manually.
-4. Pipe a short markdown summary to `brain extract` when the session ends.
+4. At phase boundaries, run `brain capture --task "<task>" --path <path>` to let local rules decide whether extraction is worthwhile.
+5. Pipe a failure summary to `brain reinforce` when a known memory is violated.
 
 ## Recommended Integration
 
 1. Keep the skill file as the human-readable contract adapter.
 2. Use the existing RepoBrain session-start hook to fetch `brain start --format json` automatically.
-3. Use the existing session-end hook to save extract candidates in `suggest` mode.
+3. At phase boundaries, run `brain capture` and let the local detection decide. Default is candidate-first.
 4. When only routing is needed after the task becomes clearer, consume `brain suggest-skills --format json` and route on `invocation_plan`.
 5. When a failure violates an existing memory, send the failure event to `brain reinforce`.
+6. Do not repeat the same capture suggestion in the same conversation turn.
 
 ## Limitations
 

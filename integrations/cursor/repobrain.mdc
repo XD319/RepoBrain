@@ -1,5 +1,5 @@
 ---
-description: RepoBrain session lifecycle — auto-inject repo memory at session start, extract durable lessons at session end
+description: RepoBrain session lifecycle — auto-inject repo memory, run local detection at phase boundaries, capture candidates for review
 globs:
 alwaysApply: true
 ---
@@ -11,28 +11,55 @@ alwaysApply: true
 每次新会话开始时，在回复用户之前先执行：
 
 ```bash
-brain inject
-```
-
-将输出内容作为本仓库的背景上下文。如果 `.brain/` 不存在，跳过并提示用户运行 `brain setup`。
-
-如果已知当前任务，优先使用带路由的组合命令：
-
-```bash
 brain start --format json --task "<当前任务描述>"
 ```
 
-## 会话过程中
+将 `context_markdown` 作为本仓库背景上下文，`skill_plan` 作为路由参考。如果 `.brain/` 不存在，跳过并提示用户运行 `brain setup`。
 
-当用户做出以下操作时，主动提议提取记忆：
-- 修复了一个之前反复出现的 bug → 提议提取 `gotcha`
-- 解释了某个架构决策的原因 → 提议提取 `decision`
-- 描述了一个"绝对不能这样做"的约束 → 提议提取 `gotcha`
-- 明确了仓库命名或结构规范 → 提议提取 `convention`
-- 开始一个跨越多轮对话的功能开发 → 提议提取 `goal`
+无法使用 `brain start` 时，回退到：
 
-提议示例：
-> 「这个 JWT refresh 的坑点值得记录下来，我可以帮你提取成 gotcha，下次不会重踩，要保存吗？」
+```bash
+brain inject
+```
+
+## 任务已知时
+
+当任务变得更明确、需要路由决策时：
+
+```bash
+brain suggest-skills --format json --task "<当前任务描述>"
+```
+
+消费 `invocation_plan` 做路由，不要在 Cursor 内创建独立的知识副本（如 .cursor/memories/ 等）。
+
+## 阶段完成时运行本地检测
+
+以下场景出现时，**优先运行本地检测命令**，而不是仅凭主观判断提议提取：
+
+- 修复了重复出现的 bug
+- 完成了一个子模块实现
+- 跨多个文件做了重构
+- 测试从失败变为成功
+- 用户明确表示"好了 / 先这样 / 这版可以 / 继续下一个"
+- 你刚输出了"已修复 / 已实现 / 已完成"
+
+检测命令：
+
+```bash
+brain capture --task "<任务描述>" --path <变更路径>
+```
+
+`brain capture` 会用本地规则判断是否值得提取。`should_extract=true` 时默认生成 candidate（不是直接写 active）。`should_extract=false` 时不要打扰用户。
+
+**同一轮对话中不要重复提出相同的 capture 建议**，除非变更范围或任务状态发生了显著变化。
+
+## 失败路径
+
+当任务违反了已知 memory 或重复了旧的失败模式时：
+
+```bash
+brain reinforce
+```
 
 ## 临时上下文（working 类型）
 
@@ -55,17 +82,11 @@ echo "目标：<描述>
 
 `brain inject` 会在每次会话开始时优先展示所有 active goal，自动恢复上下文。
 
-## 会话结束时（推荐）
-
-本次会话有重要发现时：
-
-```bash
-git log -1 --pretty=format:"%B" | brain extract --source git-commit
-```
-
 ## 规则
 
-- `.brain/` 是唯一的持久知识存储。
+- `.brain/` 是唯一的持久知识存储，不要创建第二套 durable memory store。
 - 不要在 Cursor 内创建独立的知识副本（如自行创建 .cursor/memories/ 等）。
-- `brain inject` 提供上下文，`brain suggest-skills` 提供路由。
-- `brain extract` 和 `brain reinforce` 是唯一的持久写入路径。
+- `brain start` / `brain inject` 提供上下文，`brain suggest-skills` 提供路由。
+- `brain capture` 和 `brain extract` 是提取路径，`brain reinforce` 是失败路径。
+- 默认 candidate-first：提取结果先存为 candidate，由用户 review 后 approve。
+- 不要直接写入 `.brain/`。

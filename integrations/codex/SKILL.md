@@ -45,13 +45,29 @@ Reference example:
 
 - `integrations/contracts/task-known.invocation-plan.json`
 
-## Session End
+## Phase-Completion Detection
 
-When the task produced a durable lesson:
+When one of the following triggers fires, **run the local detection command** instead of relying on subjective judgment:
 
-- emit the JSON candidate envelope from `integrations/contracts/session-end.extract-candidate.json`
-- or emit the markdown fallback from `integrations/contracts/session-end.extract-candidate.md`
-- then hand the result to `brain extract`
+- Fixed a recurring bug
+- Completed a submodule implementation
+- Refactored across multiple files
+- Tests went from failing to passing
+- User signals completion ("done / ship it / looks good / next task")
+- Agent just output "fixed / implemented / completed"
+
+Detection command:
+
+```bash
+brain capture --task "<task description>" --path <changed-path>
+```
+
+Rules:
+
+- `brain capture` uses local deterministic rules to decide whether extraction is worthwhile.
+- When `should_extract=true`, the result is saved as a **candidate** by default, not active.
+- When `should_extract=false`, do not prompt the user.
+- Do not repeat the same capture suggestion in the same conversation turn unless the change scope or task state changed significantly.
 
 ## Failure Reinforcement
 
@@ -63,7 +79,11 @@ When the session violated a known memory or repeated a failure pattern:
 
 ## Guardrails
 
-- `.brain/` is the only durable knowledge store.
-- `brain start` / `brain route` is the preferred session-start entrypoint.
+- `.brain/` is the only durable knowledge store. Do not create a second memory store.
+- RepoBrain is the routing/memory layer; it does not replace Codex-native action selection.
+- `brain start` / `brain inject` gives context; `brain suggest-skills` gives routing.
+- `brain capture` and `brain extract` are the extraction paths; `brain reinforce` is the failure path.
+- Default candidate-first: extracted memories are saved as candidates for user review and approval.
+- Never write directly into `.brain/`.
 - Keep existing CLI behavior compatible unless the task explicitly changes it.
 - Prefer thin contract translation over deep Codex-specific integration logic.

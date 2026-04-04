@@ -45,23 +45,31 @@ Reference example:
 
 - `integrations/contracts/task-known.invocation-plan.json`
 
-## Session End
+## Phase-Completion Detection
 
-Produce an extract candidate when the session reveals durable knowledge.
+When one of the following triggers fires, **run the local detection command** instead of relying on subjective judgment:
 
-Preferred output:
+- Fixed a recurring bug
+- Completed a submodule implementation
+- Refactored across multiple files
+- Tests went from failing to passing
+- User signals completion ("done / ship it / looks good / next task")
+- Agent just output "fixed / implemented / completed"
 
-- `integrations/contracts/session-end.extract-candidate.json`
+Detection command:
 
-Fallback output:
-
-- `integrations/contracts/session-end.extract-candidate.md`
+```bash
+brain capture --task "<task description>" --path <changed-path>
+```
 
 Rules:
 
-- Emit candidate-shaped content, then let RepoBrain Core review it through `brain extract`.
-- Keep one durable lesson per candidate when possible.
-- Do not write directly into `.brain/` from Claude instructions.
+- `brain capture` uses local deterministic rules to decide whether extraction is worthwhile.
+- When `should_extract=true`, the result is saved as a **candidate** by default, not active.
+- When `should_extract=false`, do not prompt the user.
+- Do not repeat the same capture suggestion in the same conversation turn unless the change scope or task state changed significantly.
+
+For hooks-based workflows, the session-end hook can also call `brain capture` automatically.
 
 ## Failure Reinforcement
 
@@ -72,8 +80,10 @@ If the session repeats an old mistake or violates a known memory:
 
 ## Guardrails
 
-- `.brain/` stays the only durable repo-memory store.
+- `.brain/` stays the only durable repo-memory store. Do not create a second memory store.
 - `brain start` / `brain route` is the preferred session-start entrypoint.
 - `brain inject` gives context; `brain suggest-skills` gives routing.
-- `brain extract` and `brain reinforce` remain the only durable write paths.
+- `brain capture` and `brain extract` are the extraction paths; `brain reinforce` is the failure path.
+- Default candidate-first: extracted memories are saved as candidates for user review and approval.
 - Keep Claude integration lightweight; no SDK, no shadow memory, no adapter-owned schema.
+- Never write directly into `.brain/`.

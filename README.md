@@ -233,9 +233,11 @@ Adapter layer responsibilities:
 
 - translate RepoBrain outputs into the target agent's preferred instruction format
 - explain where `brain inject`, `brain suggest-skills`, and `brain start` / `brain route` fit into that agent workflow
-- extract durable knowledge candidates from richer agent workflows when needed
+- run `brain capture` at phase-completion triggers instead of relying on subjective extraction proposals
+- default to candidate-first: extracted memories are saved as candidates for user review and approval
 - provide optional structured review suggestions without replacing Core's local final decision
 - stay thin enough that RepoBrain core remains the only durable knowledge model
+- never write directly into `.brain/`
 
 ### Why thin adapters, but stronger contracts
 
@@ -243,11 +245,13 @@ Thin adapters keep RepoBrain portable. Claude Code, Codex, Cursor, and Copilot a
 
 Stronger contracts make those thin adapters reliable. Instead of "copy this template and improvise", RepoBrain now defines shared lifecycle contracts for:
 
-- session start via `brain inject`
-- preferred session-start bundle via `brain start` / `brain route`
+- session start via `brain start --format json` (preferred) or `brain inject` (fallback)
 - task-known routing via `brain suggest-skills --format json` and `invocation_plan`
+- phase-completion detection via `brain capture` with explicit triggers
 - session-end extraction via extract-candidate markdown or JSON
 - failure reinforcement via reinforce-event markdown or JSON
+
+All adapters share the same detection triggers for phase completion: recurring bug fix, submodule completion, multi-file refactor, tests passing, user signaling done, or agent outputting "fixed / implemented / completed". When `brain capture` reports `should_extract=true`, the result is saved as a candidate by default, not active. When `should_extract=false`, the adapter takes no action and does not prompt the user.
 
 This gives each adapter the same consumption and output semantics without turning the adapter layer into a heavy SDK.
 
@@ -299,13 +303,13 @@ Templates and setup notes:
 
 ### Cursor
 
-Cursor support is now rules-first with `alwaysApply: true`. When you run `brain setup`, RepoBrain generates `.cursor/rules/brain-session.mdc` with session lifecycle instructions that tell the Cursor agent to automatically run `brain inject` at the start of every conversation and propose `brain extract` when durable lessons appear.
+Cursor support is now rules-first with `alwaysApply: true`. When you run `brain setup`, RepoBrain generates `.cursor/rules/brain-session.mdc` with session lifecycle instructions that tell the Cursor agent to automatically run `brain start --format json` at the start of every conversation and run `brain capture` at phase-completion triggers to let local detection decide whether extraction is worthwhile.
 
 If you prefer the integration template instead, copy `integrations/cursor/repobrain.mdc` into `.cursor/rules/repobrain.mdc`.
 
 ### GitHub Copilot
 
-Copilot support remains custom-instructions-first. Copy `integrations/copilot/copilot-instructions.md` into `.github/copilot-instructions.md` and keep RepoBrain as the shared memory core instead of creating Copilot-only repo notes.
+Copilot support remains custom-instructions-first. Copy `integrations/copilot/copilot-instructions.md` into `.github/copilot-instructions.md` and keep RepoBrain as the shared memory core instead of creating Copilot-only repo notes. At phase-completion triggers, Copilot instructions now direct the agent to run `brain capture` and let local detection decide, with markdown fallback when shell access is unavailable.
 
 ### MCP Setup
 

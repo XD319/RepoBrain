@@ -4,9 +4,11 @@ Use RepoBrain as the repository's durable memory layer. This adapter consumes sh
 
 ## Session Start
 
-- Read `brain inject --task "<current task>" --path <changed-path>`.
+- Prefer `brain start --format json --task "<current task>"`.
+- Read `context_markdown` as compact repo context; use `skill_plan` as routing reference.
+- Treat the payload as Core-owned context, not as Copilot-owned memory.
+- If `brain start` is unavailable, fall back to `brain inject --task "<current task>" --path <changed-path>`.
 - Consume it as the markdown contract shown in `integrations/contracts/session-start.inject.md`.
-- Treat it as compact repo context, not as Copilot-owned memory.
 
 ## Task Known
 
@@ -14,11 +16,30 @@ Use RepoBrain as the repository's durable memory layer. This adapter consumes sh
 - Use `invocation_plan` as the routing contract shown in `integrations/contracts/task-known.invocation-plan.json`.
 - Follow the listed checks when planning and verifying the work.
 
-## Session End
+## Phase-Completion Detection
 
-- When the task yields a durable lesson, emit the candidate shape from `integrations/contracts/session-end.extract-candidate.json`.
-- If JSON output is impractical, emit the markdown fallback from `integrations/contracts/session-end.extract-candidate.md`.
-- Route the result through `brain extract`.
+When one of these triggers fires, **run the local detection command** instead of relying on subjective judgment:
+
+- Fixed a recurring bug
+- Completed a submodule implementation
+- Refactored across multiple files
+- Tests went from failing to passing
+- User signals completion ("done / ship it / looks good / next task")
+- Agent just output "fixed / implemented / completed"
+
+Detection command:
+
+```bash
+brain capture --task "<task description>" --path <changed-path>
+```
+
+Rules:
+
+- `brain capture` uses local deterministic rules to decide whether extraction is worthwhile.
+- When `should_extract=true`, the result is saved as a **candidate** by default, not active.
+- When `should_extract=false`, do not prompt the user.
+- Do not repeat the same capture suggestion in the same conversation turn unless the change scope or task state changed significantly.
+- If Copilot cannot run shell commands directly, save a markdown summary and hand it to `brain extract` from the shell.
 
 ## Failure Reinforcement
 
@@ -28,7 +49,9 @@ Use RepoBrain as the repository's durable memory layer. This adapter consumes sh
 
 ## Constraints
 
-- `.brain/` is the source of truth for durable repo knowledge.
-- `brain inject` gives context and `brain suggest-skills` gives routing.
-- `brain extract` and `brain reinforce` remain the only durable write paths.
+- `.brain/` is the source of truth for durable repo knowledge. Do not create a second memory store.
+- `brain start` / `brain inject` gives context; `brain suggest-skills` gives routing.
+- `brain capture` and `brain extract` are the extraction paths; `brain reinforce` is the failure path.
+- Default candidate-first: extracted memories are saved as candidates for user review and approval.
 - Do not create Copilot-only memory files that duplicate RepoBrain decisions, gotchas, conventions, or patterns.
+- Never write directly into `.brain/`.

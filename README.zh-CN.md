@@ -213,20 +213,25 @@ adapter 层职责：
 
 - 把 RepoBrain 的统一输出翻译成目标 agent 偏好的指令格式
 - 说明 `brain inject`、`brain suggest-skills`、`brain start` / `brain route` 在该 agent 工作流中的接入位置
-- 在需要时帮助提炼 durable knowledge 候选
+- 在阶段完成触发点运行 `brain capture`，而不是依赖主观判断来提议提取
+- 默认 candidate-first：提取结果先存为 candidate，由用户 review 后 approve
 - 可以提供结构化的 review suggestion，但不能替代 Core 的本地最终判定
 - 保持足够轻量，避免在 RepoBrain 核心层之外再发明一套知识模型
+- 不要直接写入 `.brain/`
 
 ### Why thin adapters, but stronger contracts
 
 adapter 保持轻量，是为了让 RepoBrain 可以稳定复用到 Claude Code、Codex、Cursor、Copilot 这类不同 agent 表面，而不会把 repo memory、schema 演进和最终 review 决策分散到各家集成里。这些 agent 本身可能已经有自己的 task / action selection 行为，RepoBrain 不会替代它们；RepoBrain 额外提供的是 repo-local、deterministic、auditable 的 routing policy。
 
-contract 变强，是为了让这些轻 adapter 仍然有统一边界。RepoBrain 现在把 adapter 生命周期固定成四段：
+contract 变强，是为了让这些轻 adapter 仍然有统一边界。RepoBrain 现在把 adapter 生命周期固定成五段：
 
-- session start：消费 `brain inject`
+- session start：消费 `brain start --format json`（优先）或 `brain inject`（回退）
 - task known：消费 `brain suggest-skills --format json` 里的 `invocation_plan`
-- session end：产出 extract candidate
+- phase completion：在明确触发点运行 `brain capture`，而不是依赖主观判断
+- session end：产出 extract candidate（如果 capture 还未运行）
 - failure path：产出 reinforce event
+
+所有 adapter 共享同一组阶段完成触发条件：修复了重复 bug、完成了子模块实现、跨多文件重构、测试从失败变成功、用户表示完成、agent 输出"已修复/已实现/已完成"。当 `brain capture` 报告 `should_extract=true` 时，结果默认存为 candidate 而非 active；当 `should_extract=false` 时不做任何动作、不打扰用户。
 
 这样 adapter 仍然只是格式翻译层，而不是重型 integration SDK。
 
@@ -278,13 +283,13 @@ brain suggest-skills --task "current task"
 
 ### Cursor
 
-Cursor 现在通过 `alwaysApply: true` 的规则文件实现 agent 指令驱动的自动化。运行 `brain setup` 时，RepoBrain 会生成 `.cursor/rules/brain-session.mdc`，包含会话生命周期指令，让 Cursor agent 在每次对话开始时自动执行 `brain inject`，并在发现持久知识时主动提议 `brain extract`。
+Cursor 现在通过 `alwaysApply: true` 的规则文件实现 agent 指令驱动的自动化。运行 `brain setup` 时，RepoBrain 会生成 `.cursor/rules/brain-session.mdc`，包含会话生命周期指令，让 Cursor agent 在每次对话开始时自动执行 `brain start --format json`，并在阶段完成触发点运行 `brain capture` 让本地检测规则决定是否值得提取。
 
 如果你更喜欢使用集成模板，也可以手动把 `integrations/cursor/repobrain.mdc` 复制到 `.cursor/rules/repobrain.mdc`。
 
 ### GitHub Copilot
 
-Copilot 继续提供 custom instructions 模板。可以把 `integrations/copilot/copilot-instructions.md` 复制到 `.github/copilot-instructions.md`，并继续把 RepoBrain 作为共享 memory core，而不是单独维护 Copilot 专属的 repo notes。
+Copilot 继续提供 custom instructions 模板。可以把 `integrations/copilot/copilot-instructions.md` 复制到 `.github/copilot-instructions.md`，并继续把 RepoBrain 作为共享 memory core，而不是单独维护 Copilot 专属的 repo notes。在阶段完成触发点，Copilot 指令现在会引导 agent 运行 `brain capture` 让本地检测决定是否提取，无法直接运行 shell 时则回退到 markdown summary。
 
 ### MCP Setup
 
