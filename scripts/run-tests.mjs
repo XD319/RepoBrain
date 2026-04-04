@@ -27,6 +27,7 @@ const testFiles = [
   "test/demo-proof.test.mjs",
   "test/proof-evals.test.mjs",
   "test/integrations.test.mjs",
+  "test/capture-command.test.mjs",
 ];
 
 for (const relativePath of testFiles) {

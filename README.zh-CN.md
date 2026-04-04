@@ -870,6 +870,8 @@ brain suggest-skills --task "debug flaky browser tests" --path tests/e2e/login.s
 brain suggest-skills --format json --task "debug flaky browser tests" --path tests/e2e/login.spec.ts
 brain suggest-extract --task "fix refund bug" --path src/payments/handler.ts
 brain suggest-extract --json --rev HEAD
+brain capture --task "fix refund bug" --path src/payments/handler.ts
+brain capture --force-candidate --task "refactor auth module"
 brain share <memory-id>
 brain share --all-active
 brain mcp
@@ -908,6 +910,7 @@ brain mcp
 - `brain reinforce`：从 `stdin` 手动执行失败分析和记忆强化；自动化或 CI 场景可加 `--yes` 跳过确认
 - `brain suggest-skills`：根据任务文本、变更路径和命中的 active memories 输出一份 deterministic skill routing plan
 - `brain suggest-extract`：用本地确定性规则评估当前 session 或变更是否值得提取为 durable memory；支持 `--task`、`--path`、`--rev`、`--test-summary` 和 `--json`
+- `brain capture`：将 `suggest-extract` 检测和 `extract` 流程合并为一步；当 `should_extract` 为 true 时，提取的记忆默认保存为 **candidate**；为 false 时只输出解释。使用 `--force-candidate` 可在信号模糊时仍保存为 candidate。支持 `--task`、`--path`、`--rev`、`--test-summary`、`--type`、`--source` 和 `--json`
 - `brain share`：为单条 memory 或全部 active memories 输出建议的 `git add` / `git commit` 命令
 - `brain mcp`：以最小 MCP stdio server 的形式运行 RepoBrain
 

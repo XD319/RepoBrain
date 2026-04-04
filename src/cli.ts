@@ -40,6 +40,7 @@ import {
   renderExtractSuggestionJson,
   renderExtractSuggestionMarkdown,
 } from "./extract-suggestion.js";
+import type { ExtractSuggestionResult } from "./extract-suggestion.js";
 import {
   buildSkillShortlist,
   collectGitDiffPaths,
@@ -754,6 +755,114 @@ program
   });
 
 program
+  .command("capture")
+  .description(
+    "Evaluate whether the current session or change is worth extracting, " +
+    "and save as candidate memory when recommended. " +
+    "Combines suggest-extract detection with the extract pipeline.",
+  )
+  .option("--task <task>", "Current task description.")
+  .option(
+    "--path <path>",
+    "Override changed paths (skips git diff auto-detection). Repeat or pass a comma-separated list.",
+    collectValues,
+    [] as string[],
+  )
+  .option("--rev <revision>", "Git revision for commit context.", "HEAD")
+  .option("--test-summary <text>", "Optional test result summary text.")
+  .option("--source <source>", "Memory source label.", "session")
+  .option("--type <type>", "Force a memory type for extracted entries (overrides suggested_type).", parseMemoryTypeOption)
+  .option("--force-candidate", "Save as candidate even when signals are ambiguous (not clearly positive).")
+  .option("--json", 'Print the capture result as JSON. Equivalent to "--format json".')
+  .option("--format <format>", 'Output format: "markdown" or "json".', "markdown")
+  .action(async (options: {
+    task?: string;
+    path: string[];
+    rev?: string;
+    testSummary?: string;
+    source: Memory["source"];
+    type?: MemoryType;
+    forceCandidate?: boolean;
+    json?: boolean;
+    format?: string;
+  }) => {
+    const projectRoot = process.cwd();
+    await initBrain(projectRoot);
+
+    const task = options.task?.trim() || undefined;
+    const sessionSummary = (await readOptionalStdin())?.trim() || undefined;
+    const changedFiles = resolveChangedFiles(projectRoot, options.path);
+    const commitContext = await safeLoadCommitContext(projectRoot, options.rev ?? "HEAD");
+
+    const suggestion = evaluateExtractWorthiness({
+      task,
+      sessionSummary,
+      changedFiles,
+      commitMessage: commitContext.commitMessage,
+      diffStat: commitContext.diffStat,
+      testResultSummary: options.testSummary?.trim() || undefined,
+      source: commitContext.commitMessage ? "git-commit" : "session",
+    });
+
+    const shouldProceed = suggestion.should_extract || (options.forceCandidate && suggestion.confidence < 0.5);
+
+    if (!shouldProceed) {
+      const format = resolveSuggestSkillsOutputFormat(options);
+      const captureResult: CaptureResult = {
+        action: "skipped",
+        reason: suggestion.summary,
+        suggestion,
+        saved_paths: [],
+      };
+
+      if (format === "json") {
+        output.write(`${JSON.stringify(captureResult, null, 2)}\n`);
+      } else {
+        output.write("[capture] Not recommended for extraction.\n");
+        output.write(`Reason: ${suggestion.summary}\n`);
+        if (suggestion.evidence.length > 0) {
+          output.write("Evidence:\n");
+          for (const e of suggestion.evidence) {
+            const mark = e.signal === "positive" ? "+" : e.signal === "negative" ? "-" : "~";
+            output.write(`  [${mark}${Math.abs(e.weight).toFixed(1)}] ${e.rule}: ${e.detail}\n`);
+          }
+        }
+        if (!options.forceCandidate) {
+          output.write('Tip: use "--force-candidate" to save as candidate despite ambiguous signals.\n');
+        }
+      }
+      return;
+    }
+
+    const config = await loadConfig(projectRoot);
+    renderConfigWarnings(config).forEach((warning) => process.stderr.write(`[repobrain] ${warning}\n`));
+
+    const rawInput = buildCaptureExtractionInput(task, sessionSummary, commitContext, changedFiles, options.testSummary);
+    const resolvedType = options.type ?? suggestion.suggested_type ?? undefined;
+
+    const savedPaths = await runExtractionWorkflow(projectRoot, config, rawInput, {
+      source: options.source ?? "session",
+      ...(resolvedType ? { type: resolvedType } : {}),
+      candidate: true,
+    });
+
+    const format = resolveSuggestSkillsOutputFormat(options);
+    const captureResult: CaptureResult = {
+      action: savedPaths.length > 0 ? "saved_as_candidate" : "extraction_empty",
+      reason: suggestion.summary,
+      suggestion,
+      saved_paths: savedPaths,
+    };
+
+    if (format === "json") {
+      output.write(`${JSON.stringify(captureResult, null, 2)}\n`);
+    } else if (savedPaths.length === 0) {
+      output.write("[capture] Extraction recommended but no memories were produced from the input.\n");
+      output.write(`Suggestion: ${suggestion.summary}\n`);
+    }
+  });
+
+program
   .command("lint-memory")
   .description("Lint memory frontmatter schema health without modifying files.")
   .option("--json", "Print the schema report as JSON.")
@@ -969,7 +1078,7 @@ async function runExtractionWorkflow(
     type?: MemoryType;
     candidate?: boolean;
   },
-): Promise<void> {
+): Promise<string[]> {
   const memories = (await extractMemories(rawInput, config, projectRoot))
     .map((memory) => applyExtractedMemoryDefaults(memory, options.type));
   const existingRecords = await loadStoredMemoryRecords(projectRoot);
@@ -1034,6 +1143,8 @@ async function runExtractionWorkflow(
       `${rejectedCandidates.length} memor${rejectedCandidates.length === 1 ? "y" : "ies"} were rejected and not written.\n`,
     );
   }
+
+  return savedPaths;
 }
 
 async function readStdin(): Promise<string> {
@@ -2255,4 +2366,47 @@ async function safeLoadCommitContext(
   } catch {
     return {};
   }
+}
+
+interface CaptureResult {
+  action: "skipped" | "saved_as_candidate" | "extraction_empty";
+  reason: string;
+  suggestion: ExtractSuggestionResult;
+  saved_paths: string[];
+}
+
+function buildCaptureExtractionInput(
+  task: string | undefined,
+  sessionSummary: string | undefined,
+  commitContext: { commitMessage?: string; diffStat?: string },
+  changedFiles: string[],
+  testSummary: string | undefined,
+): string {
+  const sections: string[] = [];
+
+  if (task) {
+    sections.push(`Task: ${task}`);
+  }
+
+  if (sessionSummary) {
+    sections.push(`Session summary:\n${sessionSummary}`);
+  }
+
+  if (commitContext.commitMessage) {
+    sections.push(`Commit message:\n${commitContext.commitMessage}`);
+  }
+
+  if (changedFiles.length > 0) {
+    sections.push(`Changed files:\n${changedFiles.join("\n")}`);
+  }
+
+  if (commitContext.diffStat) {
+    sections.push(`Diff stat:\n${commitContext.diffStat}`);
+  }
+
+  if (testSummary) {
+    sections.push(`Test results:\n${testSummary}`);
+  }
+
+  return sections.join("\n\n");
 }

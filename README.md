@@ -964,6 +964,8 @@ brain suggest-skills --task "debug flaky browser tests" --path tests/e2e/login.s
 brain suggest-skills --format json --task "debug flaky browser tests" --path tests/e2e/login.spec.ts
 brain suggest-extract --task "fix refund bug" --path src/payments/handler.ts
 brain suggest-extract --json --rev HEAD
+brain capture --task "fix refund bug" --path src/payments/handler.ts
+brain capture --force-candidate --task "refactor auth module"
 brain share <memory-id>
 brain share --all-active
 brain mcp
@@ -997,6 +999,7 @@ brain mcp
 - `brain reinforce`: apply queued reinforcement suggestions with `--pending`, or manually run failure analysis plus memory reinforcement from `stdin`; use `--yes` to skip confirmation for automation or CI
 - `brain suggest-skills`: build a deterministic skill routing plan from task text, changed paths, and matched active memories
 - `brain suggest-extract`: evaluate whether the current session or change is worth extracting as durable memory using local deterministic rules; supports `--task`, `--path`, `--rev`, `--test-summary`, and `--json`
+- `brain capture`: combine `suggest-extract` detection with the `extract` pipeline in a single step; when `should_extract` is true, the extracted memories are saved as **candidates** by default; when false, only the explanation is printed. Use `--force-candidate` to save as candidate even when signals are ambiguous. Supports `--task`, `--path`, `--rev`, `--test-summary`, `--type`, `--source`, and `--json`
 - `brain share`: suggest the next `git add` and `git commit` commands for one memory or all active memories
 - `brain mcp`: run RepoBrain as a minimal MCP stdio server
 
