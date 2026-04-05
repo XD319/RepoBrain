@@ -1,6 +1,7 @@
 import { execSync } from "node:child_process";
 
 import { getMemoryStatus, loadStoredMemoryRecords, recordInjectedMemories } from "./store.js";
+import { isMemoryCurrentlyValid } from "./temporal.js";
 import {
   buildInjectScoreReport,
   explainSelectionDecision,
@@ -44,7 +45,8 @@ export async function buildInjection(
 ): Promise<string> {
   const allRecords = await loadStoredMemoryRecords(projectRoot);
   const allMemories = allRecords.map((entry) => entry.memory);
-  const activeRecords = allRecords.filter((entry) => {
+  const now = new Date();
+  const statusActivePool = allRecords.filter((entry) => {
     if (getMemoryStatus(entry.memory) !== "active") {
       return false;
     }
@@ -55,9 +57,10 @@ export async function buildInjection(
 
     return entry.memory.type !== "working";
   });
+  const staleCount = statusActivePool.filter((entry) => entry.memory.stale).length;
+  const activeRecords = statusActivePool.filter((entry) => isMemoryCurrentlyValid(entry.memory, now));
   const candidateCount = allRecords.filter((entry) => getMemoryStatus(entry.memory) === "candidate").length;
   emitLineageWarnings(activeRecords);
-  const staleCount = activeRecords.filter((entry) => entry.memory.stale).length;
   const options = normalizeSelectionOptions(rawOptions);
   const taskAware = hasSelectionContext(options);
   const gitContext = rawOptions.noContext ? { changedFiles: [], branchName: "" } : (rawOptions.gitContext ?? getGitContext(projectRoot));

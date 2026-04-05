@@ -34,6 +34,8 @@ export const MEMORY_REVIEW_REASONS = [
 ] as const;
 export const MEMORY_AUDIT_ISSUE_TYPES = ["stale", "conflict", "low_signal", "overscoped"] as const;
 export const MEMORY_SCHEMA_ISSUE_SEVERITIES = ["error", "warning"] as const;
+/** Human review / lifecycle flag for durable knowledge; does not replace `status`. */
+export const REVIEW_STATES = ["unset", "pending_review", "cleared"] as const;
 
 export type MemoryType = (typeof MEMORY_TYPES)[number];
 export type PreferenceKind = (typeof PREFERENCE_KINDS)[number];
@@ -56,6 +58,7 @@ export type MemoryScopeRelation = (typeof MEMORY_SCOPE_RELATIONS)[number];
 export type MemoryReviewReason = (typeof MEMORY_REVIEW_REASONS)[number];
 export type MemoryAuditIssueType = (typeof MEMORY_AUDIT_ISSUE_TYPES)[number];
 export type MemorySchemaIssueSeverity = (typeof MEMORY_SCHEMA_ISSUE_SEVERITIES)[number];
+export type ReviewState = (typeof REVIEW_STATES)[number];
 
 export interface Memory {
   type: MemoryType;
@@ -90,6 +93,20 @@ export interface Memory {
   area?: MemoryArea;
   files?: string[];
   expires?: string;
+  /** Optional start of validity (ISO date or datetime). Backfilled from `created_at` when missing. */
+  valid_from?: string;
+  /** Optional end of validity (ISO date or datetime). Set when superseded or dismissed. */
+  valid_until?: string;
+  /** When the fact was last observed or confirmed (ISO datetime). */
+  observed_at?: string;
+  /** Free text explaining replacement (paired with lineage fields). */
+  supersession_reason?: string | null;
+  /** Confidence for ranking / routing signals, 0–1. Default 1. */
+  confidence?: number;
+  /** Optional session id, transcript id, or git ref for provenance. */
+  source_episode?: string;
+  /** Review queue state; `pending_review` excludes inject / routing. */
+  review_state?: ReviewState;
 }
 
 export interface Preference {
@@ -108,6 +125,10 @@ export interface Preference {
   status: MemoryStatus;
   task_hints?: string[];
   path_hints?: string[];
+  observed_at?: string;
+  supersession_reason?: string | null;
+  source_episode?: string;
+  review_state?: ReviewState;
 }
 
 export interface BrainConfig {

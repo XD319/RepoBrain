@@ -594,6 +594,40 @@ The important frontmatter fields are:
 - `files`: optional related file globs such as `src/auth/**`
 - `expires`: optional expiry date used by short-lived `working` memories
 - `status`: goal state such as `active`, `done`, or `stale`; workflow states like `candidate` and `superseded` still remain backward compatible when needed
+- `valid_from` / `valid_until`: optional validity window (ISO date or datetime) for durable knowledge
+- `observed_at`: optional observation time (ISO datetime); defaults to `created_at` when missing
+- `supersession_reason`: optional free-text note when an entry stops being current
+- `confidence`: optional `0`–`1` weight (default `1`) for future ranking hooks
+- `source_episode`: optional session id, transcript id, or git ref for provenance
+- `review_state`: `unset` (default), `pending_review` (excluded from inject / routing), or `cleared`
+
+### Temporal semantics (lightweight)
+
+RepoBrain stays **markdown-first** and **Git-friendly**: temporal fields live in frontmatter, not in a separate database. `brain inject` and `brain suggest-skills` consume only entries that are **currently valid** (for example: active, not stale, no `superseded_by`, inside `valid_from` / `valid_until` when set, not `review_state: pending_review`, and not past `expires` for short-lived `working` notes). Preferences follow the same idea plus existing `status` / `superseded_by` rules.
+
+Automatic maintenance:
+
+- `brain supersede` and same-identity promotion set `valid_until` / `supersession_reason` on the older side when applicable.
+- `brain approve` refreshes promotion-oriented timestamps (`observed_at`, `valid_from`, `review_state: cleared`).
+- `brain dismiss` / `brain score` stale paths refresh `valid_until` / `supersession_reason` when a memory is marked stale.
+- `brain supersede-preference`, `brain dismiss-preference`, and `brain normalize-preferences` rewrite preference files with consistent temporal metadata.
+- `brain normalize-memory` backfills missing safe defaults (including `valid_from` and `observed_at`).
+
+**Example: workflow preference evolves**
+
+1. An older preference file says “prefer workflow A for releases” and is `active`.
+2. You capture “prefer workflow B” and run `brain supersede-preference` so older rows become `superseded` with `valid_until` and `supersession_reason`, while the new file is the only **active** row in the validity window.
+3. `brain route` / `brain suggest-skills` apply **only** currently valid preferences; history stays in Git.
+4. `brain timeline` shows chronological rows; `brain timeline <file-or-id>` focuses one item and prints a **supersession chain** when `supersedes` links exist.
+5. `brain explain-memory <id>` / `brain explain-preference <id>` summarize temporal fields and whether the entry would be consumed **now**.
+
+```bash
+brain timeline
+brain timeline <file-or-id>
+brain timeline --preferences
+brain explain-memory <id>
+brain explain-preference <id>
+```
 
 ### Skill Routing Fields
 
@@ -1063,6 +1097,11 @@ brain dismiss <memory-id>
 brain supersede <new-memory-file> <old-memory-file>
 brain lineage
 brain lineage <file>
+brain timeline
+brain timeline <file-or-id>
+brain timeline --preferences
+brain explain-memory <id>
+brain explain-preference <id>
 brain audit-memory
 brain reinforce --pending
 brain reinforce < session-summary.txt
@@ -1101,6 +1140,8 @@ brain mcp
 - `brain dismiss`: mark one candidate, or all candidates, as dismissed
 - `brain supersede`: manually link a newer memory to an older memory, update `supersedes` / `superseded_by`, carry the old version forward as `old.version + 1`, and mark the older memory as stale
 - `brain lineage`: print ASCII lineage trees for all related memories, or for the chain that contains a specific memory file
+- `brain timeline`: list memories (or preferences with `--preferences`) in chronological order, or focus one file/id and print a supersession chain when lineage links exist
+- `brain explain-memory` / `brain explain-preference`: print temporal fields, lineage pointers, and whether inject/routing would consume the entry right now
 - `brain score`: review low-quality or outdated memories, sorted by severity, before you decide whether to sweep, mark stale, or delete
 - `brain audit-memory`: audit stored memories for stale, conflict, low-signal, and overscoped entries, plus a schema health summary
 - `brain reinforce`: apply queued reinforcement suggestions with `--pending`, or manually run failure analysis plus memory reinforcement from `stdin`; use `--yes` to skip confirmation for automation or CI; when present, also surfaces routing feedback reminders saved alongside the pending queue

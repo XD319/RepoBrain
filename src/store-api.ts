@@ -6,17 +6,21 @@ export {
   loadAllPreferences,
   loadStoredMemoryRecords,
   loadStoredPreferenceRecords,
+  normalizeMemory,
   normalizePreference,
   overwriteStoredMemory,
   overwriteStoredPreference,
   parsePreference,
   saveMemory,
   savePreference,
+  serializeMemory,
   serializePreference,
   supersedeMemoryPair,
   updateIndex,
   validatePreference,
 } from "./store.js";
+export { buildMemoryEvolutionChain } from "./timeline-explain.js";
+export { isMemoryCurrentlyValid } from "./temporal.js";
 export {
   extractPreferenceFromNaturalLanguage,
 } from "./extract-preference.js";

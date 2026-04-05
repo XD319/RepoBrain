@@ -23,6 +23,7 @@ import type {
   MemorySchemaHealthSummary,
   MemorySchemaIssue,
   MemorySchemaScanResult,
+  ReviewState,
   StoredMemoryRecord,
 } from "./types.js";
 import {
@@ -33,6 +34,7 @@ import {
   MEMORY_SOURCES,
   MEMORY_STATUSES,
   MEMORY_TYPES,
+  REVIEW_STATES,
   RISK_LEVELS,
 } from "./types.js";
 
@@ -287,6 +289,27 @@ function buildNormalizedMemory(frontmatter: RawFrontmatter, rawDetail: string): 
   if (frontmatter.expires) {
     memory.expires = frontmatter.expires;
   }
+  if (frontmatter.valid_from) {
+    memory.valid_from = frontmatter.valid_from;
+  }
+  if (frontmatter.valid_until) {
+    memory.valid_until = frontmatter.valid_until;
+  }
+  if (frontmatter.observed_at) {
+    memory.observed_at = frontmatter.observed_at;
+  }
+  if (frontmatter.supersession_reason !== undefined) {
+    memory.supersession_reason = frontmatter.supersession_reason;
+  }
+  if (frontmatter.confidence !== undefined) {
+    memory.confidence = frontmatter.confidence;
+  }
+  if (frontmatter.source_episode) {
+    memory.source_episode = frontmatter.source_episode;
+  }
+  if (frontmatter.review_state?.trim()) {
+    memory.review_state = frontmatter.review_state.trim() as ReviewState;
+  }
 
   return normalizeMemory(memory);
 }
@@ -355,6 +378,7 @@ function collectEnumIssues(frontmatter: RawFrontmatter, issues: MemorySchemaIssu
     { field: "invocation_mode", value: frontmatter.invocation_mode, allowed: INVOCATION_MODES },
     { field: "risk_level", value: frontmatter.risk_level, allowed: RISK_LEVELS },
     { field: "area", value: frontmatter.area, allowed: MEMORY_AREAS },
+    { field: "review_state", value: frontmatter.review_state, allowed: REVIEW_STATES },
   ];
 
   for (const check of checks) {

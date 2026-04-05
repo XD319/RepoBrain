@@ -1,5 +1,6 @@
 import { execSync } from "node:child_process";
 import { getMemoryStatus, loadAllPreferences, loadStoredMemoryRecords } from "./store.js";
+import { isMemoryCurrentlyValid } from "./temporal.js";
 import {
   matchPathPatterns,
   matchTaskTriggers,
@@ -85,8 +86,12 @@ export async function buildSkillShortlist(
   }
 
   const records = await loadStoredMemoryRecords(projectRoot);
+  const now = new Date();
   const matched_memories = records
-    .filter((entry) => getMemoryStatus(entry.memory) === "active")
+    .filter(
+      (entry) =>
+        getMemoryStatus(entry.memory) === "active" && isMemoryCurrentlyValid(entry.memory, now),
+    )
     .map((entry) => matchMemory(entry, task, paths))
     .filter((entry): entry is MatchedMemory => entry !== null)
     .sort((left, right) => {

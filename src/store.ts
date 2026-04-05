@@ -6,6 +6,7 @@ import {
   buildMemoryIdentity as buildScopedMemoryIdentity,
   slugifyMemoryTitle,
 } from "./memory-identity.js";
+import { parseTemporalInstant } from "./temporal.js";
 import type {
   BrainActivityState,
   Memory,
@@ -15,6 +16,7 @@ import type {
   MemorySource,
   MemoryStatus,
   MemoryOrigin,
+  ReviewState,
   RiskLevel,
   StoredMemoryRecord,
   StoredPreferenceRecord,
@@ -33,6 +35,7 @@ import {
   PREFERENCE_KINDS,
   PREFERENCE_TARGET_TYPES,
   PREFERENCE_VALUES,
+  REVIEW_STATES,
 } from "./types.js";
 
 const DIRECTORY_BY_TYPE: Record<MemoryType, string> = {
@@ -71,6 +74,8 @@ export const DEFAULT_MEMORY_SUPERSEDED_BY: string | null = null;
 export const DEFAULT_MEMORY_VERSION = 1;
 export const DEFAULT_MEMORY_AREA: MemoryArea = "general";
 export const DEFAULT_GOAL_STATUS: MemoryStatus = "active";
+export const DEFAULT_MEMORY_CONFIDENCE = 1;
+export const DEFAULT_REVIEW_STATE: ReviewState = "unset";
 
 export async function initBrain(projectRoot: string): Promise<void> {
   const brainDir = getBrainDir(projectRoot);
@@ -325,16 +330,20 @@ export async function supersedeMemoryPair(
   const newRelativePath = toBrainRelativePath(newRecord.relativePath);
   const oldRelativePath = toBrainRelativePath(oldRecord.relativePath);
   const nextVersion = (oldRecord.memory.version ?? DEFAULT_MEMORY_VERSION) + 1;
+  const nowIso = new Date().toISOString();
 
   const updatedNewMemory = normalizeMemory({
     ...newRecord.memory,
     supersedes: oldRelativePath,
     version: nextVersion,
+    observed_at: newRecord.memory.observed_at ?? nowIso,
   });
   const updatedOldMemory = normalizeMemory({
     ...oldRecord.memory,
     superseded_by: newRelativePath,
     stale: true,
+    valid_until: oldRecord.memory.valid_until ?? nowIso,
+    supersession_reason: oldRecord.memory.supersession_reason ?? "Superseded by linked newer memory",
   });
 
   validateMemory(updatedNewMemory, `Memory file "${newRecord.filePath}"`);
@@ -354,11 +363,15 @@ export async function approveCandidateMemory(
   record: StoredMemoryRecord,
   projectRoot: string,
 ): Promise<void> {
-  const promotedMemory: Memory = {
+  const nowIso = new Date().toISOString();
+  const promotedMemory: Memory = normalizeMemory({
     ...record.memory,
     status: "active",
     stale: false,
-  };
+    observed_at: record.memory.observed_at ?? nowIso,
+    review_state: "cleared",
+    valid_from: record.memory.valid_from ?? nowIso.slice(0, 10),
+  });
 
   await supersedeMatchingActiveMemories(promotedMemory, projectRoot, record.filePath);
   await overwriteStoredMemory({
@@ -371,14 +384,39 @@ export async function updateStoredMemoryStatus(
   record: StoredMemoryRecord,
   status: MemoryStatus,
 ): Promise<void> {
+  const nowIso = new Date().toISOString();
+  const nextMemory: Memory = {
+    ...record.memory,
+    status,
+    stale: status === "stale" ? true : record.memory.stale,
+  };
+  if (status === "stale") {
+    nextMemory.valid_until = record.memory.valid_until ?? nowIso;
+    nextMemory.supersession_reason =
+      record.memory.supersession_reason ?? "Marked stale via brain dismiss or score workflow";
+  }
+  if (status === "superseded") {
+    nextMemory.valid_until = record.memory.valid_until ?? nowIso;
+    nextMemory.supersession_reason =
+      record.memory.supersession_reason ?? "Marked superseded via brain status update";
+  }
   await overwriteStoredMemory({
     ...record,
-    memory: {
-      ...record.memory,
-      status,
-      stale: status === "stale" ? true : record.memory.stale,
-    },
+    memory: normalizeMemory(nextMemory),
   });
+}
+
+function validateOptionalTemporalIso(value: string | undefined, field: string, context: string): void {
+  if (value === undefined) {
+    return;
+  }
+  const trimmed = value.trim();
+  if (!trimmed) {
+    throw new Error(`${context} field "${field}" cannot be empty.`);
+  }
+  if (parseTemporalInstant(trimmed) === null && !isIsoDateOnly(trimmed)) {
+    throw new Error(`${context} has invalid ${field} "${value}". Expected an ISO date or datetime.`);
+  }
 }
 
 export function validateMemory(memory: Memory, context = "Memory"): void {
@@ -460,6 +498,28 @@ export function validateMemory(memory: Memory, context = "Memory"): void {
     throw new Error(`${context} has invalid expires "${memory.expires}". Expected YYYY-MM-DD.`);
   }
 
+  validateOptionalTemporalIso(memory.valid_from, "valid_from", context);
+  validateOptionalTemporalIso(memory.valid_until, "valid_until", context);
+  validateOptionalTemporalIso(memory.observed_at, "observed_at", context);
+  if (memory.supersession_reason !== undefined && memory.supersession_reason !== null) {
+    if (typeof memory.supersession_reason !== "string") {
+      throw new Error(`${context} has invalid supersession_reason.`);
+    }
+  }
+  if (memory.confidence !== undefined) {
+    if (!Number.isFinite(memory.confidence) || memory.confidence < 0 || memory.confidence > 1) {
+      throw new Error(`${context} has invalid confidence "${memory.confidence}". Expected a number between 0 and 1.`);
+    }
+  }
+  if (memory.source_episode !== undefined && typeof memory.source_episode !== "string") {
+    throw new Error(`${context} has invalid source_episode.`);
+  }
+  if (memory.review_state !== undefined && !REVIEW_STATES.includes(memory.review_state)) {
+    throw new Error(
+      `${context} has unsupported review_state "${memory.review_state}". Expected one of: ${REVIEW_STATES.join(", ")}.`,
+    );
+  }
+
   if (typeof memory.stale !== "boolean") {
     throw new Error(`${context} has invalid stale "${memory.stale}". Expected a boolean.`);
   }
@@ -527,6 +587,27 @@ export function serializeMemory(memory: Memory): string {
   if (normalizedMemory.expires) {
     frontmatterLines.push(`expires: ${quoteYaml(normalizedMemory.expires)}`);
   }
+  if (normalizedMemory.valid_from) {
+    frontmatterLines.push(`valid_from: ${quoteYaml(normalizedMemory.valid_from)}`);
+  }
+  if (normalizedMemory.valid_until) {
+    frontmatterLines.push(`valid_until: ${quoteYaml(normalizedMemory.valid_until)}`);
+  }
+  if (normalizedMemory.observed_at) {
+    frontmatterLines.push(`observed_at: ${quoteYaml(normalizedMemory.observed_at)}`);
+  }
+  if (normalizedMemory.supersession_reason) {
+    frontmatterLines.push(`supersession_reason: ${quoteYaml(normalizedMemory.supersession_reason)}`);
+  }
+  if ((normalizedMemory.confidence ?? DEFAULT_MEMORY_CONFIDENCE) !== DEFAULT_MEMORY_CONFIDENCE) {
+    frontmatterLines.push(`confidence: ${normalizedMemory.confidence ?? DEFAULT_MEMORY_CONFIDENCE}`);
+  }
+  if (normalizedMemory.source_episode) {
+    frontmatterLines.push(`source_episode: ${quoteYaml(normalizedMemory.source_episode)}`);
+  }
+  if ((normalizedMemory.review_state ?? DEFAULT_REVIEW_STATE) !== DEFAULT_REVIEW_STATE) {
+    frontmatterLines.push(`review_state: ${quoteYaml(normalizedMemory.review_state ?? DEFAULT_REVIEW_STATE)}`);
+  }
   frontmatterLines.push(`invocation_mode: ${quoteYaml(normalizedMemory.invocation_mode ?? DEFAULT_INVOCATION_MODE)}`);
   frontmatterLines.push(`risk_level: ${quoteYaml(normalizedMemory.risk_level ?? DEFAULT_RISK_LEVEL)}`);
   frontmatterLines.push("---", "", normalizedMemory.detail.trim(), "");
@@ -587,6 +668,15 @@ function parseMemory(content: string, filePath: string): Memory {
     ...(frontmatter.updated ? { updated: frontmatter.updated } : {}),
     ...(frontmatter.area ? { area: frontmatter.area as MemoryArea } : {}),
     ...(frontmatter.expires ? { expires: frontmatter.expires } : {}),
+    ...(frontmatter.valid_from ? { valid_from: frontmatter.valid_from } : {}),
+    ...(frontmatter.valid_until ? { valid_until: frontmatter.valid_until } : {}),
+    ...(frontmatter.observed_at ? { observed_at: frontmatter.observed_at } : {}),
+    ...(frontmatter.supersession_reason !== undefined
+      ? { supersession_reason: frontmatter.supersession_reason }
+      : {}),
+    ...(frontmatter.confidence !== undefined ? { confidence: frontmatter.confidence } : {}),
+    ...(frontmatter.source_episode ? { source_episode: frontmatter.source_episode } : {}),
+    ...(frontmatter.review_state ? { review_state: frontmatter.review_state as ReviewState } : {}),
   };
 
   if (frontmatter.invocation_mode) {
@@ -657,6 +747,10 @@ export function parseFrontmatter(raw: string): {
   confidence?: number;
   valid_from?: string;
   valid_until?: string;
+  observed_at?: string;
+  supersession_reason?: string | null;
+  source_episode?: string;
+  review_state?: string;
 } {
   const result: {
     type?: string;
@@ -700,6 +794,10 @@ export function parseFrontmatter(raw: string): {
     confidence?: number;
     valid_from?: string;
     valid_until?: string;
+    observed_at?: string;
+    supersession_reason?: string | null;
+    source_episode?: string;
+    review_state?: string;
   } = {
     tags: [],
     files: [],
@@ -759,6 +857,9 @@ export function parseFrontmatter(raw: string): {
       case "valid_from":
       case "valid_until":
       case "updated_at":
+      case "observed_at":
+      case "source_episode":
+      case "review_state":
         result[key] = unquoteYaml(value);
         break;
       case "score":
@@ -787,6 +888,7 @@ export function parseFrontmatter(raw: string): {
       }
       case "supersedes":
       case "superseded_by":
+      case "supersession_reason":
       {
         const parsed = parseYamlNullableString(value);
         if (parsed !== undefined) {
@@ -871,12 +973,43 @@ function parseYamlBoolean(value: string): boolean | string | undefined {
   return trimmed ? trimmed : undefined;
 }
 
+function clampUnitInterval(value: number): number {
+  if (value < 0) {
+    return 0;
+  }
+  if (value > 1) {
+    return 1;
+  }
+  return value;
+}
+
+function normalizeOptionalTemporalBoundary(value: string | undefined): string | undefined {
+  if (!value?.trim()) {
+    return undefined;
+  }
+  const trimmed = value.trim();
+  const t = parseTemporalInstant(trimmed);
+  if (t === null) {
+    return undefined;
+  }
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    return trimmed;
+  }
+  return new Date(t).toISOString();
+}
+
 export function normalizeMemory(memory: Memory): Memory {
   const normalizedCreatedAt = normalizeCreatedAt(memory.created_at, memory.created, memory.date);
   const created = normalizeOptionalIsoDateOnly(memory.created ?? isoDateOnlyFromKnownDate(normalizedCreatedAt));
   const updated = normalizeOptionalIsoDateOnly(memory.updated ?? created ?? isoDateOnlyFromKnownDate(memory.date));
   const expires = normalizeOptionalIsoDateOnly(memory.expires);
   const status = normalizeMemoryStatus(memory.type, memory.status);
+  const valid_from =
+    normalizeOptionalIsoDateOnly(memory.valid_from) ?? isoDateOnlyFromKnownDate(normalizedCreatedAt);
+  const valid_until = normalizeOptionalTemporalBoundary(memory.valid_until);
+  const observed_at = normalizeOptionalTemporalBoundary(memory.observed_at) ?? normalizedCreatedAt;
+  const confidence = clampUnitInterval(memory.confidence ?? DEFAULT_MEMORY_CONFIDENCE);
+  const review_state = (memory.review_state ?? DEFAULT_REVIEW_STATE) as ReviewState;
 
   return {
     ...memory,
@@ -903,6 +1036,13 @@ export function normalizeMemory(memory: Memory): Memory {
     version: memory.version ?? DEFAULT_MEMORY_VERSION,
     invocation_mode: memory.invocation_mode ?? DEFAULT_INVOCATION_MODE,
     risk_level: memory.risk_level ?? DEFAULT_RISK_LEVEL,
+    valid_from,
+    ...(valid_until ? { valid_until } : {}),
+    observed_at,
+    supersession_reason: memory.supersession_reason ?? null,
+    confidence,
+    review_state,
+    ...(memory.source_episode?.trim() ? { source_episode: memory.source_episode.trim() } : {}),
     ...(memory.area ? { area: memory.area } : {}),
     ...(expires ? { expires } : {}),
     ...(status ? { status } : {}),
@@ -1167,10 +1307,15 @@ async function supersedeMatchingActiveMemories(
         return;
       }
 
-      const updatedMemory: Memory = {
+      const nowIso = new Date().toISOString();
+      const updatedMemory = normalizeMemory({
         ...entry.memory,
         status: "superseded",
-      };
+        stale: true,
+        valid_until: entry.memory.valid_until ?? nowIso,
+        supersession_reason:
+          entry.memory.supersession_reason ?? "Superseded by newer active memory with the same identity",
+      });
 
       await writeFile(entry.filePath, serializeMemory(updatedMemory), "utf8");
     }),
@@ -1420,15 +1565,23 @@ export async function overwriteStoredPreference(record: StoredPreferenceRecord):
 }
 
 export function normalizePreference(pref: Preference): Preference {
+  const updated_at = pref.updated_at || pref.created_at || new Date().toISOString();
+  const created_at = pref.created_at || new Date().toISOString();
+  const observed_at =
+    normalizeOptionalTemporalBoundary(pref.observed_at) ?? updated_at;
   return {
     ...pref,
-    confidence: pref.confidence ?? 0.5,
+    confidence: clampUnitInterval(pref.confidence ?? 0.5),
     source: pref.source ?? "manual",
     status: pref.status ?? "active",
-    created_at: pref.created_at || new Date().toISOString(),
-    updated_at: pref.updated_at || pref.created_at || new Date().toISOString(),
+    created_at,
+    updated_at,
     task_hints: normalizeStringArray(pref.task_hints ?? []),
     path_hints: normalizePathArray(pref.path_hints ?? []),
+    review_state: (pref.review_state ?? DEFAULT_REVIEW_STATE) as ReviewState,
+    observed_at,
+    supersession_reason: pref.supersession_reason ?? null,
+    ...(pref.source_episode?.trim() ? { source_episode: pref.source_episode.trim() } : {}),
   };
 }
 
@@ -1451,6 +1604,22 @@ export function validatePreference(pref: Preference, context = "Preference"): vo
   if (!pref.reason.trim()) {
     throw new Error(`${context} requires a non-empty reason.`);
   }
+  if (!Number.isFinite(pref.confidence) || pref.confidence < 0 || pref.confidence > 1) {
+    throw new Error(`${context} has invalid confidence "${pref.confidence}". Expected a number between 0 and 1.`);
+  }
+  validateOptionalTemporalIso(pref.valid_from, "valid_from", context);
+  validateOptionalTemporalIso(pref.valid_until, "valid_until", context);
+  validateOptionalTemporalIso(pref.observed_at, "observed_at", context);
+  if (pref.supersession_reason !== undefined && pref.supersession_reason !== null) {
+    if (typeof pref.supersession_reason !== "string") {
+      throw new Error(`${context} has invalid supersession_reason.`);
+    }
+  }
+  if (pref.review_state !== undefined && !REVIEW_STATES.includes(pref.review_state)) {
+    throw new Error(
+      `${context} has unsupported review_state "${pref.review_state}". Expected one of: ${REVIEW_STATES.join(", ")}.`,
+    );
+  }
 }
 
 export function serializePreference(pref: Preference): string {
@@ -1471,6 +1640,16 @@ export function serializePreference(pref: Preference): string {
   if (normalized.valid_from) lines.push(`valid_from: ${quoteYaml(normalized.valid_from)}`);
   if (normalized.valid_until) lines.push(`valid_until: ${quoteYaml(normalized.valid_until)}`);
   if (normalized.superseded_by) lines.push(`superseded_by: ${quoteYaml(normalized.superseded_by)}`);
+  lines.push(`observed_at: ${quoteYaml(normalized.observed_at ?? normalized.updated_at)}`);
+  if (normalized.supersession_reason) {
+    lines.push(`supersession_reason: ${quoteYaml(normalized.supersession_reason)}`);
+  }
+  if ((normalized.review_state ?? DEFAULT_REVIEW_STATE) !== DEFAULT_REVIEW_STATE) {
+    lines.push(`review_state: ${quoteYaml(normalized.review_state ?? DEFAULT_REVIEW_STATE)}`);
+  }
+  if (normalized.source_episode) {
+    lines.push(`source_episode: ${quoteYaml(normalized.source_episode)}`);
+  }
 
   appendArrayField(lines, "task_hints", normalized.task_hints ?? []);
   appendArrayField(lines, "path_hints", normalized.path_hints ?? []);
@@ -1512,6 +1691,12 @@ export function parsePreference(content: string, filePath: string): Preference {
   if (frontmatter.valid_from) prefInput.valid_from = frontmatter.valid_from;
   if (frontmatter.valid_until) prefInput.valid_until = frontmatter.valid_until;
   if (frontmatter.superseded_by) prefInput.superseded_by = frontmatter.superseded_by;
+  if (frontmatter.observed_at) prefInput.observed_at = frontmatter.observed_at;
+  if (frontmatter.supersession_reason !== undefined && frontmatter.supersession_reason !== null) {
+    prefInput.supersession_reason = frontmatter.supersession_reason;
+  }
+  if (frontmatter.source_episode) prefInput.source_episode = frontmatter.source_episode;
+  if (frontmatter.review_state) prefInput.review_state = frontmatter.review_state as ReviewState;
   if (frontmatter.task_hints && frontmatter.task_hints.length > 0) {
     prefInput.task_hints = frontmatter.task_hints;
   }

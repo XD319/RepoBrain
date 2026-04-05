@@ -563,6 +563,40 @@ When TypeScript is already enforcing unused locals, enabling both rules creates 
 - `version`：同一决策血缘中的版本号，默认 `1`
 - `related`：可选，相关但不互相取代的 memory 文件路径列表，路径相对于 `.brain/`，默认 `[]`
 - `origin`：可选来源标记，用于 failure reinforcement 这类特殊写入路径
+- `valid_from` / `valid_until`：可选的有效期窗口（ISO 日期或日期时间）
+- `observed_at`：可选的观察/确认时间（ISO 日期时间）；缺省时由 `created_at` 回填
+- `supersession_reason`：可选，说明该条目为何不再作为当前有效知识
+- `confidence`：可选，0–1 的权重（默认 `1`），供后续排序扩展使用
+- `source_episode`：可选，会话 id、转写 id 或 git 引用等来源线索
+- `review_state`：`unset`（默认）、`pending_review`（不参与 inject / routing）、或 `cleared`
+
+### 时间语义（轻量）
+
+RepoBrain 仍以 **Markdown 为主**、**Git 友好**：时间字段写在 frontmatter 里，不引入外部数据库。`brain inject` 与 `brain suggest-skills` 默认只消费**当前有效**的条目（例如：`active`、非 `stale`、无 `superseded_by`、在 `valid_from`/`valid_until` 窗口内、非 `review_state: pending_review`、短期 `working` 未过 `expires` 等）。偏好文件同样遵循 `status` / `superseded_by` 与有效期规则。
+
+自动维护要点：
+
+- `brain supersede` 与「同身份」晋升会视情况写入旧条的 `valid_until` / `supersession_reason`。
+- `brain approve` 会刷新批准相关时间戳（如 `observed_at`、`valid_from`、`review_state: cleared`）。
+- `brain dismiss` / `brain score` 将条目标为 stale 时，会补充 `valid_until` / `supersession_reason`。
+- `brain supersede-preference`、`brain dismiss-preference`、`brain normalize-preferences` 会统一偏好文件的时间元数据。
+- `brain normalize-memory` 可回填缺失的安全默认值（含 `valid_from`、`observed_at`）。
+
+**示例：工作流偏好被替换**
+
+1. 旧偏好文件写明「发布流程偏好 workflow A」，状态为 `active`。
+2. 你记录「偏好 workflow B」并执行 `brain supersede-preference`，旧行变为 `superseded`，带上 `valid_until` 与 `supersession_reason`，新文件在窗口内成为唯一 **active** 偏好。
+3. `brain route` / `brain suggest-skills` 只消费**当前有效**偏好；历史仍保留在 Git 中。
+4. `brain timeline` 按时间列出；`brain timeline <文件或 id>` 可聚焦一条，并在存在 `supersedes` 链时打印演化顺序。
+5. `brain explain-memory <id>` / `brain explain-preference <id>` 汇总时间字段与**当前**是否会被 inject / routing 消费。
+
+```bash
+brain timeline
+brain timeline <file-or-id>
+brain timeline --preferences
+brain explain-memory <id>
+brain explain-preference <id>
+```
 
 ### Skill Routing 字段
 
@@ -963,6 +997,11 @@ brain dismiss <memory-id>
 brain supersede <new-memory-file> <old-memory-file>
 brain lineage
 brain lineage <file>
+brain timeline
+brain timeline <file-or-id>
+brain timeline --preferences
+brain explain-memory <id>
+brain explain-preference <id>
 brain audit-memory
 brain reinforce --pending
 brain reinforce < session-summary.txt
@@ -1006,6 +1045,8 @@ brain mcp
 - `brain dismiss`：将单条 candidate memory，或全部 candidates，标记为 stale
 - `brain supersede`：手动把新 memory 和旧 memory 建立取代关系，更新 `supersedes` / `superseded_by`，把新 memory 的 `version` 设为 `旧 version + 1`，并把旧 memory 标记为 stale
 - `brain lineage`：以 ASCII 树形式打印所有有血缘关系的 memory，或只打印包含指定 memory 文件的那条血缘链
+- `brain timeline`：按时间列出 memory（`--preferences` 时列出偏好）；可带文件/id 聚焦一条，并在存在 `supersedes` 链时打印取代顺序
+- `brain explain-memory` / `brain explain-preference`：打印时间字段、血缘指针，以及当前是否会被 inject / routing 消费
 - `brain score`：按严重度排序检查低质量或过旧的 memories，并支持交互式或批量标记 stale、删除、跳过或导出 JSON
 - `brain audit-memory`：审计 `.brain/` 中疑似 stale、conflict、low-signal 或 overscoped 的条目，并附带 schema 健康度摘要
 - `brain reinforce`：从 `stdin` 手动执行失败分析和记忆强化；自动化或 CI 场景可加 `--yes` 跳过确认；与待处理队列一并保存的 routing feedback 提醒也会在 `--pending` 时一并展示

@@ -2,6 +2,7 @@ import { execSync } from "node:child_process";
 
 import { matchPathPatterns, matchTaskTriggers } from "./memory-relevance.js";
 import type { MatchedMemory } from "./skill-routing-types.js";
+import { isPreferenceReviewEligible } from "./temporal.js";
 import type { Preference } from "./types.js";
 
 /**
@@ -91,6 +92,9 @@ export function isPreferenceEligibleForRouting(pref: Preference, now: Date): boo
     return false;
   }
   if (pref.superseded_by && pref.superseded_by.trim()) {
+    return false;
+  }
+  if (!isPreferenceReviewEligible(pref)) {
     return false;
   }
   if (pref.valid_from) {
@@ -198,6 +202,9 @@ function describeIneligiblePreference(pref: Preference, now: Date): string {
   }
   if (pref.superseded_by?.trim()) {
     return `superseded_by is set; preference is inactive`;
+  }
+  if (!isPreferenceReviewEligible(pref)) {
+    return `review_state is "${pref.review_state ?? "unset"}" (pending_review is excluded from routing)`;
   }
   if (pref.valid_from) {
     const t = Date.parse(pref.valid_from);

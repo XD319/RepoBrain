@@ -90,7 +90,10 @@ import {
   loadAllMemories,
   loadAllPreferences,
   loadStoredMemoryRecords,
+  loadStoredPreferenceRecords,
+  normalizePreference,
   overwriteStoredMemory,
+  overwriteStoredPreference,
   saveMemory,
   savePreference,
   serializePreference,
@@ -99,6 +102,15 @@ import {
   updateStoredMemoryStatus,
   validatePreference,
 } from "./store.js";
+import {
+  loadTimelineContext,
+  renderExplainMemory,
+  renderExplainPreference,
+  renderMemoryTimeline,
+  renderPreferenceTimeline,
+  resolveMemoryRecordById,
+  resolvePreferenceRecordById,
+} from "./timeline-explain.js";
 import type { FailureEvent } from "./failure-detector.js";
 import type {
   BrainConfig,
@@ -256,20 +268,24 @@ program
   .description("Mark a preference as stale/dismissed.")
   .argument("<target>", "The target name to dismiss preferences for.")
   .action(async (target: string) => {
-     // For simplicity in first version, we just mark all matching active ones as stale
      const projectRoot = await resolveProjectRoot();
-     const brainDir = getBrainDir(projectRoot);
-     const preferences = await loadAllPreferences(projectRoot);
+     const nowIso = new Date().toISOString();
      let count = 0;
-     for(const p of preferences) {
-       if (p.target === target && p.status === "active") {
-         p.status = "stale";
-         p.updated_at = new Date().toISOString();
-         // Use existing storage utilities to overwrite
-         const fileName = `pref-${p.target_type}-${slugifyMemoryTitle(p.target)}.md`;
-         const filePath = path.join(brainDir, "preferences", fileName);
-         await writeFile(filePath, serializePreference(p), "utf8");
-         count++;
+     const records = await loadStoredPreferenceRecords(projectRoot);
+     for (const rec of records) {
+       if (rec.preference.target === target.trim() && rec.preference.status === "active") {
+         await overwriteStoredPreference({
+           ...rec,
+           preference: normalizePreference({
+             ...rec.preference,
+             status: "stale",
+             updated_at: nowIso,
+             valid_until: rec.preference.valid_until ?? nowIso,
+             supersession_reason:
+               rec.preference.supersession_reason ?? "Dismissed via brain dismiss-preference",
+           }),
+         });
+         count += 1;
        }
      }
      output.write(`Dismissed ${count} preference(s) for ${target}.\n`);
@@ -280,14 +296,11 @@ program
   .description("Normalize all preference files (formatting, fields).")
   .action(async () => {
     const projectRoot = await resolveProjectRoot();
-    const brainDir = getBrainDir(projectRoot);
-    const preferences = await loadAllPreferences(projectRoot);
-    for(const p of preferences) {
-      const fileName = `pref-${p.target_type}-${slugifyMemoryTitle(p.target)}.md`;
-      const filePath = path.join(brainDir, "preferences", fileName);
-      await writeFile(filePath, serializePreference(p), "utf8");
+    const records = await loadStoredPreferenceRecords(projectRoot);
+    for (const rec of records) {
+      await overwriteStoredPreference(rec);
     }
-    output.write(`Normalized ${preferences.length} preference(s).\n`);
+    output.write(`Normalized ${records.length} preference(s).\n`);
   });
 
 program
@@ -307,38 +320,48 @@ program
     }
 
     const projectRoot = await resolveProjectRoot();
-    const brainDir = getBrainDir(projectRoot);
-    const preferences = await loadAllPreferences(projectRoot);
-    
-    // Mark old ones as superseded
-    let count = 0;
-    for(const p of preferences) {
-      if (p.target === oldTarget && p.status === "active") {
-        p.status = "superseded";
-        p.superseded_by = `pref-${options.type}-${slugifyMemoryTitle(options.target)}.md`;
-        p.updated_at = new Date().toISOString();
-        const oldFileName = `pref-${p.target_type}-${slugifyMemoryTitle(p.target)}.md`;
-        const oldFilePath = path.join(brainDir, "preferences", oldFileName);
-        await writeFile(oldFilePath, serializePreference(p), "utf8");
-        count++;
-      }
-    }
-
-    // Save new one
     const now = new Date().toISOString();
     const newPref: Preference = {
       kind: "routing_preference",
       target_type: options.type,
-      target: options.target,
+      target: options.target!.trim(),
       preference: options.pref,
-      reason: options.reason,
+      reason: options.reason!.trim(),
       confidence: 1.0,
       source: "manual",
       created_at: now,
       updated_at: now,
       status: "active",
+      valid_from: now.slice(0, 10),
+      observed_at: now,
+      review_state: "cleared",
     };
     const savedPath = await savePreference(newPref, projectRoot);
+    const newRelative = path.relative(projectRoot, savedPath).replace(/\\/g, "/");
+
+    let count = 0;
+    const records = await loadStoredPreferenceRecords(projectRoot);
+    for (const rec of records) {
+      if (rec.filePath === savedPath) {
+        continue;
+      }
+      if (rec.preference.target === oldTarget.trim() && rec.preference.status === "active") {
+        await overwriteStoredPreference({
+          ...rec,
+          preference: normalizePreference({
+            ...rec.preference,
+            status: "superseded",
+            superseded_by: newRelative,
+            updated_at: new Date().toISOString(),
+            valid_until: rec.preference.valid_until ?? new Date().toISOString(),
+            supersession_reason:
+              rec.preference.supersession_reason ?? "Superseded via brain supersede-preference",
+          }),
+        });
+        count += 1;
+      }
+    }
+
     output.write(`Superseded ${count} old preference(s). New preference saved to: ${savedPath}\n`);
   });
 
@@ -869,6 +892,66 @@ program
     const records = await loadStoredMemoryRecords(projectRoot);
     const rendered = renderMemoryLineage(records, memoryFile);
     output.write(`${rendered}\n`);
+  });
+
+program
+  .command("timeline")
+  .description("Show temporal evolution: memories (default) or preferences, optionally focused on one file/id.")
+  .argument("[file-or-id]", "Optional basename, path fragment, or `.brain/...` relative path.")
+  .option("--preferences", "List preference history instead of memory rows when no focus is given.")
+  .action(async (fileOrId: string | undefined, options: { preferences?: boolean }) => {
+    const projectRoot = await resolveProjectRoot();
+    const { memories, preferences } = await loadTimelineContext(projectRoot);
+    const id = fileOrId?.trim();
+    if (!id) {
+      const text = options.preferences
+        ? renderPreferenceTimeline(preferences, null)
+        : renderMemoryTimeline(memories, null);
+      output.write(`${text}\n`);
+      return;
+    }
+    const mem = resolveMemoryRecordById(projectRoot, id, memories);
+    if (mem) {
+      output.write(`${renderMemoryTimeline(memories, mem)}\n`);
+      return;
+    }
+    const pref = resolvePreferenceRecordById(projectRoot, id, preferences);
+    if (pref) {
+      output.write(`${renderPreferenceTimeline(preferences, pref)}\n`);
+      return;
+    }
+    process.stderr.write(`No memory or preference matched "${id}".\n`);
+    process.exit(1);
+  });
+
+program
+  .command("explain-memory")
+  .description("Print temporal fields, lineage, and inject/routing eligibility for one memory.")
+  .argument("<id>", "Memory file basename, path fragment, or `.brain/...` path.")
+  .action(async (id: string) => {
+    const projectRoot = await resolveProjectRoot();
+    const records = await loadStoredMemoryRecords(projectRoot);
+    const record = resolveMemoryRecordById(projectRoot, id, records);
+    if (!record) {
+      process.stderr.write(`No memory matched "${id}".\n`);
+      process.exit(1);
+    }
+    output.write(`${renderExplainMemory(record, new Date())}\n`);
+  });
+
+program
+  .command("explain-preference")
+  .description("Print temporal fields and routing eligibility for one preference file.")
+  .argument("<id>", "Preference file basename, path fragment, or `.brain/...` path.")
+  .action(async (id: string) => {
+    const projectRoot = await resolveProjectRoot();
+    const records = await loadStoredPreferenceRecords(projectRoot);
+    const record = resolvePreferenceRecordById(projectRoot, id, records);
+    if (!record) {
+      process.stderr.write(`No preference matched "${id}".\n`);
+      process.exit(1);
+    }
+    output.write(`${renderExplainPreference(record, new Date())}\n`);
   });
 
 program
