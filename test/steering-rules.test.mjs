@@ -24,6 +24,18 @@ const SHARED_CONTRACT_PHRASES = [
   ".brain/",
 ];
 
+const DEV_FALLBACK_PHRASES_ZH = [
+  "npx brain",
+  "node dist/cli.js",
+  "brain --version",
+];
+
+const DEV_FALLBACK_PHRASES_EN = [
+  "npx brain",
+  "node dist/cli.js",
+  "brain --version",
+];
+
 const DETECTION_TRIGGER_PHRASES = [
   "修复了重复",
   "完成了一个子模块",
@@ -185,6 +197,45 @@ await runTest("no generated rule references old subjective extract-proposal patt
     }
   } finally {
     await rm(tmpDir, { recursive: true, force: true });
+  }
+});
+
+await runTest("all generated rules include dev-fallback command resolution", async () => {
+  const tmpDir = await mkdtemp(path.join(os.tmpdir(), "brain-steering-"));
+  try {
+    const paths = await writeSteeringRules(tmpDir, "all");
+    for (const relativePath of paths) {
+      const content = await readFile(path.join(tmpDir, relativePath), "utf8");
+      for (const phrase of DEV_FALLBACK_PHRASES_ZH) {
+        assert.ok(
+          content.includes(phrase),
+          `${relativePath} is missing dev-fallback phrase: ${phrase}`,
+        );
+      }
+    }
+  } finally {
+    await rm(tmpDir, { recursive: true, force: true });
+  }
+});
+
+await runTest("integration template files include dev-fallback command resolution", async () => {
+  const templateFiles = [
+    "integrations/cursor/repobrain.mdc",
+    "integrations/codex/SKILL.md",
+    "integrations/copilot/copilot-instructions.md",
+    "integrations/claude/SKILL.md",
+  ];
+
+  const projectRoot = process.cwd();
+
+  for (const templatePath of templateFiles) {
+    const content = await readFile(path.join(projectRoot, templatePath), "utf8");
+    for (const phrase of DEV_FALLBACK_PHRASES_EN) {
+      assert.ok(
+        content.includes(phrase),
+        `${templatePath} is missing dev-fallback phrase: ${phrase}`,
+      );
+    }
   }
 });
 

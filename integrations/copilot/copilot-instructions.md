@@ -2,6 +2,16 @@
 
 Use RepoBrain as the repository's durable memory layer. This adapter consumes shared RepoBrain contracts and routes durable outputs back through Core.
 
+## Command Resolution (Dev Fallback)
+
+All `brain <args>` invocations in this document follow this priority:
+
+1. `brain <args>` — use directly when globally installed
+2. `npx brain <args>` — use when the global binary is unavailable
+3. `node dist/cli.js <args>` — only when working inside the RepoBrain development repo itself and `dist/cli.js` exists
+
+Resolution: try `brain --version` first; on failure try `npx brain --version`; if both fail, check whether the repo root `package.json` has `"name": "brain"` and `dist/cli.js` exists, then use path 3. Published user repos will almost always hit path 1.
+
 ## Session Start
 
 - Prefer `brain start --format json --task "<current task>"`.

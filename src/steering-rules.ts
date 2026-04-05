@@ -7,7 +7,23 @@ const CLAUDE_RULES_PATH = path.join(".claude", "rules", "brain-session.md");
 const CODEX_RULES_PATH = path.join(".codex", "brain-session.md");
 const CURSOR_RULES_PATH = path.join(".cursor", "rules", "brain-session.mdc");
 
+const DEV_FALLBACK_SECTION = [
+  "## 命令调用（开发态回退策略）",
+  "",
+  "所有 `brain <args>` 调用遵循以下优先级：",
+  "",
+  "1. `brain <args>` — 全局安装可用时直接使用",
+  "2. `npx brain <args>` — 全局不可用时通过 npx 调用",
+  "3. `node dist/cli.js <args>` — 仅当本仓库是 RepoBrain 自身开发仓库且 `dist/cli.js` 文件存在时使用",
+  "",
+  "判断方法：执行命令前先尝试 `brain --version`，成功则用路径 1；失败则尝试 `npx brain --version`，成功则用路径 2；若当前仓库根目录存在 `package.json` 且 `name` 为 `\"brain\"` 且 `dist/cli.js` 存在，则用路径 3。",
+  "",
+  "后续文档中所有 `brain <子命令>` 均表示按上述优先级解析后的实际命令。发布后的用户仓库通常只会命中路径 1。",
+].join("\n");
+
 const CLAUDE_RULES_CONTENT = `# RepoBrain 会话规则
+
+${DEV_FALLBACK_SECTION}
 
 ## 会话开始时（必须）
 
@@ -105,6 +121,8 @@ echo "目标：<描述>
 `;
 
 const CODEX_RULES_CONTENT = `# RepoBrain 会话规则（Codex）
+
+${DEV_FALLBACK_SECTION}
 
 ## 会话开始时（必须）
 
@@ -209,6 +227,8 @@ alwaysApply: true
 ---
 
 # RepoBrain 会话规则（Cursor）
+
+${DEV_FALLBACK_SECTION}
 
 ## 会话开始时（必须）
 
