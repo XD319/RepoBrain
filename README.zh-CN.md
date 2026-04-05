@@ -473,6 +473,14 @@ brain list
 
 这个本地抽取器现在比旧的“只看前缀”的 heuristic 更能从混乱总结里救出有价值的 memory，但它仍然是保守策略，不是通用语义推理器。如果总结里缺少“为什么”、把多条无关结论揉在一起，或者描述过于含糊，补一两句简短因果说明仍然会明显提升提取质量。
 
+**Agent 集成注意**：调用 `brain capture` 或 `brain extract` 时，必须通过 stdin 管道传入带有类型前缀和因果语言的结构化摘要。如果不传 stdin，启发式提取器只能看到 git 上下文，通常信号密度不够，无法产出 memory。每行格式为 `<type>: <包含原因的经验>`：
+
+```bash
+echo "decision: 选择 X 而非 Y，因为 Z
+gotcha: 不要做 A，否则会导致 B
+convention: 当 D 时始终执行 C" | brain capture --task "<任务>" --path <路径>
+```
+
 这时你应该会在 `.brain/gotchas/` 下看到一条新的 memory。实际文件名会带上当天日期和标题 slug。生成后的文件大致会长这样：
 
 ```md
@@ -919,7 +927,7 @@ brain suggest-skills --task "debug flaky browser tests" --path tests/e2e/login.s
 brain suggest-skills --format json --task "debug flaky browser tests" --path tests/e2e/login.spec.ts
 brain suggest-extract --task "fix refund bug" --path src/payments/handler.ts
 brain suggest-extract --json --rev HEAD
-brain capture --task "fix refund bug" --path src/payments/handler.ts
+echo "gotcha: refund handler silently swallows partial failures because the retry loop exits early" | brain capture --task "fix refund bug" --path src/payments/handler.ts
 brain capture --force-candidate --task "refactor auth module"
 brain share <memory-id>
 brain share --all-active
@@ -960,7 +968,7 @@ brain mcp
 - `brain reinforce`：从 `stdin` 手动执行失败分析和记忆强化；自动化或 CI 场景可加 `--yes` 跳过确认
 - `brain suggest-skills`：根据任务文本、变更路径和命中的 active memories 输出一份 deterministic skill routing plan
 - `brain suggest-extract`：用本地确定性规则评估当前 session 或变更是否值得提取为 durable memory；支持 `--task`、`--path`、`--rev`、`--test-summary` 和 `--json`
-- `brain capture`：将 `suggest-extract` 检测和 `extract` 流程合并为一步；当 `should_extract` 为 true 时，提取的记忆默认保存为 **candidate**；为 false 时只输出解释。使用 `--force-candidate` 可在信号模糊时仍保存为 candidate。支持 `--task`、`--path`、`--rev`、`--test-summary`、`--type`、`--source` 和 `--json`
+- `brain capture`：将 `suggest-extract` 检测和 `extract` 流程合并为一步；从 `stdin` 读取可选的 session 摘要（推荐：管道传入带类型前缀的结构化内容，如 `decision: ...` / `gotcha: ...`）；当 `should_extract` 为 true 时，提取的记忆默认保存为 **candidate**；为 false 时只输出解释。使用 `--force-candidate` 可在信号模糊时仍保存为 candidate。支持 `--task`、`--path`、`--rev`、`--test-summary`、`--type`、`--source` 和 `--json`
 - `brain share`：为单条 memory 或全部 active memories 输出建议的 `git add` / `git commit` 命令
 - `brain mcp`：以最小 MCP stdio server 的形式运行 RepoBrain
 

@@ -503,6 +503,14 @@ When `BRAIN_EXTRACTOR_COMMAND` is unset, RepoBrain uses a fully local staged ext
 
 Quality boundaries are still intentionally conservative. The local extractor is much better at rescuing useful memories from messy summaries than the old prefix-only heuristic, but it is not a general semantic reasoner. If a summary is ambiguous, omits the "why", or mixes multiple unrelated lessons into one paragraph, adding short causal wording still improves extraction quality.
 
+**For agent integrations**: when calling `brain capture` or `brain extract`, pipe a structured summary through stdin with type prefixes and causal language. Without stdin input, the heuristic extractor only sees git context, which often lacks the signal density needed to produce memories. Each line should follow the format `<type>: <insight with rationale>`:
+
+```bash
+echo "decision: chose X over Y because Z
+gotcha: avoid doing A, otherwise B happens
+convention: always do C when D" | brain capture --task "<task>" --path <path>
+```
+
 You should now see a new memory under `.brain/gotchas/`. The exact filename will include the current date and a slugified title. A saved file will look similar to this:
 
 ```md
@@ -1012,7 +1020,7 @@ brain suggest-skills --task "debug flaky browser tests" --path tests/e2e/login.s
 brain suggest-skills --format json --task "debug flaky browser tests" --path tests/e2e/login.spec.ts
 brain suggest-extract --task "fix refund bug" --path src/payments/handler.ts
 brain suggest-extract --json --rev HEAD
-brain capture --task "fix refund bug" --path src/payments/handler.ts
+echo "gotcha: refund handler silently swallows partial failures because the retry loop exits early" | brain capture --task "fix refund bug" --path src/payments/handler.ts
 brain capture --force-candidate --task "refactor auth module"
 brain share <memory-id>
 brain share --all-active
@@ -1048,7 +1056,7 @@ brain mcp
 - `brain reinforce`: apply queued reinforcement suggestions with `--pending`, or manually run failure analysis plus memory reinforcement from `stdin`; use `--yes` to skip confirmation for automation or CI
 - `brain suggest-skills`: build a deterministic skill routing plan from task text, changed paths, and matched active memories
 - `brain suggest-extract`: evaluate whether the current session or change is worth extracting as durable memory using local deterministic rules; supports `--task`, `--path`, `--rev`, `--test-summary`, and `--json`
-- `brain capture`: combine `suggest-extract` detection with the `extract` pipeline in a single step; when `should_extract` is true, the extracted memories are saved as **candidates** by default; when false, only the explanation is printed. Use `--force-candidate` to save as candidate even when signals are ambiguous. Supports `--task`, `--path`, `--rev`, `--test-summary`, `--type`, `--source`, and `--json`
+- `brain capture`: combine `suggest-extract` detection with the `extract` pipeline in a single step; reads an optional session summary from `stdin` (recommended: pipe structured lines with type prefixes like `decision: ...` / `gotcha: ...`); when `should_extract` is true, the extracted memories are saved as **candidates** by default; when false, only the explanation is printed. Use `--force-candidate` to save as candidate even when signals are ambiguous. Supports `--task`, `--path`, `--rev`, `--test-summary`, `--type`, `--source`, and `--json`
 - `brain share`: suggest the next `git add` and `git commit` commands for one memory or all active memories
 - `brain mcp`: run RepoBrain as a minimal MCP stdio server
 

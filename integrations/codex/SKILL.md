@@ -74,10 +74,32 @@ When one of the following triggers fires, **run the local detection command** in
 - User only said "ok / thanks / sure / got it" without substantive context
 - No meaningful changes or learnings accompany the acknowledgment
 
-Detection command:
+### Composing Extraction Input
+
+`brain capture` reads a session summary from stdin. **You must pipe structured content** — without it, the local heuristic extractor cannot detect meaningful signals.
+
+Each insight must start with a **type prefix** in the format `<type>: <content>`, where type is one of `decision` / `gotcha` / `convention` / `pattern` / `working` / `goal`. Content should include **rationale or constraints** (e.g. "because…", "to avoid…", "otherwise…"), not just describe what was done.
+
+**Template:**
 
 ```bash
-brain capture --task "<task description>" --path <changed-path>
+echo "<session_summary>" | brain capture --task "<task description>" --path <changed-path>
+```
+
+Compose `<session_summary>` from insights that actually emerged during the session:
+
+1. Review the phase for key decisions, pitfalls, conventions, patterns, or temporary context
+2. Start each insight with the matching type prefix, one per line
+3. Separate multiple insights with newlines
+4. **Do not fabricate insights** — only extract knowledge that actually occurred and would help future sessions
+5. If no insights are worth preserving after review, do not call capture
+
+**Example (assuming these topics were actually discussed):**
+
+```bash
+echo "decision: chose pnpm workspaces for the monorepo because npm hoisting causes phantom dependencies
+gotcha: tsconfig paths must align with package.json exports, otherwise runtime resolution fails
+convention: new modules go under packages/ with index.ts as the entry point" | brain capture --task "set up monorepo structure" --path packages/
 ```
 
 Rules:

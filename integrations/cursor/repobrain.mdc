@@ -63,10 +63,32 @@ brain suggest-skills --format json --task "<当前任务描述>"
 - 用户只说"好的 / 谢谢 / ok / thanks / 嗯 / 收到"等简单确认词
 - 没有配合任何实质变更或有价值的经验描述
 
-检测命令：
+### 构造提取输入
+
+`brain capture` 依赖 stdin 获取会话经验摘要。**必须通过管道传入结构化内容**，否则本地启发式提取器无法识别有效信号。
+
+每条经验用 **类型前缀** 开头，格式为 `<type>: <内容>`，其中 type 为 `decision` / `gotcha` / `convention` / `pattern` / `working` / `goal` 之一。内容应包含 **原因或约束**（如"因为…"、"避免…"、"否则…"），而非仅描述做了什么。
+
+**模板：**
 
 ```bash
-brain capture --task "<任务描述>" --path <变更路径>
+echo "<session_summary>" | brain capture --task "<任务描述>" --path <变更路径>
+```
+
+其中 `<session_summary>` 由你根据当前会话实际产生的经验组装，规则如下：
+
+1. 回顾本阶段的关键决策、踩坑、约定、模式、临时上下文
+2. 每条用对应类型前缀开头，一条一行
+3. 如果有多条经验，用换行分隔
+4. **不要编造经验**——只提取会话中实际发生的、对未来有帮助的知识
+5. 如果回顾后确实没有值得保存的经验，不要调用 capture
+
+**示例（假设会话中实际讨论了这些内容）：**
+
+```bash
+echo "decision: 选择 pnpm workspace 管理 monorepo，因为 npm 在 hoist 时会导致幽灵依赖
+gotcha: tsconfig paths 必须和 package.json exports 对齐，否则运行时解析失败
+convention: 新模块统一放在 packages/ 下，入口文件命名为 index.ts" | brain capture --task "搭建 monorepo 基础结构" --path packages/
 ```
 
 `brain capture` 内部使用"阶段完成"信号作为 confidence booster，与内容价值信号共同决定是否提取。即使检测到阶段完成，如果没有值得保留的经验（如只修了 typo、只加了 debug log），`should_extract` 仍会返回 `false`。
@@ -88,7 +110,7 @@ brain reinforce
 只在本次会话有用的上下文，用 working 类型存储（7 天自动过期）：
 
 ```bash
-echo "<临时上下文>" | brain extract --type working
+echo "working: <临时上下文描述，包含原因或背景>" | brain extract --type working
 ```
 
 ## 跨会话目标（goal 类型）
@@ -96,7 +118,7 @@ echo "<临时上下文>" | brain extract --type working
 用户描述的多会话任务，用 goal 类型记录：
 
 ```bash
-echo "目标：<描述>
+echo "goal: <目标描述>，因为<原因>
 
 进度：
 - [ ] 步骤一" | brain extract --type goal
