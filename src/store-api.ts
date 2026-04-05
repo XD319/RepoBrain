@@ -77,6 +77,9 @@ export {
   setupRepoBrain,
 } from "./setup.js";
 export {
+  buildSharePlan,
+} from "./share.js";
+export {
   getSteeringRulesStatus,
   writeSteeringRules,
 } from "./steering-rules.js";

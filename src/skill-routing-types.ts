@@ -13,6 +13,8 @@ export interface SuggestSkillsOptions {
   path_source?: PathSource;
   /** Optional module names from inject / route for future scoring; included in task context. */
   modules?: string[];
+  /** When false, skip `.brain/runtime/session-profile.json` for routing. Default: true. */
+  includeSessionProfile?: boolean;
 }
 
 export const SUGGEST_SKILLS_CONTRACT_VERSION = "repobrain.skill-plan.v1";
@@ -30,7 +32,10 @@ export type SkillRelation =
   | "suppressed"
   | "preference_prefer"
   | "preference_avoid"
-  | "preference_review";
+  | "preference_review"
+  | "session_prefer"
+  | "session_avoid"
+  | "session_review";
 
 export interface SkillSuggestionSource {
   memory_title: string;

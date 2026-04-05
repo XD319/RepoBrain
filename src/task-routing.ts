@@ -21,6 +21,8 @@ export interface BuildTaskRoutingBundleOptions {
   path_source?: PathSource;
   modules?: string[];
   warnings?: string[];
+  /** When false, skip `.brain/runtime/session-profile.json` for inject + routing. Default: true. */
+  includeSessionProfile?: boolean;
 }
 
 export interface TaskRoutingBundle {
@@ -91,12 +93,14 @@ export async function buildTaskRoutingBundle(
       task,
       paths,
       modules: options.modules ?? [],
+      ...(options.includeSessionProfile === false ? { includeSessionProfile: false } : {}),
     }),
     buildSkillShortlist(projectRoot, {
       task,
       paths,
       path_source,
       modules: options.modules ?? [],
+      ...(options.includeSessionProfile === false ? { includeSessionProfile: false } : {}),
     }),
   ]);
 

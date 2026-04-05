@@ -11,6 +11,11 @@ import {
 } from "./inject-ranking.js";
 import type { DiversitySelectionDecision, MemorySelectionOptions, RankedMemoryCandidate } from "./inject-ranking.js";
 import type { BrainConfig, Memory, StoredMemoryRecord } from "./types.js";
+import {
+  loadSessionProfile,
+  renderSessionProfileInjectSection,
+  sessionProfileHasVisibleContent,
+} from "./session-profile.js";
 
 export interface GitContext {
   changedFiles: string[];
@@ -22,6 +27,8 @@ export interface BuildInjectionOptions extends MemorySelectionOptions {
   explain?: boolean;
   includeWorking?: boolean;
   gitContext?: GitContext;
+  /** When false, skip `.brain/runtime/session-profile.json`. Default: true. */
+  includeSessionProfile?: boolean;
 }
 
 interface RankedMemory {
@@ -86,6 +93,10 @@ export async function buildInjection(
 
   const lastUpdated = allMemories[0]?.date ?? "N/A";
 
+  const sessionProfile =
+    rawOptions.includeSessionProfile === false ? null : await loadSessionProfile(projectRoot);
+  const sessionVisible = Boolean(sessionProfile && sessionProfileHasVisibleContent(sessionProfile));
+
   return [
     "# Project Brain: Repo Knowledge Context",
     "",
@@ -93,12 +104,19 @@ export async function buildInjection(
     ...(hasSelectionContext(options) || ranked.some((entry) => entry.report.contextScore > 0)
       ? ["", renderSelectionSummary(options, gitContext, ranked.some((entry) => hasGitContextComponent(entry)))]
       : []),
-    "",
+    ...(sessionVisible && sessionProfile
+      ? ["", renderSessionProfileInjectSection(sessionProfile), ""]
+      : []),
     "## Injected Memories (Priority Order)",
     renderGroup(selected, taskAware),
     "",
     "---",
-    `Source: .brain/ (${allMemories.length} records, last updated: ${lastUpdated})`,
+    `Source: .brain/ (${allMemories.length} durable records, last updated: ${lastUpdated})`,
+    ...(sessionVisible
+      ? [
+          "Session overlay: `.brain/runtime/session-profile.json` (ephemeral; local-only; not promoted to durable knowledge unless you run `brain session-promote`).",
+        ]
+      : []),
     `[RepoBrain] injected ${selected.length}/${selection.eligibleCount} eligible memories.`,
     ...(candidateCount > 0
       ? [`Pending review: ${candidateCount} candidate memor${candidateCount === 1 ? "y" : "ies"}. Run "brain review" to inspect them.`]

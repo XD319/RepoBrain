@@ -25,15 +25,21 @@ The point is much simpler: stop re-explaining the same repo context every time a
 - reviewable long-lived knowledge that belongs next to the code, not in a hidden cloud memory
 - deterministic task-known routing payloads via `brain suggest-skills` and `invocation_plan`
 
-## Preference layer (lightweight)
+## Knowledge layers: durable memory, routing preference, session profile
 
-Durable memories (`decision` / `gotcha` / `convention` / `pattern`) stay the main line for repo knowledge. Separately, RepoBrain stores **routing preferences** under `.brain/preferences/` as Markdown + YAML frontmatter: skill/workflow/task-class hints, prefer / avoid / require-review stance, optional validity and supersede links. This is **not** generic chat memory; it is a lower-friction place for natural-language feedback about skills and workflows.
+RepoBrain splits three layers so short-lived chat constraints do not pollute durable knowledge:
 
-**How this differs from skill routing fields in memory:** durable memory frontmatter (`required_skills`, `recommended_skills`, `suppressed_skills`, triggers, `invocation_mode`, `risk_level`, …) is the **static declaration layer**: reviewed, durable, repo-wide policy you check into Git. Preferences are the **dynamic tendency layer**: faster to capture, scoped with optional `task_hints` / `path_hints`, and subject to `status`, `valid_*`, and `superseded_by`. The **routing engine** merges static memory signals, applicable preferences, and task/path/git-branch context into one deterministic outcome; the **`invocation_plan`** is the stable **output contract** for adapters (`required`, `prefer_first`, `optional_fallback`, `suppress`, plus `blocked` / `human_review` when rules refuse a silent winner).
+| Layer | Location | What belongs here |
+| --- | --- | --- |
+| **Durable repo knowledge** | `.brain/{decisions,gotchas,...}/` | Auditable facts, decisions, conventions, patterns, goals—things the team should share and review in Git. |
+| **Routing preference** | `.brain/preferences/` | Reusable skill/workflow tendencies: prefer / avoid / require-review, optional `task_hints` / `path_hints`, validity and supersede links. Lower friction than a full memory write, still versioned like code. |
+| **Session profile** | `.brain/runtime/session-profile.json` | Ephemeral hints for *this* working session only (e.g. “skip full tests for now”, “minimal diff”, “no schema changes”). **Not** shared by default; `init`/`setup` add `.brain/.gitignore` with `runtime/` so it stays local unless you force-add it. |
 
-**Decision priority (highest first):** blocked / explicit suppress-class outcomes → static `required_skills` → negative preferences (`avoid`) → positive preferences (`prefer`) → static recommended skills → optional fallbacks and softer signals. Conflicts are resolved with explicit local rules: e.g. static **suppress** beats **preference.prefer** on the same skill; static **required** normally outranks **preference.avoid** unless scores are ambiguous (then escalation). Multiple preferences for the same skill merge by weighted contribution (confidence-scaled), newest `updated_at` last in the merge pass. Stale or superseded preferences do not apply.
+**How session differs from preference:** session text and structured `skill_routing` entries are merged **after** stored preferences in the routing engine. Session signals **outrank ordinary preferences** on the same skill, but they **do not** outrank durable-memory **suppress** / **blocked**-class outcomes or static `required_skills`. `brain inject`, `brain route` / `brain start`, and `brain suggest-skills` label **durable** vs **session** in output. Use `--no-session` to ignore the runtime file.
 
-Implementation modules (for contributors): `static_memory_policy_input` + `preference_policy_input` + `task_context_input` → `routing_engine` → `invocation_plan` rendering, with optional `routing_explanation` in JSON for machine-readable evidence.
+**Decision priority (highest first):** blocked / explicit suppress-class outcomes → static `required_skills` → **session profile** routing (skill targets) → negative preferences (`avoid`) → positive preferences (`prefer`) → static recommended skills → optional fallbacks and softer signals. Conflicts follow the same local rules as before: static **suppress** beats both **preference.prefer** and **session_prefer** on the same skill; static **required** vs ambiguous scores still escalates to `blocked` / `human_review` as today. Multiple stored preferences for the same skill merge by weighted contribution (confidence-scaled), newest `updated_at` last.
+
+Implementation modules (for contributors): `static_memory_policy_input` + `preference_policy_input` + optional `session_policy_input` + `task_context_input` → `routing_engine` → `invocation_plan` rendering, with optional `routing_explanation` in JSON for machine-readable evidence.
 
 Capture from natural language (stdin or `--input`) uses local heuristics only—no LLM API:
 
@@ -57,6 +63,19 @@ brain normalize-preferences
 brain dismiss-preference jest
 brain supersede-preference jest --target vitest --type skill --pref prefer --reason "team standard"
 ```
+
+Session profile (local runtime; promote explicitly when something should become durable or a stored preference):
+
+```bash
+brain session-set "这次先别跑全量测试"
+brain session-set --minimal-change --avoid-skill jest
+brain session-show
+brain session-clear
+brain session-promote --to preference   # uses combined session text; prefers NL extraction like capture-preference
+brain session-promote --to memory --title "Notes from session" --type working
+```
+
+`brain inject`, `brain route`, and `brain suggest-skills` accept `--no-session` to skip `.brain/runtime/session-profile.json`.
 
 ## Proof Layer
 
@@ -473,9 +492,11 @@ After setup, `.brain/` should look like this:
 
 ```text
 .brain/
+├── .gitignore          # typically ignores runtime/ (local session profile)
 ├── config.yaml
 ├── errors.log
 ├── index.md
+├── runtime/            # local-only: session-profile.json (not committed by default)
 ├── decisions/
 ├── gotchas/
 ├── conventions/

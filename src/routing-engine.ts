@@ -2,6 +2,7 @@ import { buildInvocationPlan, invocationPlanSlotOrder } from "./invocation-plan-
 import type {
   ApplicablePreference,
   PreferencePolicyInput,
+  SessionPolicyInput,
   StaticMemoryPolicyInput,
   TaskContextInput,
 } from "./routing-inputs.js";
@@ -59,13 +60,19 @@ export interface RoutingEngineResult {
   routing_explanation: RoutingExplanation;
 }
 
+const SESSION_SIGNAL_WEIGHT = 15;
+
 export function runRoutingEngine(
   staticInput: StaticMemoryPolicyInput,
   preferenceInput: PreferencePolicyInput,
+  sessionInput: SessionPolicyInput | undefined,
   _taskContext: TaskContextInput,
 ): RoutingEngineResult {
   const aggregates = buildAggregatesFromStaticMemories(staticInput.matched_memories);
   applyPreferenceSignals(aggregates, preferenceInput.applicable);
+  if (sessionInput && sessionInput.applicable.length > 0) {
+    applySessionSignals(aggregates, sessionInput.applicable);
+  }
 
   const conflicts: SkillConflict[] = [];
   let resolved_skills = Array.from(aggregates.values())
@@ -77,6 +84,7 @@ export function runRoutingEngine(
   const routing_explanation = buildRoutingExplanation(
     staticInput,
     preferenceInput,
+    sessionInput,
     resolved_skills,
     conflicts,
   );
@@ -226,6 +234,84 @@ function addPreferenceToAggregate(aggregates: Map<string, SkillAggregate>, entry
   aggregates.set(skill, aggregate);
 }
 
+function applySessionSignals(
+  aggregates: Map<string, SkillAggregate>,
+  applicable: ApplicablePreference[],
+): void {
+  const byTarget = new Map<string, ApplicablePreference[]>();
+  for (const entry of applicable) {
+    const key = entry.preference.target.trim();
+    const list = byTarget.get(key) ?? [];
+    list.push(entry);
+    byTarget.set(key, list);
+  }
+
+  for (const [, list] of byTarget) {
+    const sorted = [...list].sort((a, b) => b.preference.updated_at.localeCompare(a.preference.updated_at));
+    for (const entry of sorted) {
+      addSessionSignalToAggregate(aggregates, entry);
+    }
+  }
+}
+
+function addSessionSignalToAggregate(
+  aggregates: Map<string, SkillAggregate>,
+  entry: ApplicablePreference,
+): void {
+  const pref = entry.preference;
+  const skill = pref.target.trim();
+  const aggregate = getOrCreateAggregate(aggregates, skill);
+  const w = SESSION_SIGNAL_WEIGHT * (pref.confidence ?? 0.5);
+  const hintNote =
+    entry.match_reasons.length > 0
+      ? entry.match_reasons.join("; ")
+      : "session skill routing (global for this session)";
+
+  switch (pref.preference) {
+    case "prefer":
+      aggregate.recommended_score += w;
+      aggregate.sources.push({
+        memory_title: `Session → ${skill}`,
+        relative_path: `.brain/runtime/session-profile.json (${hintNote})`,
+        relation: "session_prefer",
+        invocation_mode: "prefer",
+        risk_level: "low",
+        importance: "medium",
+        match_score: w,
+      });
+      break;
+    case "avoid":
+      aggregate.suppressed_score += w;
+      aggregate.sources.push({
+        memory_title: `Session → ${skill}`,
+        relative_path: `.brain/runtime/session-profile.json (${hintNote})`,
+        relation: "session_avoid",
+        invocation_mode: "optional",
+        risk_level: "low",
+        importance: "medium",
+        match_score: w,
+      });
+      break;
+    case "require_review":
+      aggregate.preference_review_requested = true;
+      aggregate.recommended_score += 0.5;
+      aggregate.sources.push({
+        memory_title: `Session → ${skill}`,
+        relative_path: `.brain/runtime/session-profile.json (${hintNote})`,
+        relation: "session_review",
+        invocation_mode: "optional",
+        risk_level: "low",
+        importance: "medium",
+        match_score: 0.5,
+      });
+      break;
+    default:
+      break;
+  }
+
+  aggregates.set(skill, aggregate);
+}
+
 function resolveSkillAggregate(aggregate: SkillAggregate, conflicts: SkillConflict[]): ResolvedSkill {
   const has_required = aggregate.required_score > 0;
   const has_recommended = aggregate.recommended_score > 0;
@@ -318,7 +404,9 @@ function applyPreferenceReviewOverride(skill: ResolvedSkill): ResolvedSkill {
   if (hasRequired) {
     return skill;
   }
-  const wantsReview = skill.sources.some((s) => s.relation === "preference_review");
+  const wantsReview = skill.sources.some(
+    (s) => s.relation === "preference_review" || s.relation === "session_review",
+  );
   if (!wantsReview) {
     return skill;
   }
@@ -351,7 +439,9 @@ function describeRequiredSuppressionReason(
 ): string {
   const suppressedSources = aggregate.sources.filter((source) => source.relation === "suppressed");
   const hasHighRiskSuppression = suppressedSources.some((source) => source.risk_level === "high");
-  const hasPrefAvoid = aggregate.sources.some((s) => s.relation === "preference_avoid");
+  const hasPrefAvoid =
+    aggregate.sources.some((s) => s.relation === "preference_avoid") ||
+    aggregate.sources.some((s) => s.relation === "session_avoid");
 
   if (strategy === "block") {
     return [
@@ -381,13 +471,15 @@ function describeRequiredSuppressionReason(
 }
 
 function describeRecommendedSuppressionReason(aggregate: SkillAggregate): string {
-  const hasPrefPrefer = aggregate.sources.some((s) => s.relation === "preference_prefer");
+  const hasPrefPrefer =
+    aggregate.sources.some((s) => s.relation === "preference_prefer") ||
+    aggregate.sources.some((s) => s.relation === "session_prefer");
   const memSuppress = aggregate.sources.some((s) => s.relation === "suppressed");
 
   if (hasPrefPrefer && memSuppress) {
     return [
-      `Recommended score ${aggregate.recommended_score} (including preference.prefer) conflicts with suppressed score ${aggregate.suppressed_score} from static memory.`,
-      "Static suppress outranks positive preference when both apply to the same skill.",
+      `Recommended score ${aggregate.recommended_score} (including preference/session prefer) conflicts with suppressed score ${aggregate.suppressed_score} from static memory.`,
+      "Static suppress outranks positive preference or session prefer when both apply to the same skill.",
     ].join(" ");
   }
 
@@ -401,11 +493,15 @@ function resolveRecommendedPlanSlot(
   sources: SkillSuggestionSource[],
 ): "prefer_first" | "optional_fallback" {
   const recommendedSources = sources.filter(
-    (source) => source.relation === "recommended" || source.relation === "preference_prefer",
+    (source) =>
+      source.relation === "recommended" ||
+      source.relation === "preference_prefer" ||
+      source.relation === "session_prefer",
   );
   const hasPreferFirstSource = recommendedSources.some(
     (source) =>
       source.relation === "preference_prefer" ||
+      source.relation === "session_prefer" ||
       source.invocation_mode === "required" ||
       source.invocation_mode === "prefer",
   );
@@ -474,6 +570,7 @@ function toDisplayPath(value: string): string {
 function buildRoutingExplanation(
   staticInput: StaticMemoryPolicyInput,
   preferenceInput: PreferencePolicyInput,
+  sessionInput: SessionPolicyInput | undefined,
   resolved: ResolvedSkill[],
   conflicts: SkillConflict[],
 ): RoutingExplanation {
@@ -481,6 +578,14 @@ function buildRoutingExplanation(
   const notes: string[] = [
     `Policy layers (highest precedence first): ${ROUTING_PRIORITY_LAYERS.join(" → ")}`,
   ];
+
+  if (sessionInput && sessionInput.applicable.length > 0) {
+    notes.push(
+      `Session profile routing signals: ${sessionInput.applicable.length} applicable entr${sessionInput.applicable.length === 1 ? "y" : "ies"} from .brain/runtime/session-profile.json.`,
+    );
+  } else {
+    notes.push("No applicable session profile routing entries for this task/path context.");
+  }
 
   for (const skipped of preferenceInput.skipped) {
     notes.push(

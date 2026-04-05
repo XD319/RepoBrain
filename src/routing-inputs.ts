@@ -46,11 +46,17 @@ export interface TaskContextInput {
 export const ROUTING_PRIORITY_LAYERS: readonly string[] = [
   "blocked_and_explicit_suppress (memory + policy)",
   "required_skills (static memory)",
+  "session_profile_routing (beats stored preferences; does not beat memory suppress/block)",
   "negative_preferences (avoid)",
   "positive_preferences (prefer)",
   "static_recommended_skills",
   "optional_fallback_and_soft_signals",
 ] as const;
+
+/** In-session skill signals from `.brain/runtime/session-profile.json` (not durable knowledge). */
+export interface SessionPolicyInput {
+  readonly applicable: ApplicablePreference[];
+}
 
 export function buildStaticMemoryPolicyInput(matchedMemories: MatchedMemory[]): StaticMemoryPolicyInput {
   return { matched_memories: matchedMemories };

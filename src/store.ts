@@ -2,6 +2,7 @@ import { mkdir, readdir, readFile, appendFile, writeFile, rename, rm } from "nod
 import path from "node:path";
 
 import { getBrainDir, hasBrain, writeDefaultConfig } from "./config.js";
+import { ensureSessionRuntimeLayout } from "./session-profile.js";
 import {
   buildMemoryIdentity as buildScopedMemoryIdentity,
   slugifyMemoryTitle,
@@ -82,6 +83,7 @@ export async function initBrain(projectRoot: string): Promise<void> {
   const existedBeforeInit = await hasBrain(projectRoot);
 
   await mkdir(brainDir, { recursive: true });
+  await ensureSessionRuntimeLayout(projectRoot);
   await Promise.all([
     mkdir(path.join(brainDir, "decisions"), { recursive: true }),
     mkdir(path.join(brainDir, "gotchas"), { recursive: true }),

@@ -13,6 +13,7 @@ const testFiles = [
   "test/routing-layer.test.mjs",
   "test/task-routing.test.mjs",
   "test/inject.test.mjs",
+  "test/session-profile.test.mjs",
   "test/temporal-semantics.test.mjs",
   "test/sweep.test.mjs",
   "test/setup-command.test.mjs",

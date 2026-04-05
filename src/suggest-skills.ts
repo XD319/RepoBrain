@@ -13,6 +13,7 @@ import {
   buildTaskContextInput,
 } from "./routing-inputs.js";
 import { runRoutingEngine } from "./routing-engine.js";
+import { buildApplicableSessionPreferences, loadSessionProfile } from "./session-profile.js";
 import type {
   Importance,
   InvocationMode,
@@ -112,7 +113,18 @@ export async function buildSkillShortlist(
     ...(options.modules !== undefined ? { modules: options.modules } : {}),
   });
 
-  const routing = runRoutingEngine(staticInput, preferenceInput, taskContext);
+  const sessionProfile =
+    options.includeSessionProfile === false ? null : await loadSessionProfile(projectRoot);
+  const sessionApplicable = sessionProfile
+    ? buildApplicableSessionPreferences(sessionProfile, task, paths)
+    : [];
+
+  const routing = runRoutingEngine(
+    staticInput,
+    preferenceInput,
+    sessionApplicable.length > 0 ? { applicable: sessionApplicable } : undefined,
+    taskContext,
+  );
   const invocation_plan = buildInvocationPlan(routing.resolved_skills);
 
   return {
