@@ -31,6 +31,7 @@ const testFiles = [
   "test/extract-suggestion.test.mjs",
   "test/capture-command.test.mjs",
   "test/promote-candidates.test.mjs",
+  "test/preference.test.mjs",
 ];
 
 for (const relativePath of testFiles) {

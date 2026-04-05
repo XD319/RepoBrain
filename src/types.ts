@@ -1,4 +1,7 @@
 export const MEMORY_TYPES = ["decision", "gotcha", "convention", "pattern", "working", "goal"] as const;
+export const PREFERENCE_KINDS = ["routing_preference"] as const;
+export const PREFERENCE_TARGET_TYPES = ["skill", "workflow", "task_class"] as const;
+export const PREFERENCE_VALUES = ["prefer", "avoid", "require_review"] as const;
 export const IMPORTANCE_LEVELS = ["high", "medium", "low"] as const;
 export const MEMORY_SOURCES = ["session", "git-commit", "manual", "pr"] as const;
 export const MEMORY_STATUSES = ["active", "candidate", "done", "stale", "superseded"] as const;
@@ -33,6 +36,9 @@ export const MEMORY_AUDIT_ISSUE_TYPES = ["stale", "conflict", "low_signal", "ove
 export const MEMORY_SCHEMA_ISSUE_SEVERITIES = ["error", "warning"] as const;
 
 export type MemoryType = (typeof MEMORY_TYPES)[number];
+export type PreferenceKind = (typeof PREFERENCE_KINDS)[number];
+export type PreferenceTargetType = (typeof PREFERENCE_TARGET_TYPES)[number];
+export type PreferenceValue = (typeof PREFERENCE_VALUES)[number];
 export type Importance = (typeof IMPORTANCE_LEVELS)[number];
 export type MemorySource = (typeof MEMORY_SOURCES)[number];
 export type MemoryStatus = (typeof MEMORY_STATUSES)[number];
@@ -84,6 +90,24 @@ export interface Memory {
   area?: MemoryArea;
   files?: string[];
   expires?: string;
+}
+
+export interface Preference {
+  kind: PreferenceKind;
+  target_type: PreferenceTargetType;
+  target: string;
+  preference: PreferenceValue;
+  reason: string;
+  confidence: number;
+  source: string;
+  created_at: string;
+  updated_at: string;
+  valid_from?: string;
+  valid_until?: string;
+  superseded_by?: string;
+  status: MemoryStatus;
+  task_hints?: string[];
+  path_hints?: string[];
 }
 
 export interface BrainConfig {

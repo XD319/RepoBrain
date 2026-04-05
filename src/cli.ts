@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { createReadStream, createWriteStream } from "node:fs";
-import { rm } from "node:fs/promises";
+import { rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { stdin as input, stdout as output } from "node:process";
 import { createInterface } from "node:readline/promises";
@@ -26,6 +26,9 @@ import {
   renderMemorySchemaReport,
   renderSchemaHealthSummary,
 } from "./memory-schema.js";
+import {
+  slugifyMemoryTitle,
+} from "./memory-identity.js";
 import { extractMemories } from "./extract.js";
 import { detectFailures } from "./failure-detector.js";
 import { buildCommitExtractionInput } from "./git-commit.js";
@@ -43,6 +46,9 @@ import {
   renderExtractSuggestionMarkdown,
 } from "./extract-suggestion.js";
 import type { ExtractSuggestionResult } from "./extract-suggestion.js";
+import {
+  extractPreferenceFromNaturalLanguage,
+} from "./extract-preference.js";
 import {
   buildSkillShortlist,
   collectGitDiffPaths,
@@ -72,12 +78,16 @@ import {
   initBrain,
   loadActivityState,
   loadAllMemories,
+  loadAllPreferences,
   loadStoredMemoryRecords,
   overwriteStoredMemory,
   saveMemory,
+  savePreference,
+  serializePreference,
   supersedeMemoryPair,
   updateIndex,
   updateStoredMemoryStatus,
+  validatePreference,
 } from "./store.js";
 import type { FailureEvent } from "./failure-detector.js";
 import type {
@@ -88,8 +98,9 @@ import type {
   StoredMemoryRecord,
   MemoryType,
   WorkflowMode,
+  Preference,
 } from "./types.js";
-import { MEMORY_TYPES } from "./types.js";
+import { MEMORY_TYPES, PREFERENCE_TARGET_TYPES, PREFERENCE_VALUES } from "./types.js";
 
 const program = new Command();
 
@@ -149,6 +160,199 @@ program
       output.write(`- Steering rules: ${writtenPaths.join(", ")}\n`);
     }
     renderSetupNextSteps(workflowMode).forEach((line) => output.write(`- ${line}\n`));
+  });
+
+program
+  .command("capture-preference")
+  .description("Capture a workflow or skill preference from natural language or explicit parameters.")
+  .option("--target <target>", "The name of the skill, workflow, or task class.")
+  .option("--type <type>", `Target type: ${PREFERENCE_TARGET_TYPES.join(" | ")}`)
+  .option("--pref <value>", `Preference value: ${PREFERENCE_VALUES.join(" | ")}`)
+  .option("--reason <reason>", "Reason for this preference.")
+  .option("--input <text>", "Natural language input to extract preference from.")
+  .action(async (options: { target?: string; type?: any; pref?: any; reason?: string; input?: string }) => {
+    const projectRoot = await resolveProjectRoot();
+    let preference: Preference | null = null;
+
+    const explicitManual =
+      Boolean(options.target?.trim()) &&
+      Boolean(options.type) &&
+      Boolean(options.pref) &&
+      Boolean(options.reason?.trim());
+
+    if (explicitManual) {
+      const now = new Date().toISOString();
+      preference = {
+        kind: "routing_preference",
+        target_type: options.type,
+        target: options.target!.trim(),
+        preference: options.pref,
+        reason: options.reason!.trim(),
+        confidence: 1.0,
+        source: "manual",
+        created_at: now,
+        updated_at: now,
+        status: "active",
+      };
+    } else {
+      let nl = options.input?.trim();
+      if (!nl && !input.isTTY) {
+        nl = (await readStdin()).trim();
+      }
+      if (nl) {
+        preference = extractPreferenceFromNaturalLanguage(nl);
+        if (!preference) {
+          process.stderr.write(
+            "Could not extract a preference from this text (weak or ambiguous signal). Try explicit flags or a clearer sentence.\n",
+          );
+          process.stderr.write("无法从该文本提取偏好（信号偏弱或含糊）。请写得更具体，或使用 --target / --type / --pref / --reason。\n");
+          process.exit(1);
+        }
+      } else {
+        process.stderr.write(
+          'Provide natural language via --input or stdin, or pass all of (--target, --type, --pref, --reason).\n',
+        );
+        process.stderr.write('请使用 --input 或管道 stdin 输入自然语言，或提供 (--target, --type, --pref, --reason)。\n');
+        process.exit(1);
+      }
+    }
+
+    const savedPath = await savePreference(preference!, projectRoot);
+    output.write(`Preference saved to: ${savedPath}\n`);
+    output.write(`已保存偏好至: ${savedPath}\n`);
+  });
+
+program
+  .command("list-preferences")
+  .description("List all active workflow and skill preferences.")
+  .action(async () => {
+    const projectRoot = await resolveProjectRoot();
+    const preferences = await loadAllPreferences(projectRoot);
+    const active = preferences.filter(p => p.status === "active");
+
+    if (active.length === 0) {
+      output.write("No active preferences found.\n");
+      return;
+    }
+
+    output.write("Active Preferences:\n");
+    active.forEach(p => {
+      output.write(`- [${p.preference}] ${p.target_type}:${p.target} (Reason: ${p.reason})\n`);
+    });
+  });
+
+program
+  .command("dismiss-preference")
+  .description("Mark a preference as stale/dismissed.")
+  .argument("<target>", "The target name to dismiss preferences for.")
+  .action(async (target: string) => {
+     // For simplicity in first version, we just mark all matching active ones as stale
+     const projectRoot = await resolveProjectRoot();
+     const brainDir = getBrainDir(projectRoot);
+     const preferences = await loadAllPreferences(projectRoot);
+     let count = 0;
+     for(const p of preferences) {
+       if (p.target === target && p.status === "active") {
+         p.status = "stale";
+         p.updated_at = new Date().toISOString();
+         // Use existing storage utilities to overwrite
+         const fileName = `pref-${p.target_type}-${slugifyMemoryTitle(p.target)}.md`;
+         const filePath = path.join(brainDir, "preferences", fileName);
+         await writeFile(filePath, serializePreference(p), "utf8");
+         count++;
+       }
+     }
+     output.write(`Dismissed ${count} preference(s) for ${target}.\n`);
+  });
+
+program
+  .command("normalize-preferences")
+  .description("Normalize all preference files (formatting, fields).")
+  .action(async () => {
+    const projectRoot = await resolveProjectRoot();
+    const brainDir = getBrainDir(projectRoot);
+    const preferences = await loadAllPreferences(projectRoot);
+    for(const p of preferences) {
+      const fileName = `pref-${p.target_type}-${slugifyMemoryTitle(p.target)}.md`;
+      const filePath = path.join(brainDir, "preferences", fileName);
+      await writeFile(filePath, serializePreference(p), "utf8");
+    }
+    output.write(`Normalized ${preferences.length} preference(s).\n`);
+  });
+
+program
+  .command("supersede-preference")
+  .description("Supersede an old preference with a new one.")
+  .argument("<old_target>", "The target name to supersede.")
+  .option("--target <target>", "The new target name.")
+  .option("--type <type>", `Target type: ${PREFERENCE_TARGET_TYPES.join(" | ")}`)
+  .option("--pref <value>", `Preference value: ${PREFERENCE_VALUES.join(" | ")}`)
+  .option("--reason <reason>", "Reason for this new preference.")
+  .action(async (oldTarget: string, options: { target?: string; type?: any; pref?: any; reason?: string }) => {
+    if (!options.target?.trim() || !options.type || !options.pref || !options.reason?.trim()) {
+      process.stderr.write(
+        'supersede-preference requires --target, --type, --pref, and --reason for the new preference.\n',
+      );
+      process.exit(1);
+    }
+
+    const projectRoot = await resolveProjectRoot();
+    const brainDir = getBrainDir(projectRoot);
+    const preferences = await loadAllPreferences(projectRoot);
+    
+    // Mark old ones as superseded
+    let count = 0;
+    for(const p of preferences) {
+      if (p.target === oldTarget && p.status === "active") {
+        p.status = "superseded";
+        p.superseded_by = `pref-${options.type}-${slugifyMemoryTitle(options.target)}.md`;
+        p.updated_at = new Date().toISOString();
+        const oldFileName = `pref-${p.target_type}-${slugifyMemoryTitle(p.target)}.md`;
+        const oldFilePath = path.join(brainDir, "preferences", oldFileName);
+        await writeFile(oldFilePath, serializePreference(p), "utf8");
+        count++;
+      }
+    }
+
+    // Save new one
+    const now = new Date().toISOString();
+    const newPref: Preference = {
+      kind: "routing_preference",
+      target_type: options.type,
+      target: options.target,
+      preference: options.pref,
+      reason: options.reason,
+      confidence: 1.0,
+      source: "manual",
+      created_at: now,
+      updated_at: now,
+      status: "active",
+    };
+    const savedPath = await savePreference(newPref, projectRoot);
+    output.write(`Superseded ${count} old preference(s). New preference saved to: ${savedPath}\n`);
+  });
+
+program
+  .command("lint-preferences")
+  .description("Validate all preference files against schema.")
+  .action(async () => {
+    const projectRoot = await resolveProjectRoot();
+    const preferences = await loadAllPreferences(projectRoot);
+    let errors = 0;
+    for(const p of preferences) {
+      try {
+        validatePreference(p);
+      } catch (e: any) {
+        process.stderr.write(`Lint error in preference for ${p.target}: ${e.message}\n`);
+        errors++;
+      }
+    }
+    if (errors === 0) {
+      output.write("All preferences are valid.\n");
+    } else {
+      output.write(`Found ${errors} error(s) in preferences.\n`);
+      process.exit(1);
+    }
   });
 
 program

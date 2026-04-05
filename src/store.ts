@@ -18,6 +18,7 @@ import type {
   RiskLevel,
   StoredMemoryRecord,
   MemoryType,
+  Preference,
 } from "./types.js";
 import {
   IMPORTANCE_LEVELS,
@@ -28,6 +29,9 @@ import {
   MEMORY_ORIGINS,
   MEMORY_AREAS,
   RISK_LEVELS,
+  PREFERENCE_KINDS,
+  PREFERENCE_TARGET_TYPES,
+  PREFERENCE_VALUES,
 } from "./types.js";
 
 const DIRECTORY_BY_TYPE: Record<MemoryType, string> = {
@@ -49,6 +53,8 @@ export const ARRAY_FRONTMATTER_FIELDS = [
   "suppressed_skills",
   "skill_trigger_paths",
   "skill_trigger_tasks",
+  "task_hints",
+  "path_hints",
 ] as const;
 
 type ArrayFrontmatterField = (typeof ARRAY_FRONTMATTER_FIELDS)[number];
@@ -77,6 +83,7 @@ export async function initBrain(projectRoot: string): Promise<void> {
     mkdir(path.join(brainDir, "patterns"), { recursive: true }),
     mkdir(path.join(brainDir, "working"), { recursive: true }),
     mkdir(path.join(brainDir, "goals"), { recursive: true }),
+    mkdir(path.join(brainDir, "preferences"), { recursive: true }),
   ]);
 
   if (!existedBeforeInit) {
@@ -620,6 +627,8 @@ export function parseFrontmatter(raw: string): {
   suppressed_skills: string[];
   skill_trigger_paths: string[];
   skill_trigger_tasks: string[];
+  task_hints: string[];
+  path_hints: string[];
   importance?: string;
   date?: string;
   score?: number;
@@ -628,6 +637,7 @@ export function parseFrontmatter(raw: string): {
   created_at?: string;
   created?: string;
   updated?: string;
+  updated_at?: string;
   stale?: boolean | string;
   supersedes?: string | null;
   superseded_by?: string | null;
@@ -639,6 +649,13 @@ export function parseFrontmatter(raw: string): {
   risk_level?: string;
   area?: string;
   expires?: string;
+  kind?: string;
+  target_type?: string;
+  target?: string;
+  preference?: string;
+  confidence?: number;
+  valid_from?: string;
+  valid_until?: string;
 } {
   const result: {
     type?: string;
@@ -653,6 +670,8 @@ export function parseFrontmatter(raw: string): {
     suppressed_skills: string[];
     skill_trigger_paths: string[];
     skill_trigger_tasks: string[];
+    task_hints: string[];
+    path_hints: string[];
     importance?: string;
     date?: string;
     score?: number;
@@ -661,6 +680,7 @@ export function parseFrontmatter(raw: string): {
     created_at?: string;
     created?: string;
     updated?: string;
+    updated_at?: string;
     stale?: boolean | string;
     supersedes?: string | null;
     superseded_by?: string | null;
@@ -672,6 +692,13 @@ export function parseFrontmatter(raw: string): {
     risk_level?: string;
     area?: string;
     expires?: string;
+    kind?: string;
+    target_type?: string;
+    target?: string;
+    preference?: string;
+    confidence?: number;
+    valid_from?: string;
+    valid_until?: string;
   } = {
     tags: [],
     files: [],
@@ -682,13 +709,15 @@ export function parseFrontmatter(raw: string): {
     suppressed_skills: [],
     skill_trigger_paths: [],
     skill_trigger_tasks: [],
+    task_hints: [],
+    path_hints: [],
   };
 
   let activeKey: ArrayFrontmatterField | null = null;
 
   for (const line of raw.split(/\r?\n/)) {
     if (line.startsWith("  - ") && activeKey) {
-      result[activeKey].push(unquoteYaml(line.slice(4).trim()));
+      (result as any)[activeKey].push(unquoteYaml(line.slice(4).trim()));
       continue;
     }
 
@@ -722,10 +751,18 @@ export function parseFrontmatter(raw: string): {
       case "risk_level":
       case "area":
       case "expires":
+      case "kind":
+      case "target_type":
+      case "target":
+      case "preference":
+      case "valid_from":
+      case "valid_until":
+      case "updated_at":
         result[key] = unquoteYaml(value);
         break;
       case "score":
-      case "hit_count": {
+      case "hit_count":
+      case "confidence": {
         const parsed = parseYamlNumber(value);
         if (parsed !== undefined) {
           result[key] = parsed;
@@ -1310,6 +1347,177 @@ function normalizeIsoDateTime(value: string | undefined): string | undefined {
   }
 
   return new Date(parsed).toISOString();
+}
+
+export async function savePreference(preference: Preference, projectRoot: string): Promise<string> {
+  const normalizedPreference = normalizePreference(preference);
+  validatePreference(normalizedPreference);
+
+  await initBrain(projectRoot);
+
+  const brainDir = getBrainDir(projectRoot);
+  const fileName = `pref-${normalizedPreference.target_type}-${slugifyMemoryTitle(normalizedPreference.target)}.md`;
+  const content = serializePreference(normalizedPreference);
+
+  for (let attempt = 0; attempt < 1000; attempt += 1) {
+    const relativePath = path.join(
+      "preferences",
+      ensureUniquePreferenceFileNameSuffix(normalizedPreference, fileName, attempt),
+    );
+    const filePath = path.join(brainDir, relativePath);
+
+    try {
+      await writeFile(filePath, content, { encoding: "utf8", flag: "wx" });
+      return filePath;
+    } catch (error) {
+      if (isFileAlreadyExistsError(error)) {
+        continue;
+      }
+      throw error;
+    }
+  }
+
+  throw new Error(`Failed to allocate a unique preference file name for "${normalizedPreference.target}".`);
+}
+
+export async function loadAllPreferences(projectRoot: string): Promise<Preference[]> {
+  const brainDir = getBrainDir(projectRoot);
+  const directory = path.join(brainDir, "preferences");
+
+  try {
+    const files = await readdir(directory, { withFileTypes: true });
+    const markdownFiles = files.filter((entry) => entry.isFile() && entry.name.endsWith(".md"));
+
+    const loaded = await Promise.all(
+      markdownFiles.map(async (entry) => {
+        const filePath = path.join(directory, entry.name);
+        const content = await readFile(filePath, "utf8");
+        return parsePreference(content, filePath);
+      }),
+    );
+
+    return loaded.sort((left, right) => right.created_at.localeCompare(left.created_at));
+  } catch (error) {
+    if (isMissingDirectoryError(error)) {
+      return [];
+    }
+    throw error;
+  }
+}
+
+export function normalizePreference(pref: Preference): Preference {
+  return {
+    ...pref,
+    confidence: pref.confidence ?? 0.5,
+    source: pref.source ?? "manual",
+    status: pref.status ?? "active",
+    created_at: pref.created_at || new Date().toISOString(),
+    updated_at: pref.updated_at || pref.created_at || new Date().toISOString(),
+    task_hints: normalizeStringArray(pref.task_hints ?? []),
+    path_hints: normalizePathArray(pref.path_hints ?? []),
+  };
+}
+
+export function validatePreference(pref: Preference, context = "Preference"): void {
+  if (!PREFERENCE_KINDS.includes(pref.kind)) {
+    throw new Error(`${context} has unsupported kind "${pref.kind}".`);
+  }
+  if (!PREFERENCE_TARGET_TYPES.includes(pref.target_type)) {
+    throw new Error(`${context} has unsupported target_type "${pref.target_type}".`);
+  }
+  if (!PREFERENCE_VALUES.includes(pref.preference)) {
+    throw new Error(`${context} has unsupported preference value "${pref.preference}".`);
+  }
+  if (!MEMORY_STATUSES.includes(pref.status)) {
+    throw new Error(`${context} has unsupported status "${pref.status}".`);
+  }
+  if (!pref.target.trim()) {
+    throw new Error(`${context} requires a non-empty target.`);
+  }
+  if (!pref.reason.trim()) {
+    throw new Error(`${context} requires a non-empty reason.`);
+  }
+}
+
+export function serializePreference(pref: Preference): string {
+  const normalized = normalizePreference(pref);
+  const lines = [
+    "---",
+    `kind: ${quoteYaml(normalized.kind)}`,
+    `target_type: ${quoteYaml(normalized.target_type)}`,
+    `target: ${quoteYaml(normalized.target)}`,
+    `preference: ${quoteYaml(normalized.preference)}`,
+    `confidence: ${normalized.confidence}`,
+    `source: ${quoteYaml(normalized.source)}`,
+    `created_at: ${quoteYaml(normalized.created_at)}`,
+    `updated_at: ${quoteYaml(normalized.updated_at)}`,
+    `status: ${quoteYaml(normalized.status)}`,
+  ];
+
+  if (normalized.valid_from) lines.push(`valid_from: ${quoteYaml(normalized.valid_from)}`);
+  if (normalized.valid_until) lines.push(`valid_until: ${quoteYaml(normalized.valid_until)}`);
+  if (normalized.superseded_by) lines.push(`superseded_by: ${quoteYaml(normalized.superseded_by)}`);
+
+  appendArrayField(lines, "task_hints", normalized.task_hints ?? []);
+  appendArrayField(lines, "path_hints", normalized.path_hints ?? []);
+
+  lines.push("---", "", normalized.reason.trim(), "");
+  return lines.join("\n");
+}
+
+export function parsePreference(content: string, filePath: string): Preference {
+  const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/);
+  if (!match) {
+    throw new Error(`Preference file "${filePath}" is missing valid frontmatter.`);
+  }
+
+  const rawFrontmatter = match[1];
+  const rawReason = match[2];
+  if (rawFrontmatter === undefined || rawReason === undefined) {
+     throw new Error(`Preference file "${filePath}" has invalid structure.`);
+  }
+  const frontmatter = parseFrontmatter(rawFrontmatter);
+
+  if (!frontmatter.kind || !frontmatter.target_type || !frontmatter.target || !frontmatter.preference) {
+    throw new Error(`Preference file "${filePath}" is missing required fields.`);
+  }
+
+  const prefInput: Preference = {
+    kind: frontmatter.kind as any,
+    target_type: frontmatter.target_type as any,
+    target: frontmatter.target as string,
+    preference: frontmatter.preference as any,
+    reason: (rawReason ?? "").trim(),
+    confidence: frontmatter.confidence ?? 0.5,
+    source: frontmatter.source ?? "manual",
+    created_at: frontmatter.created_at ?? new Date().toISOString(),
+    updated_at: frontmatter.updated_at ?? frontmatter.created_at ?? new Date().toISOString(),
+    status: (frontmatter.status as any) ?? "active",
+  };
+
+  if (frontmatter.valid_from) prefInput.valid_from = frontmatter.valid_from;
+  if (frontmatter.valid_until) prefInput.valid_until = frontmatter.valid_until;
+  if (frontmatter.superseded_by) prefInput.superseded_by = frontmatter.superseded_by;
+  if (frontmatter.task_hints && frontmatter.task_hints.length > 0) {
+    prefInput.task_hints = frontmatter.task_hints;
+  }
+  if (frontmatter.path_hints && frontmatter.path_hints.length > 0) {
+    prefInput.path_hints = frontmatter.path_hints;
+  }
+
+  return normalizePreference(prefInput);
+}
+
+function ensureUniquePreferenceFileNameSuffix(pref: Preference, fileName: string, attempt: number = 0): string {
+  const extension = path.extname(fileName);
+  const baseName = fileName.slice(0, -extension.length);
+  const parts = [baseName];
+
+  if (attempt > 0) {
+    parts.push(String(attempt + 1));
+  }
+
+  return `${parts.join("-")}${extension}`;
 }
 
 async function touchFile(filePath: string): Promise<void> {

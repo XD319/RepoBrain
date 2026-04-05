@@ -3,12 +3,21 @@ export {
   getMemoryStatus,
   initBrain,
   loadAllMemories,
+  loadAllPreferences,
   loadStoredMemoryRecords,
+  normalizePreference,
   overwriteStoredMemory,
+  parsePreference,
   saveMemory,
+  savePreference,
+  serializePreference,
   supersedeMemoryPair,
   updateIndex,
+  validatePreference,
 } from "./store.js";
+export {
+  extractPreferenceFromNaturalLanguage,
+} from "./extract-preference.js";
 export {
   computeInjectPriority,
 } from "./memory-priority.js";

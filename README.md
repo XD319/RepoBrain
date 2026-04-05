@@ -25,6 +25,33 @@ The point is much simpler: stop re-explaining the same repo context every time a
 - reviewable long-lived knowledge that belongs next to the code, not in a hidden cloud memory
 - deterministic task-known routing payloads via `brain suggest-skills` and `invocation_plan`
 
+## Preference layer (lightweight)
+
+Durable memories (`decision` / `gotcha` / `convention` / `pattern`) stay the main line for repo knowledge. Separately, RepoBrain stores **routing preferences** under `.brain/preferences/` as Markdown + YAML frontmatter: skill/workflow/task-class hints, prefer / avoid / require-review stance, optional validity and supersede links. This is **not** generic chat memory; it is a lower-friction place for natural-language feedback about skills and workflows.
+
+Capture from natural language (stdin or `--input`) uses local heuristics only—no LLM API:
+
+```bash
+echo '浏览器测试优先 Playwright 路线' | brain capture-preference
+brain capture-preference --input '除非高风险改动，否则不要走全量重验证流程'
+```
+
+Explicit capture without NL parsing:
+
+```bash
+brain capture-preference --target playwright --type skill --pref prefer --reason "E2E coverage"
+```
+
+List, lint, normalize, dismiss, and supersede:
+
+```bash
+brain list-preferences
+brain lint-preferences
+brain normalize-preferences
+brain dismiss-preference jest
+brain supersede-preference jest --target vitest --type skill --pref prefer --reason "team standard"
+```
+
 ## Proof Layer
 
 - Executable demo proof: [docs/demo-proof.md](./docs/demo-proof.md)

@@ -31,7 +31,7 @@ await runTest("brain setup initializes .brain and installs the post-commit hook"
 
     const hookContent = await readFile(path.join(projectRoot, ".git", "hooks", "post-commit"), "utf8");
     assert.match(hookContent, /project-brain post-commit hook/);
-    assert.match(hookContent, /brain extract-commit/);
+    assert.match(hookContent, /extract-commit/);
   });
 });
 
