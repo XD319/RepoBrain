@@ -116,6 +116,7 @@ export type {
   MatchedMemory,
   PathSource,
   ResolvedSkill,
+  RoutingExplanation,
   SkillConflict,
   SkillSuggestionResult,
   SuggestSkillsOptions,

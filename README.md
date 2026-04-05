@@ -29,6 +29,12 @@ The point is much simpler: stop re-explaining the same repo context every time a
 
 Durable memories (`decision` / `gotcha` / `convention` / `pattern`) stay the main line for repo knowledge. Separately, RepoBrain stores **routing preferences** under `.brain/preferences/` as Markdown + YAML frontmatter: skill/workflow/task-class hints, prefer / avoid / require-review stance, optional validity and supersede links. This is **not** generic chat memory; it is a lower-friction place for natural-language feedback about skills and workflows.
 
+**How this differs from skill routing fields in memory:** durable memory frontmatter (`required_skills`, `recommended_skills`, `suppressed_skills`, triggers, `invocation_mode`, `risk_level`, …) is the **static declaration layer**: reviewed, durable, repo-wide policy you check into Git. Preferences are the **dynamic tendency layer**: faster to capture, scoped with optional `task_hints` / `path_hints`, and subject to `status`, `valid_*`, and `superseded_by`. The **routing engine** merges static memory signals, applicable preferences, and task/path/git-branch context into one deterministic outcome; the **`invocation_plan`** is the stable **output contract** for adapters (`required`, `prefer_first`, `optional_fallback`, `suppress`, plus `blocked` / `human_review` when rules refuse a silent winner).
+
+**Decision priority (highest first):** blocked / explicit suppress-class outcomes → static `required_skills` → negative preferences (`avoid`) → positive preferences (`prefer`) → static recommended skills → optional fallbacks and softer signals. Conflicts are resolved with explicit local rules: e.g. static **suppress** beats **preference.prefer** on the same skill; static **required** normally outranks **preference.avoid** unless scores are ambiguous (then escalation). Multiple preferences for the same skill merge by weighted contribution (confidence-scaled), newest `updated_at` last in the merge pass. Stale or superseded preferences do not apply.
+
+Implementation modules (for contributors): `static_memory_policy_input` + `preference_policy_input` + `task_context_input` → `routing_engine` → `invocation_plan` rendering, with optional `routing_explanation` in JSON for machine-readable evidence.
+
 Capture from natural language (stdin or `--input`) uses local heuristics only—no LLM API:
 
 ```bash
@@ -745,12 +751,13 @@ When `--path` is omitted, the command auto-collects changed paths from `git diff
 brain suggest-skills --task "debug flaky browser tests in CI" --path tests/e2e/login.spec.ts --path playwright.config.ts
 ```
 
-The command only considers `active` memories. It matches the task against `skill_trigger_tasks`, matches each provided path against `skill_trigger_paths`, then produces:
+The command only considers `active` memories for the **static** memory match list. It matches the task against `skill_trigger_tasks`, matches each provided path against `skill_trigger_paths`, then merges in **active, in-window** skill preferences from `.brain/preferences/` (respecting optional `task_hints` / `path_hints`, and skipping stale or superseded records). It produces:
 
 - `matched_memories`: which memories matched and why
-- `resolved_skills`: the per-skill resolution after applying local rules
+- `resolved_skills`: the per-skill resolution after applying local rules (memory + preferences + conflict resolution)
 - `conflicts`: deterministic conflict records, including local strategy outcomes for required-vs-suppressed collisions
 - `invocation_plan`: a stable adapter-facing plan with `required`, `prefer_first`, `optional_fallback`, and `suppress` buckets, plus `blocked` and `human_review` when the local rules refuse to auto-resolve
+- `routing_explanation` (optional in JSON): policy-layer ordering, per-skill evidence lines, and notes about skipped preferences—useful for adapters that need to show *why* a skill was preferred, suppressed, or escalated
 - `path_source`: indicates where the paths came from — `"explicit"` (from `--path`), `"git_diff"` (auto-collected), or `"none"` (task-only routing)
 
 Markdown stays the default human-readable output, so the routing plan is still easy to inspect manually:
@@ -786,9 +793,16 @@ Example JSON shape:
     "suppress": [],
     "blocked": [],
     "human_review": []
+  },
+  "routing_explanation": {
+    "priority_order": ["blocked_and_explicit_suppress (memory + policy)", "..."],
+    "skill_evidence": {},
+    "notes": []
   }
 }
 ```
+
+`routing_explanation` may be omitted when nothing extra needs recording; when present, it is safe for machines to consume alongside `invocation_plan`.
 
 If you already have the task description in a file or another command, you can also pipe it over stdin:
 
@@ -847,9 +861,16 @@ Example JSON shape:
   "resolved_skills": [],
   "conflicts": [],
   "warnings": [],
-  "display_mode": "silent-ok"
+  "display_mode": "silent-ok",
+  "routing_explanation": {
+    "priority_order": ["..."],
+    "skill_evidence": {},
+    "notes": []
+  }
 }
 ```
+
+`routing_explanation` is optional and mirrors `brain suggest-skills` when present.
 
 `display_mode` is:
 

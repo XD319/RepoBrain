@@ -3,6 +3,7 @@ import {
   buildSkillShortlist,
   renderSkillShortlist,
   type PathSource,
+  type RoutingExplanation,
   type SkillConflict,
   type ResolvedSkill,
   type InvocationPlan,
@@ -34,6 +35,8 @@ export interface TaskRoutingBundle {
   conflicts: SkillConflict[];
   warnings: string[];
   display_mode: TaskRoutingDisplayMode;
+  /** Optional machine-readable routing trace (same as `brain suggest-skills` JSON when present). */
+  routing_explanation?: RoutingExplanation;
 }
 
 export function shouldEscalateRoutingPlan(
@@ -93,6 +96,7 @@ export async function buildTaskRoutingBundle(
       task,
       paths,
       path_source,
+      modules: options.modules ?? [],
     }),
   ]);
 
@@ -117,6 +121,7 @@ export async function buildTaskRoutingBundle(
     conflicts: shortlist.conflicts,
     warnings,
     display_mode,
+    ...(shortlist.routing_explanation ? { routing_explanation: shortlist.routing_explanation } : {}),
   };
 }
 
@@ -156,6 +161,7 @@ export function renderTaskRoutingBundle(bundle: TaskRoutingBundle): string {
       invocation_plan: bundle.skill_plan,
       matchedMemories: bundle.matched_memories,
       skills: bundle.resolved_skills,
+      ...(bundle.routing_explanation ? { routing_explanation: bundle.routing_explanation } : {}),
     }),
   );
 

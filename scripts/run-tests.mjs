@@ -10,6 +10,7 @@ const testFiles = [
   "test/memory-priority.test.mjs",
   "test/reviewer.test.mjs",
   "test/suggest-skills.test.mjs",
+  "test/routing-layer.test.mjs",
   "test/task-routing.test.mjs",
   "test/inject.test.mjs",
   "test/sweep.test.mjs",
