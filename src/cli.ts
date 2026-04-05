@@ -16,6 +16,7 @@ import {
   renderConfigWarnings,
   writeConfig,
 } from "./config.js";
+import { decodeStdinBuffer } from "./stdin-decode.js";
 import { buildMemoryAudit, renderMemoryAuditResult } from "./audit-memory.js";
 import {
   buildMemorySchemaReport,
@@ -1225,7 +1226,7 @@ async function readStdin(): Promise<string> {
     chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
   }
 
-  return Buffer.concat(chunks).toString("utf8");
+  return decodeStdinBuffer(Buffer.concat(chunks));
 }
 
 async function runSweepAuto(
@@ -1580,7 +1581,7 @@ async function readOptionalStdin(): Promise<string | undefined> {
         input.removeAllListeners("error");
         input.pause();
         input.destroy();
-        resolve(chunks.length > 0 ? Buffer.concat(chunks).toString("utf8") : undefined);
+        resolve(chunks.length > 0 ? decodeStdinBuffer(Buffer.concat(chunks)) : undefined);
       }
     }, STDIN_TIMEOUT_MS);
 
@@ -1592,7 +1593,7 @@ async function readOptionalStdin(): Promise<string | undefined> {
       if (!settled) {
         settled = true;
         clearTimeout(timer);
-        resolve(chunks.length > 0 ? Buffer.concat(chunks).toString("utf8") : undefined);
+        resolve(chunks.length > 0 ? decodeStdinBuffer(Buffer.concat(chunks)) : undefined);
       }
     });
 

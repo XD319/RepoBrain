@@ -471,6 +471,8 @@ brain list
 - metadata 推断：会结合文本和路径上下文补全 `tags`、`importance`、`area`、`files`、`path_scope`
 - 拒绝策略：低信息量备注、debug 噪音、只修 typo 的记录、一次性的 action log 会在写入前 review 之前被过滤掉
 
+在 Windows 上，PowerShell 等环境可能用 GB18030/GBK 等代码页向管道写入中文。CLI 按原始字节读取 stdin：若按 UTF-8 解码出现替换字符（U+FFFD），会自动用 GB18030 再解码同一缓冲，使 `brain extract` / `brain capture` 在无须改 shell 编码设置的情况下仍能收到正确文本。
+
 这个本地抽取器现在比旧的“只看前缀”的 heuristic 更能从混乱总结里救出有价值的 memory，但它仍然是保守策略，不是通用语义推理器。如果总结里缺少“为什么”、把多条无关结论揉在一起，或者描述过于含糊，补一两句简短因果说明仍然会明显提升提取质量。
 
 **Agent 集成注意**：调用 `brain capture` 或 `brain extract` 时，必须通过 stdin 管道传入带有类型前缀和因果语言的结构化摘要。如果不传 stdin，启发式提取器只能看到 git 上下文，通常信号密度不够，无法产出 memory。每行格式为 `<type>: <包含原因的经验>`：

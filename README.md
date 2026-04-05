@@ -501,6 +501,8 @@ When `BRAIN_EXTRACTOR_COMMAND` is unset, RepoBrain uses a fully local staged ext
 - metadata derivation: `tags`, `importance`, `area`, `files`, and `path_scope` are inferred from both text and path context
 - rejection bias: low-information notes, debug noise, typo-only edits, and one-off action logs are filtered out before write review
 
+On Windows, shells such as PowerShell may pipe Chinese text using a legacy code page (for example GB18030). The CLI reads stdin as raw bytes: if UTF-8 decoding contains replacement characters (U+FFFD), it automatically re-decodes the same buffer as GB18030 so `brain extract` / `brain capture` still see correct text without changing shell settings.
+
 Quality boundaries are still intentionally conservative. The local extractor is much better at rescuing useful memories from messy summaries than the old prefix-only heuristic, but it is not a general semantic reasoner. If a summary is ambiguous, omits the "why", or mixes multiple unrelated lessons into one paragraph, adding short causal wording still improves extraction quality.
 
 **For agent integrations**: when calling `brain capture` or `brain extract`, pipe a structured summary through stdin with type prefixes and causal language. Without stdin input, the heuristic extractor only sees git context, which often lacks the signal density needed to produce memories. Each line should follow the format `<type>: <insight with rationale>`:
