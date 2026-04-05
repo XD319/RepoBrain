@@ -8,6 +8,7 @@ import { createInterface } from "node:readline/promises";
 import { Command } from "commander";
 
 import {
+  findProjectRoot,
   getBrainDir,
   getWorkflowPreset,
   loadConfig,
@@ -156,7 +157,7 @@ program
   .option("--type <type>", "Force a memory type for extracted entries.", parseMemoryTypeOption)
   .option("--candidate", "Save extracted memories as candidates for later review.")
   .action(async (options: { source: Memory["source"]; type?: MemoryType; candidate?: boolean }) => {
-    const projectRoot = process.cwd();
+    const projectRoot = await resolveProjectRoot();
     await initBrain(projectRoot);
 
     const config = await loadConfig(projectRoot);
@@ -171,7 +172,7 @@ program
   .option("--rev <revision>", "Git revision to analyze", "HEAD")
   .option("--candidate", "Save extracted memories as candidates for later review.")
   .action(async (options: { rev?: string; candidate?: boolean }) => {
-    const projectRoot = process.cwd();
+    const projectRoot = await resolveProjectRoot();
     await initBrain(projectRoot);
 
     const config = await loadConfig(projectRoot);
@@ -209,7 +210,7 @@ program
     explain?: boolean;
     includeWorking?: boolean;
   }) => {
-    const projectRoot = process.cwd();
+    const projectRoot = await resolveProjectRoot();
     const config = await loadConfig(projectRoot);
     renderConfigWarnings(config).forEach((warning) => process.stderr.write(`[repobrain] ${warning}\n`));
     if (config.sweepOnInject) {
@@ -237,7 +238,7 @@ program
       throw new Error('Use either "--auto" or "--dry-run", not both.');
     }
 
-    const projectRoot = process.cwd();
+    const projectRoot = await resolveProjectRoot();
     await initBrain(projectRoot);
     const config = await loadConfig(projectRoot);
     renderConfigWarnings(config).forEach((warning) => process.stderr.write(`[repobrain] ${warning}\n`));
@@ -262,7 +263,7 @@ program
   .option("--type <type>", "Filter memories by type.", parseMemoryTypeOption)
   .option("--goals", "List goal memories grouped by status.")
   .action(async (options: { type?: MemoryType; goals?: boolean }) => {
-    const projectRoot = process.cwd();
+    const projectRoot = await resolveProjectRoot();
     const memories = await loadAllMemories(projectRoot);
     const filteredMemories = options.goals
       ? memories.filter((memory) => memory.type === "goal")
@@ -293,7 +294,7 @@ program
   .command("stats")
   .description("Show high-level memory counts for the current project.")
   .action(async () => {
-    const projectRoot = process.cwd();
+    const projectRoot = await resolveProjectRoot();
     const [{ records, schema }] = await Promise.all([
       loadSchemaValidatedMemoryRecords(projectRoot),
     ]);
@@ -321,7 +322,7 @@ program
   .command("status")
   .description("Show the current workflow mode, reminders, and recent RepoBrain activity.")
   .action(async () => {
-    const projectRoot = process.cwd();
+    const projectRoot = await resolveProjectRoot();
     const [{ records, schema }] = await Promise.all([
       loadSchemaValidatedMemoryRecords(projectRoot),
     ]);
@@ -374,7 +375,7 @@ program
   .command("next")
   .description("Show the next recommended RepoBrain step for the current repo state.")
   .action(async () => {
-    const projectRoot = process.cwd();
+    const projectRoot = await resolveProjectRoot();
     const config = await loadConfig(projectRoot);
     const memories = await loadAllMemories(projectRoot);
     const snapshot = await buildWorkflowSnapshot(projectRoot, config, memories);
@@ -400,7 +401,7 @@ goalProgram
   .command("done <keyword>")
   .description("Mark a goal memory as done by matching a title keyword.")
   .action(async (keyword: string) => {
-    const projectRoot = process.cwd();
+    const projectRoot = await resolveProjectRoot();
     const records = await loadStoredMemoryRecords(projectRoot);
     const query = keyword.trim().toLowerCase();
 
@@ -446,7 +447,7 @@ program
   .command("review")
   .description("Inspect candidate memories before approval; pairs naturally with brain approve --safe.")
   .action(async () => {
-    const projectRoot = process.cwd();
+    const projectRoot = await resolveProjectRoot();
     const records = await loadStoredMemoryRecords(projectRoot);
     const candidates = getCandidateRecords(records);
 
@@ -480,7 +481,7 @@ program
   .option("--all", "Approve all candidate memories.")
   .option("--safe", "Approve only candidates that still review as low-risk novel memories.")
   .action(async (memoryId: string | undefined, options: { all?: boolean; safe?: boolean }) => {
-    const projectRoot = process.cwd();
+    const projectRoot = await resolveProjectRoot();
     const records = await loadStoredMemoryRecords(projectRoot);
     const resolution = options.safe
       ? resolveSafeCandidateRecords(records, memoryId, options.all)
@@ -517,7 +518,7 @@ program
   .description("Dismiss one candidate memory, or all candidates with --all.")
   .option("--all", "Dismiss all candidate memories.")
   .action(async (memoryId: string | undefined, options: { all?: boolean }) => {
-    const projectRoot = process.cwd();
+    const projectRoot = await resolveProjectRoot();
     const records = await loadStoredMemoryRecords(projectRoot);
     const matches = resolveCandidateRecords(records, memoryId, options.all);
 
@@ -538,7 +539,7 @@ program
   )
   .option("--dry-run", "Print the promotion plan without changing any files.")
   .action(async (options: { dryRun?: boolean }) => {
-    const projectRoot = process.cwd();
+    const projectRoot = await resolveProjectRoot();
     const config = await loadConfig(projectRoot);
 
     if (!config.autoApproveSafeCandidates) {
@@ -602,7 +603,7 @@ program
   .description("Link a newer memory to an older one and mark the older memory as stale.")
   .option("--yes", "Overwrite an existing supersede relationship without prompting.")
   .action(async (newMemoryFile: string, oldMemoryFile: string, options: { yes?: boolean }) => {
-    const projectRoot = process.cwd();
+    const projectRoot = await resolveProjectRoot();
     const records = await loadStoredMemoryRecords(projectRoot);
     const newRecord = resolveStoredMemoryByFile(records, newMemoryFile);
     const oldRecord = resolveStoredMemoryByFile(records, oldMemoryFile);
@@ -649,7 +650,7 @@ program
   .command("lineage [memoryFile]")
   .description("Render memory lineage trees from the current .brain store.")
   .action(async (memoryFile: string | undefined) => {
-    const projectRoot = process.cwd();
+    const projectRoot = await resolveProjectRoot();
     const records = await loadStoredMemoryRecords(projectRoot);
     const rendered = renderMemoryLineage(records, memoryFile);
     output.write(`${rendered}\n`);
@@ -660,7 +661,7 @@ program
   .description("Suggest git commands for sharing one memory or all active memories.")
   .option("--all-active", "Share all active memories in .brain.")
   .action(async (memoryId: string | undefined, options: { allActive?: boolean }) => {
-    const projectRoot = process.cwd();
+    const projectRoot = await resolveProjectRoot();
     const plan = await buildSharePlan(projectRoot, {
       ...(options.allActive ? { allActive: true } : {}),
       ...(memoryId ? { memoryId } : {}),
@@ -707,7 +708,7 @@ program
     json?: boolean;
     format?: string;
   }) => {
-    const projectRoot = process.cwd();
+    const projectRoot = await resolveProjectRoot();
     const config = await loadConfig(projectRoot);
     renderConfigWarnings(config).forEach((warning) => process.stderr.write(`[repobrain] ${warning}\n`));
     if (config.sweepOnInject) {
@@ -754,7 +755,7 @@ program
   .option("--json", 'Print the result as JSON. Equivalent to "--format json".')
   .option("--format <format>", 'Output format: "markdown" or "json".', "markdown")
   .action(async (options: { task?: string; path: string[]; json?: boolean; format?: string }) => {
-    const projectRoot = process.cwd();
+    const projectRoot = await resolveProjectRoot();
     const task = options.task?.trim() || (await readOptionalStdin());
     const resolvedPaths = resolveSuggestedSkillPaths(projectRoot, options.path);
     const paths = resolvedPaths.paths;
@@ -799,7 +800,7 @@ program
     json?: boolean;
     format?: string;
   }) => {
-    const projectRoot = process.cwd();
+    const projectRoot = await resolveProjectRoot();
     const task = options.task?.trim() || undefined;
     const sessionSummary = (await readOptionalStdin())?.trim() || undefined;
     const changedFiles = resolveChangedFiles(projectRoot, options.path);
@@ -855,7 +856,7 @@ program
     json?: boolean;
     format?: string;
   }) => {
-    const projectRoot = process.cwd();
+    const projectRoot = await resolveProjectRoot();
     await initBrain(projectRoot);
 
     const task = options.task?.trim() || undefined;
@@ -936,7 +937,7 @@ program
   .description("Lint memory frontmatter schema health without modifying files.")
   .option("--json", "Print the schema report as JSON.")
   .action(async (options: { json?: boolean }) => {
-    const projectRoot = process.cwd();
+    const projectRoot = await resolveProjectRoot();
     const result = await buildMemorySchemaReport(projectRoot);
     output.write(
       options.json ? `${JSON.stringify(result, null, 2)}\n` : `${renderMemorySchemaReport(result)}\n`,
@@ -948,7 +949,7 @@ program
   .description("Normalize compatible memory frontmatter in place and report any manual-fix schema issues.")
   .option("--json", "Print the normalization result as JSON.")
   .action(async (options: { json?: boolean }) => {
-    const projectRoot = process.cwd();
+    const projectRoot = await resolveProjectRoot();
     const result = await normalizeMemorySchemas(projectRoot);
     await updateIndex(projectRoot);
     output.write(
@@ -961,7 +962,7 @@ program
   .description("Audit stored memories for stale, conflict, low-signal, and overscoped entries.")
   .option("--json", "Print the audit result as JSON.")
   .action(async (options: { json?: boolean }) => {
-    const projectRoot = process.cwd();
+    const projectRoot = await resolveProjectRoot();
     const result = await buildMemoryAudit(projectRoot);
     output.write(
       options.json ? `${JSON.stringify(result, null, 2)}\n` : `${renderMemoryAuditResult(result)}\n`,
@@ -975,7 +976,7 @@ program
   .option("--pending", "Apply pending reinforcement suggestions saved by the session-end workflow.")
   .option("--yes", "Skip confirmation and apply reinforcement immediately.")
   .action(async (options: { source: "session" | "git-commit"; pending?: boolean; yes?: boolean }) => {
-    const projectRoot = process.cwd();
+    const projectRoot = await resolveProjectRoot();
     await initBrain(projectRoot);
 
     const records = await loadStoredMemoryRecords(projectRoot);
@@ -1039,7 +1040,7 @@ program
   .option("--delete-all", "Delete all matched memories without prompting.")
   .option("--json", "Print matched memories as JSON and do not prompt.")
   .action(async (options: { markAll?: boolean; deleteAll?: boolean; json?: boolean }) => {
-    const projectRoot = process.cwd();
+    const projectRoot = await resolveProjectRoot();
     const records = await loadStoredMemoryRecords(projectRoot);
     const candidates = buildScoreCandidates(records);
 
@@ -1129,7 +1130,8 @@ program
   .command("mcp")
   .description("Run RepoBrain as a minimal MCP stdio server.")
   .action(async () => {
-    await runMcpServer(process.cwd());
+    const projectRoot = await resolveProjectRoot();
+    await runMcpServer(projectRoot);
   });
 
 program.parseAsync(process.argv).catch((error: unknown) => {
@@ -1565,8 +1567,52 @@ async function readOptionalStdin(): Promise<string | undefined> {
     return undefined;
   }
 
-  const stdinText = (await readStdin()).trim();
-  return stdinText || undefined;
+  const STDIN_TIMEOUT_MS = 200;
+  const result = await new Promise<string | undefined>((resolve) => {
+    const chunks: Buffer[] = [];
+    let settled = false;
+
+    const timer = setTimeout(() => {
+      if (!settled) {
+        settled = true;
+        input.removeAllListeners("data");
+        input.removeAllListeners("end");
+        input.removeAllListeners("error");
+        input.pause();
+        input.destroy();
+        resolve(chunks.length > 0 ? Buffer.concat(chunks).toString("utf8") : undefined);
+      }
+    }, STDIN_TIMEOUT_MS);
+
+    input.on("data", (chunk: Buffer | string) => {
+      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    });
+
+    input.on("end", () => {
+      if (!settled) {
+        settled = true;
+        clearTimeout(timer);
+        resolve(chunks.length > 0 ? Buffer.concat(chunks).toString("utf8") : undefined);
+      }
+    });
+
+    input.on("error", () => {
+      if (!settled) {
+        settled = true;
+        clearTimeout(timer);
+        resolve(undefined);
+      }
+    });
+
+    input.resume();
+  });
+
+  const trimmed = result?.trim();
+  return trimmed || undefined;
+}
+
+async function resolveProjectRoot(): Promise<string> {
+  return (await findProjectRoot(process.cwd())) ?? process.cwd();
 }
 
 function collectValues(value: string, previous: string[]): string[] {
