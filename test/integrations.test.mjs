@@ -16,7 +16,7 @@ await runTest("integration adapters stay aligned on the shared RepoBrain contrac
     assert.equal(adapter.readsBrainSchema, true);
     assert.equal(adapter.readsInjectOutput, true);
     assert.equal(adapter.readsSuggestSkillsOutput, true);
-    assert.equal(adapter.contractPaths.length, 4);
+    assert.equal(adapter.contractPaths.length, 5);
     assert.ok(adapter.coreResponsibilities.length > 0);
     assert.ok(adapter.adapterResponsibilities.length > 0);
     assert.match(adapter.failureFallback, /brain extract|brain reinforce/);
@@ -32,6 +32,7 @@ await runTest("integration templates, contracts, and docs exist in the repositor
     "integrations/contracts/session-end.extract-candidate.json",
     "integrations/contracts/session-end.extract-candidate.md",
     "integrations/contracts/failure.reinforce-event.json",
+    "integrations/contracts/routing-feedback.event.json",
     "integrations/claude/README.md",
     "integrations/claude/SKILL.md",
     "integrations/codex/README.md",

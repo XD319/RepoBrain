@@ -148,6 +148,13 @@ export interface StoredMemoryRecord {
   memory: Memory;
 }
 
+/** Preference file on disk (`.brain/preferences/*.md`). */
+export interface StoredPreferenceRecord {
+  filePath: string;
+  relativePath: string;
+  preference: Preference;
+}
+
 export interface CandidateMemoryReviewResult {
   decision: MemoryReviewDecision;
   target_memory_ids: string[];

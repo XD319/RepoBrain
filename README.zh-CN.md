@@ -1008,7 +1008,8 @@ brain mcp
 - `brain lineage`：以 ASCII 树形式打印所有有血缘关系的 memory，或只打印包含指定 memory 文件的那条血缘链
 - `brain score`：按严重度排序检查低质量或过旧的 memories，并支持交互式或批量标记 stale、删除、跳过或导出 JSON
 - `brain audit-memory`：审计 `.brain/` 中疑似 stale、conflict、low-signal 或 overscoped 的条目，并附带 schema 健康度摘要
-- `brain reinforce`：从 `stdin` 手动执行失败分析和记忆强化；自动化或 CI 场景可加 `--yes` 跳过确认
+- `brain reinforce`：从 `stdin` 手动执行失败分析和记忆强化；自动化或 CI 场景可加 `--yes` 跳过确认；与待处理队列一并保存的 routing feedback 提醒也会在 `--pending` 时一并展示
+- `brain routing-feedback`：从 `stdin` 读取结构化路由反馈事件（JSON 数组或 NDJSON，契约见 `integrations/contracts/routing-feedback.event.json`）；`--json` 输出处理结果；`--explain <skill>` 汇总该 skill 的 preference 文件与 `.brain/routing-feedback-log.json`；`--ack-reminders` 清空 `reinforce-pending.json` 中的 routing 提醒
 - `brain suggest-skills`：根据任务文本、变更路径和命中的 active memories 输出一份 deterministic skill routing plan
 - `brain suggest-extract`：用本地确定性规则评估当前 session 或变更是否值得提取为 durable memory；支持 `--task`、`--path`、`--rev`、`--test-summary` 和 `--json`
 - `brain capture`：将 `suggest-extract` 检测和 `extract` 流程合并为一步；从 `stdin` 读取可选的 session 摘要（推荐：管道传入带类型前缀的结构化内容，如 `decision: ...` / `gotcha: ...`）；当 `should_extract` 为 true 时，提取的记忆默认保存为 **candidate**；为 false 时只输出解释。使用 `--force-candidate` 可在信号模糊时仍保存为 candidate。支持 `--task`、`--path`、`--rev`、`--test-summary`、`--type`、`--source` 和 `--json`
@@ -1108,6 +1109,23 @@ brain audit-memory --json
 ```
 
 默认的人类可读输出会包含 `memory_id`、问题类型、原因和建议动作；加上 `--json` 后会输出同一份结构化结果，便于后续 hooks 或其他 adapter 消费。
+
+## Routing Feedback Loop（路由反馈闭环）
+
+RepoBrain 可以在**本地**闭合一条与路由相关的策略回路：adapter 或用户用结构化事件描述「是否遵守了 `invocation_plan`」「流程是否过重」「用户是否明确否定某 skill」。**这不是运行时编排**：RepoBrain 不执行 agent、不拦截工具调用；它只做保守的本地更新：写入 preference **candidate**、在低风险条件下微调 `confidence`、追加可解释日志，并复用与 `reinforce` 相邻的人工提醒队列。
+
+- **事件类型**：`skill_followed`、`skill_ignored`、`skill_rejected_by_user`、`workflow_too_heavy`、`workflow_success`、`workflow_failure`、`routing_conflict_escalated`（见 `integrations/contracts/routing-feedback.event.json`）。
+- **保守写入**：负反馈默认生成 **`candidate` + `avoid`**；若与已有 active `prefer` 强冲突，则在命令输出里进入 `pending_review`，不自动覆盖长期记忆。
+- **正反馈**：在仅有一条 active `prefer`、无 `avoid` 冲突且信号足够强时，可能小幅上调 `confidence`（有上限）。
+- **被忽略的 plan**：`skill_ignored` / `routing_conflict_escalated` 会把提醒写入 `.brain/reinforce-pending.json` 的 `routing_feedback_reminders`；`brain reinforce --pending` 会先打印这些提醒；处理完后可用 `brain routing-feedback --ack-reminders` 清空。
+- **防噪**：过短或缺少目标的输入会被丢弃，避免闲聊污染策略。
+- **可解释性**：`brain routing-feedback --explain <skill>` 汇总该 skill 的 preference 文件与 `.brain/routing-feedback-log.json` 中的近期记录。
+
+```bash
+echo '[{"type":"skill_ignored","skill":"eslint","notes":"invocation_plan 推荐 eslint 但 agent 未执行"}]' | brain routing-feedback
+brain routing-feedback --json < route-events.ndjson
+brain routing-feedback --explain eslint
+```
 
 ## 外部 Extractor 契约
 

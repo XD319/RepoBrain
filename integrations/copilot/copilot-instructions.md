@@ -87,6 +87,14 @@ Rules:
 - Route the result through `brain reinforce`.
 - If structured output is unavailable, save a markdown failure summary and hand it to `brain reinforce`.
 
+## Routing Feedback
+
+- Contract: `integrations/contracts/routing-feedback.event.json`. Pipe JSON to `brain routing-feedback` from a shell when possible (`--json` for structured output).
+- Too heavy / user rejects a workflow or skill → `workflow_too_heavy` or `skill_rejected_by_user` with clear `notes`.
+- Agent ignored `invocation_plan` guidance → `skill_ignored` with `skill` and evidence in `notes`.
+- Success with user approval of the routing → `skill_followed` or `workflow_success`.
+- Explain impact: `brain routing-feedback --explain <skill>`. Reminders show next to `brain reinforce --pending`; clear with `brain routing-feedback --ack-reminders`.
+
 ## Constraints
 
 - `.brain/` is the source of truth for durable repo knowledge. Do not create a second memory store.

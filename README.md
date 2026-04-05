@@ -1103,7 +1103,8 @@ brain mcp
 - `brain lineage`: print ASCII lineage trees for all related memories, or for the chain that contains a specific memory file
 - `brain score`: review low-quality or outdated memories, sorted by severity, before you decide whether to sweep, mark stale, or delete
 - `brain audit-memory`: audit stored memories for stale, conflict, low-signal, and overscoped entries, plus a schema health summary
-- `brain reinforce`: apply queued reinforcement suggestions with `--pending`, or manually run failure analysis plus memory reinforcement from `stdin`; use `--yes` to skip confirmation for automation or CI
+- `brain reinforce`: apply queued reinforcement suggestions with `--pending`, or manually run failure analysis plus memory reinforcement from `stdin`; use `--yes` to skip confirmation for automation or CI; when present, also surfaces routing feedback reminders saved alongside the pending queue
+- `brain routing-feedback`: pipe structured routing events (`integrations/contracts/routing-feedback.event.json`) on `stdin` as a JSON array or NDJSON; `--json` prints the apply result; `--explain <skill>` summarizes preference files plus `.brain/routing-feedback-log.json` for that skill; `--ack-reminders` clears queued routing reminders in `reinforce-pending.json`
 - `brain suggest-skills`: build a deterministic skill routing plan from task text, changed paths, and matched active memories
 - `brain suggest-extract`: evaluate whether the current session or change is worth extracting as durable memory using local deterministic rules; supports `--task`, `--path`, `--rev`, `--test-summary`, and `--json`
 - `brain capture`: combine `suggest-extract` detection with the `extract` pipeline in a single step; reads an optional session summary from `stdin` (recommended: pipe structured lines with type prefixes like `decision: ...` / `gotcha: ...`); when `should_extract` is true, the extracted memories are saved as **candidates** by default; when false, only the explanation is printed. Use `--force-candidate` to save as candidate even when signals are ambiguous. Supports `--task`, `--path`, `--rev`, `--test-summary`, `--type`, `--source`, and `--json`
@@ -1205,6 +1206,23 @@ brain audit-memory --json
 ```
 
 The human-readable output includes `memory_id`, issue type, reason, and suggested next action. `--json` returns the same data in a stable machine-friendly shape.
+
+## Routing Feedback Loop
+
+RepoBrain can close a **local** policy loop around routing: adapters and users emit small structured events so the repo learns whether `invocation_plan` guidance was followed, whether a workflow felt too heavy, and whether explicit user preferences contradict a skill. This is **not** a runtime orchestrator: RepoBrain never executes agents or intercepts tool calls. It only appends preference candidates, adjusts confidence on low-risk positive signals, logs explainability data, and queues human-visible reminders next to the existing failure reinforcement path.
+
+- **Events**: `skill_followed`, `skill_ignored`, `skill_rejected_by_user`, `workflow_too_heavy`, `workflow_success`, `workflow_failure`, `routing_conflict_escalated` (see `integrations/contracts/routing-feedback.event.json`).
+- **Conservative writes**: negative signals default to **`candidate`** `avoid` preferences when there is no conflicting active `prefer`; strong conflicts surface as `pending_review` in the command output instead of silently overwriting durable memory.
+- **Positive reinforcement**: when a single active `prefer` exists for a skill, no `avoid` conflicts, and `signal_strength` is high enough, RepoBrain may bump `confidence` slightly toward a capped maximum.
+- **Ignored / escalated plans**: `skill_ignored` and `routing_conflict_escalated` append rows to `routing_feedback_reminders` inside `.brain/reinforce-pending.json`; `brain reinforce --pending` prints them before failure events; clear with `brain routing-feedback --ack-reminders` after triage.
+- **Noise filter**: short or target-less events are dropped so casual chat does not become policy.
+- **Explainability**: `brain routing-feedback --explain <skill>` lists on-disk preferences for that skill plus recent log lines from `.brain/routing-feedback-log.json`.
+
+```bash
+echo '[{"type":"skill_ignored","skill":"eslint","notes":"invocation_plan recommended eslint but the agent skipped it"}]' | brain routing-feedback
+brain routing-feedback --json < route-events.ndjson
+brain routing-feedback --explain eslint
+```
 
 ## External Extractor Contract
 

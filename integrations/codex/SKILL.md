@@ -117,6 +117,16 @@ When the session violated a known memory or repeated a failure pattern:
 - then hand it to `brain reinforce`
 - if JSON is awkward, summarize the failure in markdown and pipe it to `brain reinforce`
 
+## Routing Feedback (local policy loop)
+
+Contract: `integrations/contracts/routing-feedback.event.json`. Pipe JSON (array or NDJSON) to `brain routing-feedback`; add `--json` for machine-readable output. RepoBrain does **not** orchestrate execution—it learns from outcomes.
+
+- User calls the flow too heavy / do not repeat → `workflow_too_heavy` or `skill_rejected_by_user` with `notes`.
+- Plan suggested a skill but the agent ignored it → `skill_ignored` with `skill` + `notes` (and `invocation_plan_id` when available).
+- User confirms success aligned with routing → `skill_followed` or `workflow_success`.
+
+Use `brain routing-feedback --explain <skill>` to see preference + log impact. Queued reminders appear when running `brain reinforce --pending`; clear with `brain routing-feedback --ack-reminders`.
+
 ## Guardrails
 
 - `.brain/` is the only durable knowledge store. Do not create a second memory store.

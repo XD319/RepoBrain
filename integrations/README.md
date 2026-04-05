@@ -6,7 +6,7 @@ RepoBrain adapters stay thin on purpose, but they now share a stronger contract 
 - `brain start --format json` is the preferred session-start entrypoint; `brain inject` is the fallback.
 - `brain suggest-skills --format json` remains the canonical task-known routing payload.
 - `brain capture` is the preferred phase-completion detection command. It runs local deterministic rules and defaults to candidate-first output.
-- `brain extract` and `brain reinforce` remain the only durable write paths.
+- `brain extract`, `brain reinforce`, and `brain routing-feedback` remain the only durable write paths for memories and routing policy artifacts.
 - Adapters may translate format, but they must not invent a second schema or local memory store.
 
 ## Thin Adapter Contract
@@ -18,6 +18,7 @@ The adapter contract is lifecycle-based rather than agent-specific:
 3. **Phase completion**: run `brain capture --task "<task>" --path <path>` when a detection trigger fires. `should_extract=true` saves a candidate; `should_extract=false` means no action.
 4. **Session end**: emit an extract candidate in the shared markdown or JSON envelope if detection was not already run.
 5. **Failure path**: emit a reinforce event through `brain reinforce`.
+6. **Routing feedback (optional)**: when users or the session surface plan adherence, rejection, or workflow load, emit structured routing feedback through `brain routing-feedback` using `contracts/routing-feedback.event.json`.
 
 This keeps adapters lightweight while giving Core a stable input-output boundary.
 
@@ -111,6 +112,14 @@ Claude Code, Codex, Cursor, and Copilot may already have their own task or actio
 - Preferred output: JSON envelope for a violated memory or repeated failure
 - Fallback: markdown incident summary piped to `brain reinforce`
 - Contract example: [`contracts/failure.reinforce-event.json`](./contracts/failure.reinforce-event.json)
+
+### 6. Routing feedback (local policy learning, not runtime control)
+
+- Input command: `brain routing-feedback` with a JSON array or NDJSON on `stdin`
+- Purpose: record whether routing guidance was followed, whether users rejected a skill/workflow, and whether a workflow felt too heavy—**without** RepoBrain becoming an execution orchestrator
+- Contract example: [`contracts/routing-feedback.event.json`](./contracts/routing-feedback.event.json)
+- Adapter rule: emit events from user-visible outcomes; weak or chat-only text should be omitted so Core can filter noise
+- Explainability: `brain routing-feedback --explain <skill>` summarizes preference files plus the local routing feedback log
 
 ## Failure Fallback Strategy
 

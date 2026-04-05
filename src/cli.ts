@@ -34,7 +34,11 @@ import { detectFailures } from "./failure-detector.js";
 import { buildCommitExtractionInput } from "./git-commit.js";
 import { buildInjection } from "./inject.js";
 import { runMcpServer } from "./mcp/server.js";
-import { clearPendingReinforcementEvents, loadPendingReinforcementState } from "./reinforce-pending.js";
+import {
+  clearPendingReinforcementEvents,
+  clearRoutingFeedbackReminders,
+  loadPendingReinforcementState,
+} from "./reinforce-pending.js";
 import { reinforceMemories } from "./reinforce.js";
 import { isSafeForAutoApproval, looksTemporary, reviewCandidateMemories, reviewCandidateMemory } from "./reviewer.js";
 import { buildSharePlan } from "./share.js";
@@ -72,6 +76,12 @@ import {
   scanSweepCandidates,
   toDisplayPath,
 } from "./sweep.js";
+import {
+  applyRoutingFeedback,
+  explainRoutingFeedbackForSkill,
+  parseRoutingFeedbackStdin,
+  renderExplainRoutingFeedbackText,
+} from "./routing-feedback.js";
 import {
   approveCandidateMemory,
   getMemoryStatus,
@@ -1205,8 +1215,19 @@ program
           })),
         );
 
+    const routingReminders = pendingState.routing_feedback_reminders ?? [];
+    if (routingReminders.length > 0) {
+      output.write(`Routing feedback reminders (${routingReminders.length}):\n`);
+      for (const [index, reminder] of routingReminders.entries()) {
+        output.write(`  ${index + 1}. [${reminder.event_type}] ${reminder.summary}\n`);
+      }
+      output.write('(Review locally; clear with "brain routing-feedback --ack-reminders" after triage.)\n\n');
+    }
+
     if (events.length === 0 && options.pending) {
-      output.write("[brain] No pending reinforcement suggestions were queued.\n");
+      if (routingReminders.length === 0) {
+        output.write("[brain] No pending reinforcement suggestions were queued.\n");
+      }
       return;
     }
 
@@ -1236,6 +1257,54 @@ program
     output.write(
       `[brain] reinforcement complete: boosted=${result.boosted.length}, rewritten=${result.rewritten.length}, extracted=${result.extracted.length}\n`,
     );
+  });
+
+program
+  .command("routing-feedback")
+  .description(
+    "Apply routing feedback events from stdin (JSON array or NDJSON). Does not run agents — updates local preference candidates, confidence, logs, and reinforce reminders.",
+  )
+  .option("--json", "Print structured result as JSON.")
+  .option("--explain <skill>", "Show how preferences and routing feedback logs relate to a skill.")
+  .option("--ack-reminders", "Clear routing feedback reminders stored alongside pending reinforcement.")
+  .action(async (options: { json?: boolean; explain?: string; ackReminders?: boolean }) => {
+    const projectRoot = await resolveProjectRoot();
+    await initBrain(projectRoot);
+
+    if (options.ackReminders) {
+      await clearRoutingFeedbackReminders(projectRoot);
+      const msg = "[brain] Cleared routing feedback reminders in reinforce-pending.\n";
+      output.write(options.json ? `${JSON.stringify({ ok: true, cleared: "routing_feedback_reminders" }, null, 2)}\n` : msg);
+      return;
+    }
+
+    if (options.explain?.trim()) {
+      const result = await explainRoutingFeedbackForSkill(projectRoot, options.explain.trim());
+      const text = renderExplainRoutingFeedbackText(result);
+      output.write(options.json ? `${JSON.stringify(result, null, 2)}\n` : `${text}\n`);
+      return;
+    }
+
+    const stdinText = await readStdin();
+    const events = parseRoutingFeedbackStdin(stdinText);
+    const applied = await applyRoutingFeedback(projectRoot, events);
+    await updateIndex(projectRoot);
+
+    if (options.json) {
+      output.write(`${JSON.stringify(applied, null, 2)}\n`);
+      return;
+    }
+
+    output.write(`[brain] routing-feedback: processed ${events.length} event(s)\n`);
+    for (const a of applied.applied) {
+      output.write(`  ✓ [${a.kind}] ${a.detail}\n`);
+    }
+    for (const s of applied.skipped) {
+      output.write(`  · skipped: ${s.reason}\n`);
+    }
+    for (const p of applied.pending_review) {
+      output.write(`  ⚠ review: ${p.reason}${p.skill ? ` (${p.skill})` : ""}\n`);
+    }
   });
 
 program

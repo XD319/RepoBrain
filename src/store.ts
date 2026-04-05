@@ -17,6 +17,7 @@ import type {
   MemoryOrigin,
   RiskLevel,
   StoredMemoryRecord,
+  StoredPreferenceRecord,
   MemoryType,
   Preference,
 } from "./types.js";
@@ -1381,6 +1382,11 @@ export async function savePreference(preference: Preference, projectRoot: string
 }
 
 export async function loadAllPreferences(projectRoot: string): Promise<Preference[]> {
+  const records = await loadStoredPreferenceRecords(projectRoot);
+  return records.map((entry) => entry.preference).sort((left, right) => right.created_at.localeCompare(left.created_at));
+}
+
+export async function loadStoredPreferenceRecords(projectRoot: string): Promise<StoredPreferenceRecord[]> {
   const brainDir = getBrainDir(projectRoot);
   const directory = path.join(brainDir, "preferences");
 
@@ -1392,17 +1398,25 @@ export async function loadAllPreferences(projectRoot: string): Promise<Preferenc
       markdownFiles.map(async (entry) => {
         const filePath = path.join(directory, entry.name);
         const content = await readFile(filePath, "utf8");
-        return parsePreference(content, filePath);
+        const preference = parsePreference(content, filePath);
+        const relativePath = path.relative(projectRoot, filePath).replace(/\\/g, "/");
+        return { filePath, relativePath, preference };
       }),
     );
 
-    return loaded.sort((left, right) => right.created_at.localeCompare(left.created_at));
+    return loaded.sort((left, right) => right.preference.updated_at.localeCompare(left.preference.updated_at));
   } catch (error) {
     if (isMissingDirectoryError(error)) {
       return [];
     }
     throw error;
   }
+}
+
+export async function overwriteStoredPreference(record: StoredPreferenceRecord): Promise<void> {
+  const normalized = normalizePreference(record.preference);
+  validatePreference(normalized);
+  await writeFile(record.filePath, serializePreference(normalized), "utf8");
 }
 
 export function normalizePreference(pref: Preference): Preference {

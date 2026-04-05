@@ -33,6 +33,7 @@ const testFiles = [
   "test/capture-command.test.mjs",
   "test/promote-candidates.test.mjs",
   "test/preference.test.mjs",
+  "test/routing-feedback.test.mjs",
 ];
 
 for (const relativePath of testFiles) {

@@ -5,8 +5,10 @@ export {
   loadAllMemories,
   loadAllPreferences,
   loadStoredMemoryRecords,
+  loadStoredPreferenceRecords,
   normalizePreference,
   overwriteStoredMemory,
+  overwriteStoredPreference,
   parsePreference,
   saveMemory,
   savePreference,
@@ -141,3 +143,21 @@ export type {
 export type {
   ReinforceResult,
 } from "./reinforce.js";
+export {
+  ROUTING_FEEDBACK_EVENT_TYPES,
+  applyRoutingFeedback,
+  explainRoutingFeedbackForSkill,
+  loadRoutingFeedbackLog,
+  parseRoutingFeedbackStdin,
+  renderExplainRoutingFeedbackText,
+  shouldProcessRoutingFeedbackEvent,
+} from "./routing-feedback.js";
+export type {
+  ExplainRoutingFeedbackResult,
+  RoutingFeedbackApplyResult,
+  RoutingFeedbackEvent,
+  RoutingFeedbackEventType,
+} from "./routing-feedback.js";
+export type {
+  StoredPreferenceRecord,
+} from "./types.js";

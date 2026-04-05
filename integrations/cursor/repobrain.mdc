@@ -126,6 +126,16 @@ echo "goal: <目标描述>，因为<原因>
 
 `brain inject` 会在每次会话开始时优先展示所有 active goal，自动恢复上下文。
 
+## Routing feedback（本地策略闭环，非运行时编排）
+
+契约：`integrations/contracts/routing-feedback.event.json`。将 JSON 数组或 NDJSON 通过 `stdin` 传给 `brain routing-feedback`（可加 `--json` 查看结构化结果）。RepoBrain 不接管 agent 执行，只记录结果以更新 preference candidate / 置信度 / 提醒队列。
+
+- 用户明确说流程太繁琐、下次别这样 → 发送 `workflow_too_heavy` 或带 `skill`/`workflow` 的负反馈事件。
+- 明显未按 `invocation_plan` 使用某 skill → 发送 `skill_ignored`，附上 `skill` 与说明。
+- 任务成功且用户认可本次路由 → 发送 `skill_followed` 或 `workflow_success`。
+
+用 `brain routing-feedback --explain <skill>` 查看该 skill 的 preference 与日志；`brain reinforce --pending` 会打印与 reinforce 队列一并保存的 routing 提醒，处理完后可用 `brain routing-feedback --ack-reminders` 清空。
+
 ## 规则
 
 - `.brain/` 是唯一的持久知识存储，不要创建第二套 durable memory store。

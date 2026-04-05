@@ -1,0 +1,25 @@
+{
+  "contract_version": "repobrain.adapter.routing-feedback.v1",
+  "description": "Structured routing feedback: plan adherence, user stance on skills/workflows, and workflow load. Not a runtime control channel — adapters emit these locally for policy learning.",
+  "event": {
+    "type": "skill_followed | skill_ignored | skill_rejected_by_user | workflow_too_heavy | workflow_success | workflow_failure | routing_conflict_escalated",
+    "skill": "Optional. Normalized skill id or short name when the event refers to a skill.",
+    "workflow": "Optional. Workflow label when the event refers to a workflow.",
+    "invocation_plan_id": "Optional. Correlates with a prior invocation_plan / routing bundle id.",
+    "notes": "Optional human-readable detail; required for some heuristics when skill/workflow omitted.",
+    "signal_strength": "Optional 0–1; defaults to 1 for CLI/stdin. Lower values reduce automatic preference updates.",
+    "session": {
+      "agent": "Optional: claude | codex | cursor | copilot | other",
+      "task": "Optional short task label"
+    }
+  },
+  "stdin_shapes": {
+    "json_array": "[ { \"type\": \"skill_ignored\", \"skill\": \"jest\", \"notes\": \"...\" } ]",
+    "ndjson": "One JSON object per line"
+  },
+  "cli": {
+    "command": "brain routing-feedback",
+    "json_flag": "brain routing-feedback --json",
+    "explain": "brain routing-feedback --explain <skill>"
+  }
+}

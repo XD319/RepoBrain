@@ -118,6 +118,16 @@ If the session repeats an old mistake or violates a known memory:
 - emit `integrations/contracts/failure.reinforce-event.json`, then run `brain reinforce`
 - or fall back to a markdown failure summary piped to `brain reinforce`
 
+## Routing Feedback (local policy loop)
+
+Use `integrations/contracts/routing-feedback.event.json` and pipe JSON to `brain routing-feedback` (optional `--json`). This is **not** runtime control—RepoBrain does not execute agents; it records outcomes for future routing preferences.
+
+- User says the workflow is too tedious / do not do that next time → emit `workflow_too_heavy` or `skill_rejected_by_user` with `workflow` or `skill` plus `notes`, then pipe to `brain routing-feedback`.
+- Agent clearly ignored `invocation_plan` (e.g. skipped a recommended skill) → emit `skill_ignored` with `skill`, `invocation_plan_id` if known, and `notes`.
+- Task succeeded and the user approves the routing → emit `skill_followed` or `workflow_success` with the relevant `skill` / `workflow` and `notes`.
+
+Review queued reminders with `brain reinforce --pending` (they print under “Routing feedback reminders”). Clear after triage with `brain routing-feedback --ack-reminders`. Inspect policy impact with `brain routing-feedback --explain <skill>`.
+
 ## Guardrails
 
 - `.brain/` stays the only durable repo-memory store. Do not create a second memory store.
