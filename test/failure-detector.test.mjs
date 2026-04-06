@@ -1,4 +1,4 @@
-import assert from "node:assert/strict";
+import { expect, it } from "vitest";
 import path from "node:path";
 
 import { buildFailureDetectionPrompt, detectFailures } from "../dist/failure-detector.js";
@@ -134,15 +134,67 @@ await runTest("buildFailureDetectionPrompt uses explicit filenames when memory m
 
 console.log("All failure-detector tests passed.");
 
-async function runTest(name, callback) {
-  try {
-    await callback();
-    console.log(`ok - ${name}`);
-  } catch (error) {
-    console.error(`not ok - ${name}`);
-    throw error;
-  }
+function runTest(name, callback) {
+  it(name, callback);
 }
+
+const assert = {
+  equal(actual, expected, message) {
+    expect(actual, message).toBe(expected);
+  },
+  strictEqual(actual, expected, message) {
+    expect(actual, message).toBe(expected);
+  },
+  notEqual(actual, expected, message) {
+    expect(actual, message).not.toBe(expected);
+  },
+  deepEqual(actual, expected, message) {
+    expect(actual, message).toEqual(expected);
+  },
+  notDeepEqual(actual, expected, message) {
+    expect(actual, message).not.toEqual(expected);
+  },
+  ok(value, message) {
+    expect(value, message).toBeTruthy();
+  },
+  match(value, pattern, message) {
+    expect(value, message).toMatch(pattern);
+  },
+  doesNotMatch(value, pattern, message) {
+    expect(value, message).not.toMatch(pattern);
+  },
+  throws(action, matcher, message) {
+    if (matcher === undefined) {
+      expect(action, message).toThrow();
+      return;
+    }
+    expect(action, message).toThrow(matcher);
+  },
+  async rejects(action, matcher, message) {
+    let failure;
+    try {
+      await action();
+    } catch (error) {
+      failure = error;
+    }
+    expect(failure, message ?? "expected promise to reject").toBeTruthy();
+    if (typeof matcher === "function") {
+      const handled = matcher(failure);
+      expect(handled, message ?? "reject matcher should confirm the error").toBe(true);
+      return;
+    }
+    if (matcher instanceof RegExp) {
+      expect(failure.message, message).toMatch(matcher);
+      return;
+    }
+    if (matcher && typeof matcher === "object") {
+      expect(failure, message).toMatchObject(matcher);
+    }
+  },
+  fail(message) {
+    throw new Error(message ?? "assert.fail was called");
+  },
+};
 
 async function withEnv(values, callback) {
   const previous = new Map();

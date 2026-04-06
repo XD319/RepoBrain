@@ -1080,6 +1080,12 @@ brain mcp
 - `brain share`：为单条 memory 或全部 active memories 输出建议的 `git add` / `git commit` 命令
 - `brain mcp`：以最小 MCP stdio server 的形式运行 RepoBrain
 
+## Testing
+
+- `npm test`：使用 `vitest run` 执行全量测试
+- `npm run test:watch`：使用 `vitest` 进入 watch 模式
+- `npm run test:coverage`：执行测试并输出覆盖率
+
 ## Configuration
 
 RepoBrain 的配置文件位于 `.brain/config.yaml`。

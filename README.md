@@ -1175,6 +1175,12 @@ brain mcp
 - `brain share`: suggest the next `git add` and `git commit` commands for one memory or all active memories
 - `brain mcp`: run RepoBrain as a minimal MCP stdio server
 
+## Testing
+
+- `npm test`: run all tests once with `vitest run`
+- `npm run test:watch`: run tests in watch mode with `vitest`
+- `npm run test:coverage`: run tests with coverage output
+
 ## Configuration
 
 RepoBrain stores config in `.brain/config.yaml`.

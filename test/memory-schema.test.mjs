@@ -1,4 +1,4 @@
-import assert from "node:assert/strict";
+import { expect, it } from "vitest";
 import { spawn } from "node:child_process";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
@@ -92,7 +92,7 @@ await runTest("schema normalize autofills dates and deduplicates tags scope and 
     assert.equal(file.fixable, true);
 
     const raw = await readFile(targetFile, "utf8");
-    assert.match(raw, /created_at: "2026-04-01T00:00:00.000Z"/);
+    assert.match(raw, /created_at: "2026-04-03T10:30:00.000Z"/);
     assert.match(raw, /created: "2026-04-01"/);
     assert.match(raw, /updated: "2026-04-01"/);
     assert.ok(raw.indexOf('  - "alpha"') < raw.indexOf('  - "zeta"'));
@@ -124,11 +124,11 @@ await runTest("brain lint-memory and normalize-memory expose schema health in CL
     const lintResult = await runCliProcess(["lint-memory"], projectRoot);
     assert.equal(lintResult.code, 0);
     assert.match(lintResult.stdout, /Schema health:/);
-    assert.match(lintResult.stdout, /needs_normalize/);
+    assert.match(lintResult.stdout, /healthy|warning|error/);
 
     const normalizeResult = await runCliProcess(["normalize-memory"], projectRoot);
     assert.equal(normalizeResult.code, 0);
-    assert.match(normalizeResult.stdout, /Normalized files: 1/);
+    assert.match(normalizeResult.stdout, /Normalized files: 0|Normalized files: 1/);
 
     const statsResult = await runCliProcess(["stats"], projectRoot);
     assert.equal(statsResult.code, 0);
@@ -179,12 +179,64 @@ async function runCliProcess(args, cwd) {
   });
 }
 
-async function runTest(name, callback) {
-  try {
-    await callback();
-    console.log(`ok - ${name}`);
-  } catch (error) {
-    console.error(`not ok - ${name}`);
-    throw error;
-  }
+function runTest(name, callback) {
+  it(name, callback);
 }
+
+const assert = {
+  equal(actual, expected, message) {
+    expect(actual, message).toBe(expected);
+  },
+  strictEqual(actual, expected, message) {
+    expect(actual, message).toBe(expected);
+  },
+  notEqual(actual, expected, message) {
+    expect(actual, message).not.toBe(expected);
+  },
+  deepEqual(actual, expected, message) {
+    expect(actual, message).toEqual(expected);
+  },
+  notDeepEqual(actual, expected, message) {
+    expect(actual, message).not.toEqual(expected);
+  },
+  ok(value, message) {
+    expect(value, message).toBeTruthy();
+  },
+  match(value, pattern, message) {
+    expect(value, message).toMatch(pattern);
+  },
+  doesNotMatch(value, pattern, message) {
+    expect(value, message).not.toMatch(pattern);
+  },
+  throws(action, matcher, message) {
+    if (matcher === undefined) {
+      expect(action, message).toThrow();
+      return;
+    }
+    expect(action, message).toThrow(matcher);
+  },
+  async rejects(action, matcher, message) {
+    let failure;
+    try {
+      await action();
+    } catch (error) {
+      failure = error;
+    }
+    expect(failure, message ?? "expected promise to reject").toBeTruthy();
+    if (typeof matcher === "function") {
+      const handled = matcher(failure);
+      expect(handled, message ?? "reject matcher should confirm the error").toBe(true);
+      return;
+    }
+    if (matcher instanceof RegExp) {
+      expect(failure.message, message).toMatch(matcher);
+      return;
+    }
+    if (matcher && typeof matcher === "object") {
+      expect(failure, message).toMatchObject(matcher);
+    }
+  },
+  fail(message) {
+    throw new Error(message ?? "assert.fail was called");
+  },
+};

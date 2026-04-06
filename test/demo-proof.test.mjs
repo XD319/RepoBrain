@@ -1,37 +1,49 @@
-import assert from "node:assert/strict";
+import { expect, it } from "vitest";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
 
+const assert = {
+  equal(actual, expected, message) {
+    expect(actual, message).toBe(expected);
+  },
+  deepEqual(actual, expected, message) {
+    expect(actual, message).toEqual(expected);
+  },
+  match(value, pattern, message) {
+    expect(value, message).toMatch(pattern);
+  },
+};
+
 const projectRoot = process.cwd();
-const tempRoot = await mkdtemp(path.join(os.tmpdir(), "repobrain-demo-proof-test-"));
 
-try {
-  const outputDir = path.join(tempRoot, "proof-assets");
-  const { stdout } = await runNode("scripts/generate-demo-proof.mjs", ["--output-dir", outputDir]);
+it("generate-demo-proof outputs expected proof assets", async () => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), "repobrain-demo-proof-test-"));
+  try {
+    const outputDir = path.join(tempRoot, "proof-assets");
+    const { stdout } = await runNode("scripts/generate-demo-proof.mjs", ["--output-dir", outputDir]);
 
-  assert.match(stdout, /Demo proof written to/);
+    assert.match(stdout, /Demo proof written to/);
 
-  const transcript = await readFile(path.join(outputDir, "transcript.md"), "utf8");
-  const invocationPlan = JSON.parse(await readFile(path.join(outputDir, "invocation-plan.json"), "utf8"));
-  const reviewOutput = await readFile(path.join(outputDir, "review-output.txt"), "utf8");
+    const transcript = await readFile(path.join(outputDir, "transcript.md"), "utf8");
+    const invocationPlan = JSON.parse(await readFile(path.join(outputDir, "invocation-plan.json"), "utf8"));
+    const reviewOutput = await readFile(path.join(outputDir, "review-output.txt"), "utf8");
 
-  assert.match(transcript, /brain setup --no-git-hook/);
-  assert.match(transcript, /brain extract --candidate/);
-  assert.match(transcript, /brain review/);
-  assert.match(transcript, /brain approve <candidate-id> --safe/);
-  assert.match(transcript, /brain suggest-skills --format json/);
-  assert.match(reviewOutput, /Candidate memories: 1/);
-  assert.equal(invocationPlan.kind, "repobrain.skill_invocation_plan");
-  assert.deepEqual(invocationPlan.invocation_plan.required, ["release-checklist"]);
-  assert.deepEqual(invocationPlan.invocation_plan.prefer_first, ["npm-install-smoke"]);
-  assert.deepEqual(invocationPlan.invocation_plan.suppress, ["imagegen"]);
-
-  console.log("All demo-proof tests passed.");
-} finally {
-  await rm(tempRoot, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
-}
+    assert.match(transcript, /brain setup --no-git-hook/);
+    assert.match(transcript, /brain extract --candidate/);
+    assert.match(transcript, /brain review/);
+    assert.match(transcript, /brain approve <candidate-id> --safe/);
+    assert.match(transcript, /brain suggest-skills --format json/);
+    assert.match(reviewOutput, /Candidate memories: 1/);
+    assert.equal(invocationPlan.kind, "repobrain.skill_invocation_plan");
+    assert.deepEqual(invocationPlan.invocation_plan.required, ["release-checklist"]);
+    assert.deepEqual(invocationPlan.invocation_plan.prefer_first, ["npm-install-smoke"]);
+    assert.deepEqual(invocationPlan.invocation_plan.suppress, ["imagegen"]);
+  } finally {
+    await rm(tempRoot, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+  }
+});
 
 function runNode(scriptPath, args = []) {
   return new Promise((resolve, reject) => {
