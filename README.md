@@ -1194,6 +1194,8 @@ injectExplainMaxItems: 4
 autoApproveSafeCandidates: false
 ```
 
+- Config parsing uses the standard `yaml` package, so quoted strings, escape sequences, and multiline YAML scalars are supported while staying backward-compatible with existing `.brain/config.yaml` files.
+
 - `workflowMode`: high-level workflow preset; use `ultra-safe-manual`, `recommended-semi-auto`, or `automation-first`
 - `maxInjectTokens`: approximate token budget used when building injected context, with Unicode-aware estimation for mixed English/CJK content
 - `triggerMode`: controls when extraction happens

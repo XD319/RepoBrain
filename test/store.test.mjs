@@ -113,16 +113,16 @@ await runTest("new skill routing fields round-trip through save and load", async
     assert.match(raw, /skill_trigger_tasks:/);
     assert.match(raw, /score: 82/);
     assert.match(raw, /hit_count: 4/);
-    assert.match(raw, /last_used: "2026-04-01T18:30:00.000Z"/);
-    assert.match(raw, /created_at: "2026-04-01T10:00:00.000Z"/);
+    assert.match(raw, /last_used: "?2026-04-01T18:30:00.000Z"?/);
+    assert.match(raw, /created_at: "?2026-04-01T10:00:00.000Z"?/);
     assert.match(raw, /stale: true/);
-    assert.match(raw, /supersedes: "decisions\/2026-03-30-old-browser-guidance.md"/);
+    assert.match(raw, /supersedes: "?decisions\/2026-03-30-old-browser-guidance.md"?/);
     assert.match(raw, /superseded_by: null/);
     assert.match(raw, /version: 2/);
     assert.match(raw, /related:/);
-    assert.match(raw, /invocation_mode: "prefer"/);
-    assert.match(raw, /risk_level: "medium"/);
-    assert.match(raw, /origin: "failure"/);
+    assert.match(raw, /invocation_mode: "?prefer"?/);
+    assert.match(raw, /risk_level: "?medium"?/);
+    assert.match(raw, /origin: "?failure"?/);
 
     const records = await loadStoredMemoryRecords(projectRoot);
     assert.equal(records.length, 1);
@@ -821,12 +821,12 @@ await runTest("cli extract writes initial memory metadata with legal frontmatter
     assert.equal(stored.memory.stale, false);
 
     const raw = await readFile(stored.filePath, "utf8");
-    const scoreIndex = raw.indexOf('score: 75');
+    const scoreIndex = raw.indexOf("score: 75");
     const hitCountIndex = raw.indexOf('hit_count: 0');
     const lastUsedIndex = raw.indexOf('last_used: null');
-    const createdAtIndex = raw.indexOf('created_at: "');
+    const createdAtIndex = raw.indexOf("created_at:");
     const staleIndex = raw.indexOf('stale: false');
-    const dateIndex = raw.indexOf('date: "');
+    const dateIndex = raw.indexOf("date:");
 
     assert.ok(scoreIndex > raw.indexOf('importance: "high"'));
     assert.ok(hitCountIndex > scoreIndex);
@@ -834,7 +834,7 @@ await runTest("cli extract writes initial memory metadata with legal frontmatter
     assert.ok(createdAtIndex > lastUsedIndex);
     assert.ok(staleIndex > createdAtIndex);
     assert.ok(dateIndex > staleIndex);
-    assert.match(raw, /created_at: "\d{4}-\d{2}-\d{2}T00:00:00.000Z"/);
+    assert.match(raw, /created_at:\s*"?\d{4}-\d{2}-\d{2}T00:00:00.000Z"?/);
   });
 });
 
@@ -924,9 +924,42 @@ await runTest("cli extract --type working fills created updated and default expi
     assert.equal(stored.expires, expectedExpires);
 
     const raw = await readFile(records[0].filePath, "utf8");
-    assert.match(raw, new RegExp(`created: "${expectedCreated}"`));
-    assert.match(raw, new RegExp(`updated: "${expectedCreated}"`));
-    assert.match(raw, new RegExp(`expires: "${expectedExpires}"`));
+    assert.match(raw, new RegExp(`created:\\s*"?${expectedCreated}"?`));
+    assert.match(raw, new RegExp(`updated:\\s*"?${expectedCreated}"?`));
+    assert.match(raw, new RegExp(`expires:\\s*"?${expectedExpires}"?`));
+  });
+});
+
+await runTest("frontmatter parser handles multiline and escaped YAML values", async () => {
+  await withTempRepo(async (projectRoot) => {
+    const memoryPath = path.join(projectRoot, ".brain", "decisions", "2026-04-03-yaml-edge.md");
+    await writeFile(
+      memoryPath,
+      [
+        "---",
+        'type: "decision"',
+        'title: "Quoted \\"Title\\" with : colon"',
+        "summary: |",
+        "  First line",
+        "  Second line with colon: value",
+        "tags:",
+        "  - yaml",
+        "importance: medium",
+        'date: "2026-04-03T09:00:00.000Z"',
+        "---",
+        "",
+        "## DECISION",
+        "",
+        "YAML parser should preserve multiline summary values.",
+        "",
+      ].join("\n"),
+      "utf8",
+    );
+
+    const memories = await loadAllMemories(projectRoot);
+    const memory = memories.find((entry) => entry.title.includes("Quoted \"Title\""));
+    assert.ok(memory);
+    assert.equal(memory.summary, "First line\nSecond line with colon: value\n");
   });
 });
 

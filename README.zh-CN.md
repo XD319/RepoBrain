@@ -1099,6 +1099,8 @@ injectExplainMaxItems: 4
 autoApproveSafeCandidates: false
 ```
 
+- 配置解析已改为标准 `yaml` 包，支持引号字符串、转义字符和多行 YAML 标量，同时保持对现有 `.brain/config.yaml` 文件的向后兼容。
+
 - `workflowMode`：高层 workflow 预设，可选 `ultra-safe-manual`、`recommended-semi-auto`、`automation-first`
 - `maxInjectTokens`：生成注入上下文时使用的近似 token 预算，针对中英混合内容做了更稳的估算
 - `triggerMode`：控制提取何时触发

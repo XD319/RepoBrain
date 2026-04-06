@@ -182,6 +182,29 @@ await runTest("default config without explicit fields inherits from workflow pre
   });
 });
 
+await runTest("config parser supports multiline and quoted YAML string values", async () => {
+  await withTempRepo(async (projectRoot) => {
+    await writeFile(
+      path.join(projectRoot, ".brain", "config.yaml"),
+      [
+        "workflowMode: recommended-semi-auto",
+        "triggerMode: detect",
+        "captureMode: candidate",
+        "language: |",
+        "  zh-CN",
+        "  formal",
+        "",
+      ].join("\n"),
+      "utf8",
+    );
+
+    const config = await loadConfig(projectRoot);
+    assert.equal(config.triggerMode, "detect");
+    assert.equal(config.captureMode, "candidate");
+    assert.equal(config.language, "zh-CN\nformal\n");
+  });
+});
+
 console.log("All config migration tests passed.");
 
 async function withTempRepo(callback) {

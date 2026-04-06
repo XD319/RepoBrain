@@ -1,5 +1,6 @@
 import { mkdir, readdir, readFile, appendFile, writeFile, rename, rm } from "node:fs/promises";
 import path from "node:path";
+import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 
 import { getBrainDir, hasBrain, writeDefaultConfig } from "./config.js";
 import { ensureSessionRuntimeLayout } from "./session-profile.js";
@@ -61,8 +62,6 @@ export const ARRAY_FRONTMATTER_FIELDS = [
   "task_hints",
   "path_hints",
 ] as const;
-
-type ArrayFrontmatterField = (typeof ARRAY_FRONTMATTER_FIELDS)[number];
 
 export const DEFAULT_INVOCATION_MODE: InvocationMode = "optional";
 export const DEFAULT_RISK_LEVEL: RiskLevel = "low";
@@ -542,92 +541,62 @@ export function validateMemory(memory: Memory, context = "Memory"): void {
 
 export function serializeMemory(memory: Memory): string {
   const normalizedMemory = normalizeMemory(memory);
-  const frontmatterLines = [
-    "---",
-    `type: ${quoteYaml(normalizedMemory.type)}`,
-    `title: ${quoteYaml(normalizedMemory.title)}`,
-    `summary: ${quoteYaml(normalizedMemory.summary)}`,
-    "tags:",
-    ...normalizedMemory.tags.map((tag) => `  - ${quoteYaml(tag)}`),
-    `importance: ${quoteYaml(normalizedMemory.importance)}`,
-    `score: ${normalizedMemory.score}`,
-    `hit_count: ${normalizedMemory.hit_count}`,
-    `last_used: ${quoteYamlNullable(normalizedMemory.last_used)}`,
-    `created_at: ${quoteYaml(normalizedMemory.created_at)}`,
-    `created: ${quoteYaml(normalizedMemory.created ?? isoDateOnlyFromKnownDate(normalizedMemory.created_at))}`,
-    `updated: ${quoteYaml(normalizedMemory.updated ?? isoDateOnlyFromKnownDate(normalizedMemory.date))}`,
-    `stale: ${normalizedMemory.stale ? "true" : "false"}`,
-    `supersedes: ${quoteYamlNullable(normalizedMemory.supersedes ?? DEFAULT_MEMORY_SUPERSEDES)}`,
-    `superseded_by: ${quoteYamlNullable(normalizedMemory.superseded_by ?? DEFAULT_MEMORY_SUPERSEDED_BY)}`,
-    `version: ${normalizedMemory.version ?? DEFAULT_MEMORY_VERSION}`,
-    `date: ${quoteYaml(normalizedMemory.date)}`,
-  ];
+  const frontmatter: Record<string, unknown> = {
+    type: normalizedMemory.type,
+    title: normalizedMemory.title,
+    summary: normalizedMemory.summary,
+    tags: normalizedMemory.tags,
+    importance: normalizedMemory.importance,
+    score: normalizedMemory.score,
+    hit_count: normalizedMemory.hit_count,
+    last_used: normalizedMemory.last_used,
+    created_at: normalizedMemory.created_at,
+    created: normalizedMemory.created ?? isoDateOnlyFromKnownDate(normalizedMemory.created_at),
+    updated: normalizedMemory.updated ?? isoDateOnlyFromKnownDate(normalizedMemory.date),
+    stale: normalizedMemory.stale,
+    supersedes: normalizedMemory.supersedes ?? DEFAULT_MEMORY_SUPERSEDES,
+    superseded_by: normalizedMemory.superseded_by ?? DEFAULT_MEMORY_SUPERSEDED_BY,
+    version: normalizedMemory.version ?? DEFAULT_MEMORY_VERSION,
+    date: normalizedMemory.date,
+  };
 
-  if (normalizedMemory.source) {
-    frontmatterLines.push(`source: ${quoteYaml(normalizedMemory.source)}`);
-  }
-
-  if (normalizedMemory.status) {
-    frontmatterLines.push(`status: ${quoteYaml(normalizedMemory.status)}`);
-  }
-
-  if (normalizedMemory.origin) {
-    frontmatterLines.push(`origin: ${quoteYaml(normalizedMemory.origin)}`);
-  }
-
-  appendArrayField(frontmatterLines, "related", normalizedMemory.related ?? []);
-  appendArrayField(frontmatterLines, "path_scope", normalizedMemory.path_scope ?? []);
-  appendArrayField(frontmatterLines, "files", normalizedMemory.files ?? []);
-  appendArrayField(frontmatterLines, "recommended_skills", normalizedMemory.recommended_skills ?? []);
-  appendArrayField(frontmatterLines, "required_skills", normalizedMemory.required_skills ?? []);
-  appendArrayField(frontmatterLines, "suppressed_skills", normalizedMemory.suppressed_skills ?? []);
-  appendArrayField(frontmatterLines, "skill_trigger_paths", normalizedMemory.skill_trigger_paths ?? []);
-  appendArrayField(frontmatterLines, "skill_trigger_tasks", normalizedMemory.skill_trigger_tasks ?? []);
-  if (normalizedMemory.area) {
-    frontmatterLines.push(`area: ${quoteYaml(normalizedMemory.area)}`);
-  }
-  if (normalizedMemory.expires) {
-    frontmatterLines.push(`expires: ${quoteYaml(normalizedMemory.expires)}`);
-  }
-  if (normalizedMemory.valid_from) {
-    frontmatterLines.push(`valid_from: ${quoteYaml(normalizedMemory.valid_from)}`);
-  }
-  if (normalizedMemory.valid_until) {
-    frontmatterLines.push(`valid_until: ${quoteYaml(normalizedMemory.valid_until)}`);
-  }
-  if (normalizedMemory.observed_at) {
-    frontmatterLines.push(`observed_at: ${quoteYaml(normalizedMemory.observed_at)}`);
-  }
-  if (normalizedMemory.supersession_reason) {
-    frontmatterLines.push(`supersession_reason: ${quoteYaml(normalizedMemory.supersession_reason)}`);
-  }
+  if (normalizedMemory.source) frontmatter.source = normalizedMemory.source;
+  if (normalizedMemory.status) frontmatter.status = normalizedMemory.status;
+  if (normalizedMemory.origin) frontmatter.origin = normalizedMemory.origin;
+  frontmatter.related = normalizedMemory.related ?? [];
+  frontmatter.path_scope = normalizedMemory.path_scope ?? [];
+  frontmatter.files = normalizedMemory.files ?? [];
+  frontmatter.recommended_skills = normalizedMemory.recommended_skills ?? [];
+  frontmatter.required_skills = normalizedMemory.required_skills ?? [];
+  frontmatter.suppressed_skills = normalizedMemory.suppressed_skills ?? [];
+  frontmatter.skill_trigger_paths = normalizedMemory.skill_trigger_paths ?? [];
+  frontmatter.skill_trigger_tasks = normalizedMemory.skill_trigger_tasks ?? [];
+  if (normalizedMemory.area) frontmatter.area = normalizedMemory.area;
+  if (normalizedMemory.expires) frontmatter.expires = normalizedMemory.expires;
+  if (normalizedMemory.valid_from) frontmatter.valid_from = normalizedMemory.valid_from;
+  if (normalizedMemory.valid_until) frontmatter.valid_until = normalizedMemory.valid_until;
+  if (normalizedMemory.observed_at) frontmatter.observed_at = normalizedMemory.observed_at;
+  if (normalizedMemory.supersession_reason) frontmatter.supersession_reason = normalizedMemory.supersession_reason;
   if ((normalizedMemory.confidence ?? DEFAULT_MEMORY_CONFIDENCE) !== DEFAULT_MEMORY_CONFIDENCE) {
-    frontmatterLines.push(`confidence: ${normalizedMemory.confidence ?? DEFAULT_MEMORY_CONFIDENCE}`);
+    frontmatter.confidence = normalizedMemory.confidence ?? DEFAULT_MEMORY_CONFIDENCE;
   }
-  if (normalizedMemory.source_episode) {
-    frontmatterLines.push(`source_episode: ${quoteYaml(normalizedMemory.source_episode)}`);
-  }
+  if (normalizedMemory.source_episode) frontmatter.source_episode = normalizedMemory.source_episode;
   if ((normalizedMemory.review_state ?? DEFAULT_REVIEW_STATE) !== DEFAULT_REVIEW_STATE) {
-    frontmatterLines.push(`review_state: ${quoteYaml(normalizedMemory.review_state ?? DEFAULT_REVIEW_STATE)}`);
+    frontmatter.review_state = normalizedMemory.review_state ?? DEFAULT_REVIEW_STATE;
   }
-  frontmatterLines.push(`invocation_mode: ${quoteYaml(normalizedMemory.invocation_mode ?? DEFAULT_INVOCATION_MODE)}`);
-  frontmatterLines.push(`risk_level: ${quoteYaml(normalizedMemory.risk_level ?? DEFAULT_RISK_LEVEL)}`);
-  frontmatterLines.push("---", "", normalizedMemory.detail.trim(), "");
+  frontmatter.invocation_mode = normalizedMemory.invocation_mode ?? DEFAULT_INVOCATION_MODE;
+  frontmatter.risk_level = normalizedMemory.risk_level ?? DEFAULT_RISK_LEVEL;
 
-  return frontmatterLines.join("\n");
+  return ["---", stringifyFrontmatter(frontmatter), "---", "", normalizedMemory.detail.trim(), ""].join("\n");
 }
 
 function parseMemory(content: string, filePath: string): Memory {
-  const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/);
-  if (!match) {
+  const extracted = extractFrontmatterAndBody(content);
+  if (!extracted) {
     throw new Error(`Memory file "${filePath}" is missing valid frontmatter.`);
   }
 
-  const rawFrontmatter = match[1];
-  const rawDetail = match[2];
-  if (!rawFrontmatter || rawDetail === undefined) {
-    throw new Error(`Memory file "${filePath}" is missing required frontmatter or body content.`);
-  }
+  const { rawFrontmatter, body: rawDetail } = extracted;
 
   const frontmatter = parseFrontmatter(rawFrontmatter);
   const type = frontmatter.type;
@@ -814,165 +783,147 @@ export function parseFrontmatter(raw: string): {
     path_hints: [],
   };
 
-  let activeKey: ArrayFrontmatterField | null = null;
+  const frontmatterRaw = extractFrontmatterRaw(raw);
+  const parsedDocument = parseYaml(frontmatterRaw) ?? {};
+  const parsed = isRecord(parsedDocument) ? parsedDocument : {};
 
-  for (const line of raw.split(/\r?\n/)) {
-    if (line.startsWith("  - ") && activeKey) {
-      (result as any)[activeKey].push(unquoteYaml(line.slice(4).trim()));
-      continue;
-    }
-
-    activeKey = null;
-    const separatorIndex = line.indexOf(":");
-    if (separatorIndex === -1) {
-      continue;
-    }
-
-    const key = line.slice(0, separatorIndex).trim();
-    const value = line.slice(separatorIndex + 1).trim();
-
-    if (ARRAY_FRONTMATTER_FIELDS.includes(key as ArrayFrontmatterField)) {
-      activeKey = key as ArrayFrontmatterField;
-      continue;
-    }
-
-    switch (key) {
-      case "type":
-      case "title":
-      case "summary":
-      case "importance":
-      case "date":
-      case "created_at":
-      case "created":
-      case "updated":
-      case "source":
-      case "status":
-      case "origin":
-      case "invocation_mode":
-      case "risk_level":
-      case "area":
-      case "expires":
-      case "kind":
-      case "target_type":
-      case "target":
-      case "preference":
-      case "valid_from":
-      case "valid_until":
-      case "updated_at":
-      case "observed_at":
-      case "source_episode":
-      case "review_state":
-        result[key] = unquoteYaml(value);
-        break;
-      case "score":
-      case "hit_count":
-      case "confidence": {
-        const parsed = parseYamlNumber(value);
-        if (parsed !== undefined) {
-          result[key] = parsed;
-        }
-        break;
-      }
-      case "version": {
-        const parsed = parseYamlNumber(value);
-        if (parsed !== undefined) {
-          result.version = parsed;
-        }
-        break;
-      }
-      case "last_used":
-      {
-        const parsed = parseYamlNullableString(value);
-        if (parsed !== undefined) {
-          result.last_used = parsed;
-        }
-        break;
-      }
-      case "supersedes":
-      case "superseded_by":
-      case "supersession_reason":
-      {
-        const parsed = parseYamlNullableString(value);
-        if (parsed !== undefined) {
-          result[key] = parsed;
-        }
-        break;
-      }
-      case "stale":
-      {
-        const parsed = parseYamlBoolean(value);
-        if (parsed !== undefined) {
-          result.stale = parsed;
-        }
-        break;
-      }
-      default:
-        break;
-    }
+  for (const field of ARRAY_FRONTMATTER_FIELDS) {
+    result[field] = toStringArray(parsed[field]);
   }
+  assignIfDefined(result, "type", toOptionalString(parsed.type));
+  assignIfDefined(result, "title", toOptionalString(parsed.title));
+  assignIfDefined(result, "summary", toOptionalString(parsed.summary));
+  assignIfDefined(result, "importance", toOptionalString(parsed.importance));
+  assignIfDefined(result, "date", toOptionalString(parsed.date));
+  assignIfDefined(result, "created_at", toOptionalString(parsed.created_at));
+  assignIfDefined(result, "created", toOptionalString(parsed.created));
+  assignIfDefined(result, "updated", toOptionalString(parsed.updated));
+  assignIfDefined(result, "source", toOptionalString(parsed.source));
+  assignIfDefined(result, "status", toOptionalString(parsed.status));
+  assignIfDefined(result, "origin", toOptionalString(parsed.origin));
+  assignIfDefined(result, "invocation_mode", toOptionalString(parsed.invocation_mode));
+  assignIfDefined(result, "risk_level", toOptionalString(parsed.risk_level));
+  assignIfDefined(result, "area", toOptionalString(parsed.area));
+  assignIfDefined(result, "expires", toOptionalString(parsed.expires));
+  assignIfDefined(result, "kind", toOptionalString(parsed.kind));
+  assignIfDefined(result, "target_type", toOptionalString(parsed.target_type));
+  assignIfDefined(result, "target", toOptionalString(parsed.target));
+  assignIfDefined(result, "preference", toOptionalString(parsed.preference));
+  assignIfDefined(result, "valid_from", toOptionalString(parsed.valid_from));
+  assignIfDefined(result, "valid_until", toOptionalString(parsed.valid_until));
+  assignIfDefined(result, "updated_at", toOptionalString(parsed.updated_at));
+  assignIfDefined(result, "observed_at", toOptionalString(parsed.observed_at));
+  assignIfDefined(result, "source_episode", toOptionalString(parsed.source_episode));
+  assignIfDefined(result, "review_state", toOptionalString(parsed.review_state));
+  assignIfDefined(result, "score", toOptionalNumber(parsed.score));
+  assignIfDefined(result, "hit_count", toOptionalNumber(parsed.hit_count));
+  assignIfDefined(result, "confidence", toOptionalNumber(parsed.confidence));
+  assignIfDefined(result, "version", toOptionalNumber(parsed.version));
+  assignIfDefined(result, "last_used", toOptionalNullableString(parsed.last_used));
+  assignIfDefined(result, "supersedes", toOptionalNullableString(parsed.supersedes));
+  assignIfDefined(result, "superseded_by", toOptionalNullableString(parsed.superseded_by));
+  assignIfDefined(result, "supersession_reason", toOptionalNullableString(parsed.supersession_reason));
+  assignIfDefined(result, "stale", toOptionalBoolean(parsed.stale));
 
   return result;
 }
 
-function quoteYaml(value: string): string {
-  return JSON.stringify(value);
+function stringifyFrontmatter(frontmatter: Record<string, unknown>): string {
+  return stringifyYaml(frontmatter, {
+    defaultKeyType: "PLAIN",
+    defaultStringType: "QUOTE_DOUBLE",
+    lineWidth: 0,
+  }).trimEnd();
 }
 
-function quoteYamlNullable(value: string | null): string {
-  return value === null ? "null" : quoteYaml(value);
-}
-
-function unquoteYaml(value: string): string {
-  const trimmed = value.trim();
-  if (!trimmed) {
-    return "";
+function extractFrontmatterAndBody(content: string): { rawFrontmatter: string; body: string } | null {
+  const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/);
+  if (!match) {
+    return null;
   }
-
-  if (trimmed.startsWith("\"") && trimmed.endsWith("\"")) {
-    try {
-      return JSON.parse(trimmed) as string;
-    } catch {
-      return trimmed.slice(1, -1);
-    }
+  const rawFrontmatter = match[1];
+  const body = match[2];
+  if (!rawFrontmatter || body === undefined) {
+    return null;
   }
-
-  return trimmed;
+  return { rawFrontmatter, body };
 }
 
-function parseYamlNumber(value: string): number | undefined {
-  const trimmed = value.trim();
-  if (!trimmed) {
+function extractFrontmatterRaw(raw: string): string {
+  const match = raw.match(/^---\r?\n([\s\S]*?)\r?\n---\s*$/);
+  if (match?.[1]) {
+    return match[1];
+  }
+  return raw;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function toOptionalString(value: unknown): string | undefined {
+  if (typeof value === "string") {
+    return value;
+  }
+  if (typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+  return undefined;
+}
+
+function toOptionalNullableString(value: unknown): string | null | undefined {
+  if (value === null) {
+    return null;
+  }
+  return toOptionalString(value);
+}
+
+function toOptionalNumber(value: unknown): number | undefined {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+  const text = toOptionalString(value);
+  if (!text) {
     return undefined;
   }
-
-  const parsed = Number(trimmed);
+  const parsed = Number(text);
   return Number.isFinite(parsed) ? parsed : Number.NaN;
 }
 
-function parseYamlNullableString(value: string): string | null | undefined {
-  const trimmed = value.trim();
-  if (!trimmed) {
+function toOptionalBoolean(value: unknown): boolean | string | undefined {
+  if (typeof value === "boolean") {
+    return value;
+  }
+  const text = toOptionalString(value);
+  if (!text) {
     return undefined;
   }
-
-  if (trimmed === "null") {
-    return null;
-  }
-
-  return unquoteYaml(trimmed);
-}
-
-function parseYamlBoolean(value: string): boolean | string | undefined {
-  const trimmed = value.trim();
-  if (trimmed === "true") {
+  if (text === "true") {
     return true;
   }
-
-  if (trimmed === "false") {
+  if (text === "false") {
     return false;
   }
+  return text;
+}
 
-  return trimmed ? trimmed : undefined;
+function toStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value
+    .map((entry) => toOptionalString(entry))
+    .filter((entry): entry is string => typeof entry === "string");
+}
+
+function assignIfDefined(
+  target: Record<string, unknown>,
+  key: string,
+  value: unknown,
+): void {
+  if (value !== undefined) {
+    target[key] = value;
+  }
 }
 
 function clampUnitInterval(value: number): number {
@@ -1154,17 +1105,6 @@ export function normalizeBrainRelativePath(value: string): string {
     .trim()
     .replace(/^\.brain\//, "")
     .replace(/^\/+/, "");
-}
-
-function appendArrayField(
-  lines: string[],
-  fieldName: Exclude<ArrayFrontmatterField, "tags">,
-  values: string[],
-): void {
-  lines.push(`${fieldName}:`);
-  for (const value of values) {
-    lines.push(`  - ${quoteYaml(value)}`);
-  }
 }
 
 function titleForType(type: MemoryType): string {
@@ -1626,48 +1566,40 @@ export function validatePreference(pref: Preference, context = "Preference"): vo
 
 export function serializePreference(pref: Preference): string {
   const normalized = normalizePreference(pref);
-  const lines = [
-    "---",
-    `kind: ${quoteYaml(normalized.kind)}`,
-    `target_type: ${quoteYaml(normalized.target_type)}`,
-    `target: ${quoteYaml(normalized.target)}`,
-    `preference: ${quoteYaml(normalized.preference)}`,
-    `confidence: ${normalized.confidence}`,
-    `source: ${quoteYaml(normalized.source)}`,
-    `created_at: ${quoteYaml(normalized.created_at)}`,
-    `updated_at: ${quoteYaml(normalized.updated_at)}`,
-    `status: ${quoteYaml(normalized.status)}`,
-  ];
+  const frontmatter: Record<string, unknown> = {
+    kind: normalized.kind,
+    target_type: normalized.target_type,
+    target: normalized.target,
+    preference: normalized.preference,
+    confidence: normalized.confidence,
+    source: normalized.source,
+    created_at: normalized.created_at,
+    updated_at: normalized.updated_at,
+    status: normalized.status,
+  };
 
-  if (normalized.valid_from) lines.push(`valid_from: ${quoteYaml(normalized.valid_from)}`);
-  if (normalized.valid_until) lines.push(`valid_until: ${quoteYaml(normalized.valid_until)}`);
-  if (normalized.superseded_by) lines.push(`superseded_by: ${quoteYaml(normalized.superseded_by)}`);
-  lines.push(`observed_at: ${quoteYaml(normalized.observed_at ?? normalized.updated_at)}`);
-  if (normalized.supersession_reason) {
-    lines.push(`supersession_reason: ${quoteYaml(normalized.supersession_reason)}`);
-  }
+  if (normalized.valid_from) frontmatter.valid_from = normalized.valid_from;
+  if (normalized.valid_until) frontmatter.valid_until = normalized.valid_until;
+  if (normalized.superseded_by) frontmatter.superseded_by = normalized.superseded_by;
+  frontmatter.observed_at = normalized.observed_at ?? normalized.updated_at;
+  if (normalized.supersession_reason) frontmatter.supersession_reason = normalized.supersession_reason;
   if ((normalized.review_state ?? DEFAULT_REVIEW_STATE) !== DEFAULT_REVIEW_STATE) {
-    lines.push(`review_state: ${quoteYaml(normalized.review_state ?? DEFAULT_REVIEW_STATE)}`);
+    frontmatter.review_state = normalized.review_state ?? DEFAULT_REVIEW_STATE;
   }
-  if (normalized.source_episode) {
-    lines.push(`source_episode: ${quoteYaml(normalized.source_episode)}`);
-  }
+  if (normalized.source_episode) frontmatter.source_episode = normalized.source_episode;
+  frontmatter.task_hints = normalized.task_hints ?? [];
+  frontmatter.path_hints = normalized.path_hints ?? [];
 
-  appendArrayField(lines, "task_hints", normalized.task_hints ?? []);
-  appendArrayField(lines, "path_hints", normalized.path_hints ?? []);
-
-  lines.push("---", "", normalized.reason.trim(), "");
-  return lines.join("\n");
+  return ["---", stringifyFrontmatter(frontmatter), "---", "", normalized.reason.trim(), ""].join("\n");
 }
 
 export function parsePreference(content: string, filePath: string): Preference {
-  const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/);
-  if (!match) {
+  const extracted = extractFrontmatterAndBody(content);
+  if (!extracted) {
     throw new Error(`Preference file "${filePath}" is missing valid frontmatter.`);
   }
 
-  const rawFrontmatter = match[1];
-  const rawReason = match[2];
+  const { rawFrontmatter, body: rawReason } = extracted;
   if (rawFrontmatter === undefined || rawReason === undefined) {
      throw new Error(`Preference file "${filePath}" has invalid structure.`);
   }

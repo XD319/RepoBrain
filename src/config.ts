@@ -1,6 +1,7 @@
 import { access, readFile, writeFile } from "node:fs/promises";
 import { constants as fsConstants } from "node:fs";
 import path from "node:path";
+import { parse as parseYaml } from "yaml";
 
 import type { BrainConfig, CaptureMode, ExtractMode, TriggerMode, WorkflowMode } from "./types.js";
 import { CAPTURE_MODES, EXTRACT_MODES, TRIGGER_MODES, WORKFLOW_MODES } from "./types.js";
@@ -241,30 +242,34 @@ function parseSimpleYaml(raw: string): Partial<BrainConfig> & {
   const deprecatedKeys = new Set<string>();
   const warnings: string[] = [];
   const explicitKeys = new Set<string>();
+  let parsedDocument: unknown = {};
+  try {
+    parsedDocument = parseYaml(raw, { uniqueKeys: false }) ?? {};
+  } catch (error) {
+    warnings.push(
+      `Failed to parse .brain/config.yaml as YAML: ${error instanceof Error ? error.message : String(error)}.`,
+    );
+    parsedDocument = {};
+  }
+  const parsed = isRecord(parsedDocument) ? parsedDocument : {};
 
-  for (const line of raw.split(/\r?\n/)) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith("#")) {
-      continue;
-    }
-
-    const separatorIndex = trimmed.indexOf(":");
-    if (separatorIndex === -1) {
-      continue;
-    }
-
-    const key = trimmed.slice(0, separatorIndex).trim();
-    const value = trimmed.slice(separatorIndex + 1).trim();
+  for (const key of Object.keys(parsed)) {
     explicitKeys.add(key);
+  }
 
+  for (const [key, value] of Object.entries(parsed)) {
     if (isDeprecatedRemoteReviewConfigKey(key)) {
       deprecatedKeys.add(key);
       continue;
     }
 
     if (key === "workflowMode") {
+      const valueText = toNonEmptyString(value);
+      if (!valueText) {
+        continue;
+      }
       try {
-        result.workflowMode = parseWorkflowMode(value);
+        result.workflowMode = parseWorkflowMode(valueText);
       } catch (error) {
         warnings.push(error instanceof Error ? error.message : String(error));
       }
@@ -272,39 +277,51 @@ function parseSimpleYaml(raw: string): Partial<BrainConfig> & {
     }
 
     if (key === "maxInjectTokens") {
-      const parsed = Number(value);
-      if (Number.isFinite(parsed) && parsed > 0) {
-        result.maxInjectTokens = parsed;
+      const parsedNumber = Number(value);
+      if (Number.isFinite(parsedNumber) && parsedNumber > 0) {
+        result.maxInjectTokens = parsedNumber;
       }
       continue;
     }
 
     if (key === "triggerMode") {
-      const normalized = value.toLowerCase() as TriggerMode;
+      const valueText = toNonEmptyString(value);
+      if (!valueText) {
+        continue;
+      }
+      const normalized = valueText.toLowerCase() as TriggerMode;
       if (TRIGGER_MODES.includes(normalized)) {
         result.triggerMode = normalized;
       } else {
         warnings.push(
-          `Ignoring invalid config value triggerMode=${value}. Expected one of: ${TRIGGER_MODES.join(", ")}.`,
+          `Ignoring invalid config value triggerMode=${valueText}. Expected one of: ${TRIGGER_MODES.join(", ")}.`,
         );
       }
       continue;
     }
 
     if (key === "captureMode") {
-      const normalized = value.toLowerCase() as CaptureMode;
+      const valueText = toNonEmptyString(value);
+      if (!valueText) {
+        continue;
+      }
+      const normalized = valueText.toLowerCase() as CaptureMode;
       if (CAPTURE_MODES.includes(normalized)) {
         result.captureMode = normalized;
       } else {
         warnings.push(
-          `Ignoring invalid config value captureMode=${value}. Expected one of: ${CAPTURE_MODES.join(", ")}.`,
+          `Ignoring invalid config value captureMode=${valueText}. Expected one of: ${CAPTURE_MODES.join(", ")}.`,
         );
       }
       continue;
     }
 
     if (key === "extractMode") {
-      const normalized = value.toLowerCase() as ExtractMode;
+      const valueText = toNonEmptyString(value);
+      if (!valueText) {
+        continue;
+      }
+      const normalized = valueText.toLowerCase() as ExtractMode;
       if (EXTRACT_MODES.includes(normalized)) {
         result.extractMode = normalized;
       }
@@ -312,74 +329,101 @@ function parseSimpleYaml(raw: string): Partial<BrainConfig> & {
     }
 
     if (key === "autoExtract") {
-      result.extractMode = value.toLowerCase() === "true" ? "auto" : "manual";
+      if (value === true) {
+        result.extractMode = "auto";
+      } else if (value === false) {
+        result.extractMode = "manual";
+      } else {
+        const valueText = toNonEmptyString(value);
+        if (valueText) {
+          result.extractMode = valueText.toLowerCase() === "true" ? "auto" : "manual";
+        }
+      }
       continue;
     }
 
-    if (key === "language" && value) {
-      result.language = value;
+    if (key === "language") {
+      const valueText = toNonEmptyString(value);
+      if (valueText) {
+        result.language = valueText;
+      }
       continue;
     }
 
     if (key === "staleDays") {
-      const parsed = Number(value);
-      if (Number.isInteger(parsed) && parsed > 0) {
-        result.staleDays = parsed;
+      const parsedNumber = Number(value);
+      if (Number.isInteger(parsedNumber) && parsedNumber > 0) {
+        result.staleDays = parsedNumber;
       } else {
         warnings.push(
-          `Ignoring invalid config value staleDays=${value}. Expected a positive integer; using default ${DEFAULT_BRAIN_CONFIG.staleDays}.`,
+          `Ignoring invalid config value staleDays=${String(value)}. Expected a positive integer; using default ${DEFAULT_BRAIN_CONFIG.staleDays}.`,
         );
       }
       continue;
     }
 
     if (key === "sweepOnInject") {
-      if (value.toLowerCase() === "true") {
-        result.sweepOnInject = true;
-      } else if (value.toLowerCase() === "false") {
-        result.sweepOnInject = false;
+      if (value === true || value === false) {
+        result.sweepOnInject = value;
       } else {
-        warnings.push(
-          `Ignoring invalid config value sweepOnInject=${value}. Expected true or false; using default ${DEFAULT_BRAIN_CONFIG.sweepOnInject}.`,
-        );
+        const valueText = toNonEmptyString(value)?.toLowerCase();
+        if (valueText === "true") {
+          result.sweepOnInject = true;
+        } else if (valueText === "false") {
+          result.sweepOnInject = false;
+        } else {
+          warnings.push(
+            `Ignoring invalid config value sweepOnInject=${String(value)}. Expected true or false; using default ${DEFAULT_BRAIN_CONFIG.sweepOnInject}.`,
+          );
+        }
       }
       continue;
     }
 
     if (key === "injectDiversity") {
-      if (value.toLowerCase() === "true") {
-        result.injectDiversity = true;
-      } else if (value.toLowerCase() === "false") {
-        result.injectDiversity = false;
+      if (value === true || value === false) {
+        result.injectDiversity = value;
       } else {
-        warnings.push(
-          `Ignoring invalid config value injectDiversity=${value}. Expected true or false; using default ${DEFAULT_BRAIN_CONFIG.injectDiversity}.`,
-        );
+        const valueText = toNonEmptyString(value)?.toLowerCase();
+        if (valueText === "true") {
+          result.injectDiversity = true;
+        } else if (valueText === "false") {
+          result.injectDiversity = false;
+        } else {
+          warnings.push(
+            `Ignoring invalid config value injectDiversity=${String(value)}. Expected true or false; using default ${DEFAULT_BRAIN_CONFIG.injectDiversity}.`,
+          );
+        }
       }
       continue;
     }
 
     if (key === "injectExplainMaxItems") {
-      const parsed = Number(value);
-      if (Number.isInteger(parsed) && parsed > 0) {
-        result.injectExplainMaxItems = parsed;
+      const parsedNumber = Number(value);
+      if (Number.isInteger(parsedNumber) && parsedNumber > 0) {
+        result.injectExplainMaxItems = parsedNumber;
       } else {
         warnings.push(
-          `Ignoring invalid config value injectExplainMaxItems=${value}. Expected a positive integer; using default ${DEFAULT_BRAIN_CONFIG.injectExplainMaxItems}.`,
+          `Ignoring invalid config value injectExplainMaxItems=${String(value)}. Expected a positive integer; using default ${DEFAULT_BRAIN_CONFIG.injectExplainMaxItems}.`,
         );
       }
       continue;
     }
 
     if (key === "autoApproveSafeCandidates") {
-      if (value.toLowerCase() === "true") {
-        result.autoApproveSafeCandidates = true;
-      } else if (value.toLowerCase() === "false") {
-        result.autoApproveSafeCandidates = false;
+      if (value === true || value === false) {
+        result.autoApproveSafeCandidates = value;
       } else {
-        warnings.push(
-          `Ignoring invalid config value autoApproveSafeCandidates=${value}. Expected true or false; using default ${DEFAULT_BRAIN_CONFIG.autoApproveSafeCandidates}.`,
-        );
+        const valueText = toNonEmptyString(value)?.toLowerCase();
+        if (valueText === "true") {
+          result.autoApproveSafeCandidates = true;
+        } else if (valueText === "false") {
+          result.autoApproveSafeCandidates = false;
+        } else {
+          warnings.push(
+            `Ignoring invalid config value autoApproveSafeCandidates=${String(value)}. Expected true or false; using default ${DEFAULT_BRAIN_CONFIG.autoApproveSafeCandidates}.`,
+          );
+        }
       }
     }
   }
@@ -431,4 +475,19 @@ function serializeSimpleYaml(config: BrainConfig): string {
 
 function isDeprecatedRemoteReviewConfigKey(key: string): boolean {
   return DEPRECATED_REMOTE_REVIEW_KEY_PATTERNS.some((pattern) => pattern.test(key));
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function toNonEmptyString(value: unknown): string | undefined {
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    return trimmed ? trimmed : undefined;
+  }
+  if (typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+  return undefined;
 }
