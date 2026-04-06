@@ -13,6 +13,7 @@ import { register as registerPreference } from "./commands/preference.js";
 import { register as registerSession } from "./commands/session.js";
 import { register as registerRouting } from "./commands/routing.js";
 import { register as registerMemoryOps } from "./commands/memory-ops.js";
+import { register as registerSearch } from "./commands/search.js";
 import { register as registerShare } from "./commands/share.js";
 import { register as registerMcp } from "./commands/mcp.js";
 
@@ -31,6 +32,7 @@ registerPreference(program);
 registerSession(program);
 registerRouting(program);
 registerMemoryOps(program);
+registerSearch(program);
 registerShare(program);
 registerMcp(program);
 

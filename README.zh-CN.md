@@ -1007,6 +1007,8 @@ brain inject
 brain list
 brain list --type goal
 brain list --goals
+brain search "refund retry" --type gotcha --tag payments
+brain search "事务 回滚" --all --json
 brain stats
 brain goal done <keyword>
 brain status
@@ -1057,6 +1059,7 @@ brain mcp
   当仍有待审核的 candidate memories 时，注入结果底部会提醒你运行 `brain review`。
 - `brain sweep`：扫描陈旧 memory；默认交互式逐条确认，`--dry-run` 只看报告，`--auto` 自动执行安全清理规则
 - `brain list`：列出当前仓库里的 memory
+- `brain search`：在 title、summary、detail、tags 中按关键词搜索 memory（大小写不敏感；多关键词为 AND 语义）；支持 `--type`、`--tag`、`--status`、`--all`、`--json`
 - `brain stats`：按类型和重要度查看统计，并附带 schema 健康度摘要
 - `brain lint-memory`：只读检查 frontmatter schema 健康度，区分可自动修复与需要人工修复的问题
 - `brain normalize-memory`：对兼容的 memory 原地做 schema autofill / normalize，并保留需要人工修复的文件

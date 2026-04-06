@@ -1107,6 +1107,8 @@ brain inject
 brain list
 brain list --type goal
 brain list --goals
+brain search "refund retry" --type gotcha --tag payments
+brain search "事务 回滚" --all --json
 brain stats
 brain goal done <keyword>
 brain status
@@ -1151,6 +1153,7 @@ brain mcp
   When candidate memories are waiting for review, the injected footer now reminds you to run `brain review`.
 - `brain sweep`: clean stale memory hygiene issues after `brain score` or `brain status` has told you what needs attention; use the default interactive mode to confirm each action, `--dry-run` for a report, or `--auto` to apply safe cleanup rules without prompts
 - `brain list`: list stored memories; use `--type <memory-type>` to filter or `--goals` to group goal memories by status
+- `brain search`: search memories across title, summary, detail, and tags with case-insensitive keyword matching (`AND` semantics for multiple keywords); supports `--type`, `--tag`, `--status`, `--all`, and `--json`
 - `brain stats`: show memory counts by type and importance, including `working` and `goal`
 - `brain lint-memory`: inspect frontmatter schema health, including fixable vs manual issues
 - `brain normalize-memory`: apply safe schema autofill and normalization in place, while leaving incompatible files untouched
