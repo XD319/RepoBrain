@@ -6,6 +6,7 @@ export default defineConfig({
     "src/cli.ts",
     "src/extract.ts",
     "src/failure-detector.ts",
+    "src/index.ts",
     "src/inject.ts",
     "src/integrations.ts",
     "src/reinforce.ts",

@@ -1,0 +1,74 @@
+import { loadConfig as loadConfigImpl } from "./config.js";
+import { extractMemories as extractMemoriesImpl } from "./extract.js";
+import { buildInjection as buildInjectionImpl } from "./inject.js";
+import { reviewCandidateMemories as reviewCandidateMemoriesImpl } from "./reviewer.js";
+import { reviewCandidateMemory as reviewCandidateMemoryImpl } from "./reviewer.js";
+import { loadAllMemories as loadAllMemoriesImpl } from "./store/memory-store.js";
+import { loadStoredMemoryRecords as loadStoredMemoryRecordsImpl } from "./store/memory-store.js";
+import { saveMemory as saveMemoryImpl } from "./store/memory-store.js";
+import { initBrain as initBrainImpl } from "./store/core.js";
+import { loadAllPreferences as loadAllPreferencesImpl } from "./store/preference-store.js";
+import { buildSkillShortlist as buildSkillShortlistImpl } from "./suggest-skills.js";
+import { buildTaskRoutingBundle as buildTaskRoutingBundleImpl } from "./task-routing.js";
+
+/**
+ * Load and normalize RepoBrain config from `<projectRoot>/.brain/config.yaml`.
+ */
+export const loadConfig = loadConfigImpl;
+
+/**
+ * Load all durable memories from `.brain/` and return them sorted by date (newest first).
+ */
+export const loadAllMemories = loadAllMemoriesImpl;
+
+/**
+ * Load all stored memory records with file metadata and parsed memory payload.
+ */
+export const loadStoredMemoryRecords = loadStoredMemoryRecordsImpl;
+
+/**
+ * Load all routing preference records from `.brain/preferences`.
+ */
+export const loadAllPreferences = loadAllPreferencesImpl;
+
+/**
+ * Persist one memory into `.brain/` using RepoBrain normalization and validation rules.
+ */
+export const saveMemory = saveMemoryImpl;
+
+/**
+ * Initialize (or repair) the RepoBrain workspace structure under `.brain/`.
+ */
+export const initBrain = initBrainImpl;
+
+/**
+ * Build an inject-ready context markdown block from current durable memories.
+ */
+export const buildInjection = buildInjectionImpl;
+
+/**
+ * Build deterministic skill shortlist and invocation plan for a given task context.
+ */
+export const buildSkillShortlist = buildSkillShortlistImpl;
+
+/**
+ * Build a combined task-routing bundle: injection context + skill routing output.
+ */
+export const buildTaskRoutingBundle = buildTaskRoutingBundleImpl;
+
+/**
+ * Extract candidate durable memories from conversation/session text.
+ */
+export const extractMemories = extractMemoriesImpl;
+
+/**
+ * Review a single candidate memory against existing stored memories.
+ */
+export const reviewCandidateMemory = reviewCandidateMemoryImpl;
+
+/**
+ * Review a batch of candidate memories against existing stored memories.
+ */
+export const reviewCandidateMemories = reviewCandidateMemoriesImpl;
+
+export * from "./types.js";

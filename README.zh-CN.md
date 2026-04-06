@@ -88,6 +88,7 @@ brain session-promote --to memory --title "会话备忘" --type working
 - 评测案例： [docs/evaluation.zh-CN.md](./docs/evaluation.zh-CN.md)
 - TypeScript CLI case study： [docs/case-studies/typescript-cli.zh-CN.md](./docs/case-studies/typescript-cli.zh-CN.md)
 - 全栈 Web case study： [docs/case-studies/full-stack-web.zh-CN.md](./docs/case-studies/full-stack-web.zh-CN.md)
+- Programmatic API 文档： [docs/api.md](./docs/api.md)
 - 发布闭环： [docs/release-checklist.zh-CN.md](./docs/release-checklist.zh-CN.md) 和 [docs/release-guide.zh-CN.md](./docs/release-guide.zh-CN.md)
 
 ## Demo GIF

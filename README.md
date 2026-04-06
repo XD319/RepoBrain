@@ -85,6 +85,7 @@ brain session-promote --to memory --title "Notes from session" --type working
 - Evaluation cases: [docs/evaluation.md](./docs/evaluation.md)
 - TypeScript CLI case study: [docs/case-studies/typescript-cli.md](./docs/case-studies/typescript-cli.md)
 - Full-stack web case study: [docs/case-studies/full-stack-web.md](./docs/case-studies/full-stack-web.md)
+- Programmatic API reference: [docs/api.md](./docs/api.md)
 - Release loop: [docs/release-checklist.md](./docs/release-checklist.md) and [docs/release-guide.md](./docs/release-guide.md)
 
 ## Demo GIF
