@@ -220,6 +220,15 @@ const TOOLS: ToolDefinition[] = [
           },
           description: "Optional target paths. If omitted, MCP uses git diff when available.",
         },
+        forceCandidate: {
+          type: "boolean",
+          description: "Force save as candidate even when extraction signals are ambiguous.",
+        },
+        type: {
+          type: "string",
+          enum: ["decision", "gotcha", "convention", "pattern", "working", "goal"],
+          description: "Optional forced memory type for extracted entries.",
+        },
       },
     },
     annotations: {
@@ -529,13 +538,19 @@ async function handleCapture(args: Record<string, unknown>, projectRoot: string)
   const task = asOptionalString(args.task, "task");
   const summary = asOptionalString(args.summary, "summary");
   const paths = resolveSuggestedSkillPaths(projectRoot, asOptionalStringArray(args.paths, "paths")).paths;
+  const forceCandidate = asOptionalBoolean(args.forceCandidate, "forceCandidate") ?? false;
+  const forcedType = asEnum(args.type, ["decision", "gotcha", "convention", "pattern", "working", "goal"]);
+  if (args.type !== undefined && !forcedType) {
+    throw new Error('Tool argument "type" must be one of: decision, gotcha, convention, pattern, working, goal.');
+  }
   const suggestion = evaluateExtractWorthiness({
     ...(task ? { task } : {}),
     ...(summary ? { sessionSummary: summary } : {}),
     changedFiles: paths,
     source: "session",
   });
-  if (!suggestion.should_extract) {
+  const shouldProceed = suggestion.should_extract || forceCandidate;
+  if (!shouldProceed) {
     return {
       content: [
         {
@@ -555,7 +570,7 @@ async function handleCapture(args: Record<string, unknown>, projectRoot: string)
   const config = await loadConfig(projectRoot);
   const rawInput = buildCaptureExtractionInput(task, summary, {}, paths, undefined);
   const extracted = await extractMemories(rawInput, config, projectRoot);
-  const memories = extracted.map((memory) => applyExtractedMemoryDefaults(memory));
+  const memories = extracted.map((memory) => applyExtractedMemoryDefaults(memory, forcedType ?? undefined));
   const existingRecords = await loadStoredMemoryRecords(projectRoot);
   const reviewedCandidates = reviewCandidateMemories(memories, existingRecords);
   const savedPaths: string[] = [];
@@ -589,6 +604,8 @@ async function handleCapture(args: Record<string, unknown>, projectRoot: string)
       action: savedPaths.length > 0 ? "saved_as_candidate" : "extraction_empty",
       reason: suggestion.summary,
       suggestion,
+      force_candidate: forceCandidate,
+      ...(forcedType ? { forced_type: forcedType } : {}),
       saved_paths: savedPaths,
       review: reviewedCandidates.map((entry) => ({
         title: entry.memory.title,

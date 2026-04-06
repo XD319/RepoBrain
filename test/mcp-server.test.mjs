@@ -114,9 +114,21 @@ await runTest("mcp server exposes and serves the expanded toolset", async () => 
         paths: ["tests/e2e/login.spec.ts"],
       });
       assert.ok(capture.structuredContent?.suggestion);
+      assert.equal(capture.structuredContent?.force_candidate, false);
+
+      const forcedCapture = await client.callTool("brain_capture", {
+        task: "update notes",
+        summary: "small update with helper wording",
+        paths: ["src/notes.ts"],
+        forceCandidate: true,
+        type: "working",
+      });
+      assert.equal(forcedCapture.structuredContent?.force_candidate, true);
+      assert.equal(forcedCapture.structuredContent?.forced_type, "working");
 
       const records = await loadStoredMemoryRecords(projectRoot);
       assert.ok(records.length >= 2);
+      assert.ok(records.some((entry) => entry.memory.type === "working" && entry.memory.status === "candidate"));
     } finally {
       await client.close();
     }
