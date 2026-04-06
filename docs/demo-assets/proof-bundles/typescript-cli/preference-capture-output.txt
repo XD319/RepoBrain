@@ -1,0 +1,27 @@
+Input: I prefer playwright for smoke tests in this CLI repo
+{
+  "kind": "routing_preference",
+  "target_type": "skill",
+  "target": "playwright",
+  "preference": "prefer",
+  "reason": "I prefer playwright for smoke tests in this CLI repo",
+  "confidence": 0.88,
+  "source": "proof-bundle",
+  "created_at": "2026-04-06T02:17:05.903Z",
+  "updated_at": "2026-04-06T02:17:05.903Z",
+  "status": "active"
+}
+
+Input: Please avoid imagegen for release automation tasks
+{
+  "kind": "routing_preference",
+  "target_type": "workflow",
+  "target": "release",
+  "preference": "avoid",
+  "reason": "Please avoid imagegen for release automation tasks",
+  "confidence": 0.6799999999999999,
+  "source": "proof-bundle",
+  "created_at": "2026-04-06T02:17:05.903Z",
+  "updated_at": "2026-04-06T02:17:05.903Z",
+  "status": "active"
+}

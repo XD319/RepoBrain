@@ -1,0 +1,21 @@
+{
+  "kind": "repobrain.proof_bundle",
+  "flavor": "typescript-cli",
+  "durable_memories": [
+    ".brain\\decisions\\2026-04-01-release-must-run-packaged-install-smoke-before-p-100000000.md",
+    ".brain\\conventions\\2026-03-01-release-validation-used-npm-pack-dry-run-only-100000000.md"
+  ],
+  "preferences": [
+    ".brain/preferences/*.md (see copied sample)"
+  ],
+  "session_profile": ".brain/runtime/session-profile.json",
+  "route_artifacts": [
+    "route-before.json",
+    "route-after.json",
+    "route-with-session.json"
+  ],
+  "feedback_events": [
+    "workflow_failure",
+    "skill_followed"
+  ]
+}

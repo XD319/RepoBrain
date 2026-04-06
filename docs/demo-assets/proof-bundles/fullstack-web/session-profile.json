@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "updated_at": "2026-04-06T02:17:06.047Z",
+  "hints": [],
+  "skill_routing": [
+    {
+      "skill": "eslint",
+      "preference": "prefer",
+      "reason": "hotfix session: must run eslint on touched files"
+    }
+  ]
+}

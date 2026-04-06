@@ -81,6 +81,7 @@ brain session-promote --to memory --title "Notes from session" --type working
 
 - Executable demo proof: [docs/demo-proof.md](./docs/demo-proof.md)
 - Generated demo assets: [docs/demo-assets/typescript-cli-proof/transcript.md](./docs/demo-assets/typescript-cli-proof/transcript.md)
+- Proof bundles (CLI + web, route before/after, session, feedback): [docs/demo-assets/proof-bundles/README.md](./docs/demo-assets/proof-bundles/README.md)
 - Evaluation cases: [docs/evaluation.md](./docs/evaluation.md)
 - TypeScript CLI case study: [docs/case-studies/typescript-cli.md](./docs/case-studies/typescript-cli.md)
 - Full-stack web case study: [docs/case-studies/full-stack-web.md](./docs/case-studies/full-stack-web.md)
@@ -130,6 +131,7 @@ For the proof bundle used in README screenshots and release prep:
 
 ```bash
 npm run demo:proof
+npm run proof:bundles
 npm run eval:proof
 ```
 

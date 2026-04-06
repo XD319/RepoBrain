@@ -1,0 +1,27 @@
+Input: prefer playwright for e2e tests
+{
+  "kind": "routing_preference",
+  "target_type": "skill",
+  "target": "playwright",
+  "preference": "prefer",
+  "reason": "prefer playwright for e2e tests",
+  "confidence": 0.88,
+  "source": "proof-bundle",
+  "created_at": "2026-04-06T02:17:06.107Z",
+  "updated_at": "2026-04-06T02:17:06.107Z",
+  "status": "active"
+}
+
+Input: avoid cypress for new tests
+{
+  "kind": "routing_preference",
+  "target_type": "skill",
+  "target": "cypress",
+  "preference": "avoid",
+  "reason": "avoid cypress for new tests",
+  "confidence": 0.88,
+  "source": "proof-bundle",
+  "created_at": "2026-04-06T02:17:06.108Z",
+  "updated_at": "2026-04-06T02:17:06.108Z",
+  "status": "active"
+}

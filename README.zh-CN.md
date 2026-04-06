@@ -84,6 +84,7 @@ brain session-promote --to memory --title "会话备忘" --type working
 
 - 可执行 demo： [docs/demo-proof.zh-CN.md](./docs/demo-proof.zh-CN.md)
 - 真实 demo transcript： [docs/demo-assets/typescript-cli-proof/transcript.md](./docs/demo-assets/typescript-cli-proof/transcript.md)
+- Proof bundles（CLI + Web、路由前后对比、session、反馈）： [docs/demo-assets/proof-bundles/README.md](./docs/demo-assets/proof-bundles/README.md)
 - 评测案例： [docs/evaluation.zh-CN.md](./docs/evaluation.zh-CN.md)
 - TypeScript CLI case study： [docs/case-studies/typescript-cli.zh-CN.md](./docs/case-studies/typescript-cli.zh-CN.md)
 - 全栈 Web case study： [docs/case-studies/full-stack-web.zh-CN.md](./docs/case-studies/full-stack-web.zh-CN.md)
@@ -127,6 +128,7 @@ npm link
 
 ```bash
 npm run demo:proof
+npm run proof:bundles
 npm run eval:proof
 ```
 

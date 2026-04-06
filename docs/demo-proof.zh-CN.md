@@ -36,3 +36,24 @@ node scripts/generate-demo-proof.mjs --output-dir ./tmp/demo-proof
 - demo 仓库中生成的 `.brain/` memory 文件
 
 这些资产既可以直接被 README 链接，也可以作为录 GIF、做 smoke 演示和开源评估时的真实证据。
+
+## Proof bundles（偏好、session、路由对比、反馈）
+
+若需要在**单条 CLI transcript 之外**再提供一层证据，可运行：
+
+```bash
+npm run proof:bundles
+```
+
+脚本会生成两套代表性 bundle（TypeScript CLI + 全栈 web），默认输出在 [`docs/demo-assets/proof-bundles/`](./demo-assets/proof-bundles/README.md)，每套包含例如：
+
+| 资产 | 作用 |
+| --- | --- |
+| `preference-capture-output.txt` | 自然语言偏好抽取样例（确定性启发式） |
+| `route-before.json` / `route-after.json` | 同一任务与路径下，策略变更前后的路由快照 |
+| `route-with-session.json` | 叠加 `.brain/runtime/session-profile.json` 后的结果 |
+| `timeline-output.txt` | 记忆演化（CLI bundle 含 supersede 链） |
+| `feedback-loop-output.txt` | `applyRoutingFeedback` 的结果（候选、bump、强化提醒） |
+| `durable-memory-sample.md`、`preference-sample.md`、`session-profile.json` | 三层结构的快照 |
+
+可与 [`docs/evaluation.md`](./evaluation.md)（`npm run eval:proof`）对照阅读：自动化 case 覆盖与 Metrics 表。

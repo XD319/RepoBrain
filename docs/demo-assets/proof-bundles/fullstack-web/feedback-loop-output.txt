@@ -1,0 +1,11 @@
+{
+  "applied": [
+    {
+      "kind": "reinforcement_reminder_queued",
+      "detail": "Agent did not follow the suggested invocation plan for skills/routing. | Skill: playwright | Agent ignored Playwright hint; queue reinforcement for later human review.",
+      "event_type": "skill_ignored"
+    }
+  ],
+  "skipped": [],
+  "pending_review": []
+}

@@ -1,0 +1,2 @@
+Single active memory (no supersedes chain in this bundle).
+See route JSON for skill_evidence and routing_explanation.

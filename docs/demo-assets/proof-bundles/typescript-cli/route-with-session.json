@@ -1,0 +1,31 @@
+{
+  "task": "prepare npm release with checklist",
+  "paths": [
+    "package.json",
+    "docs/release-checklist.md"
+  ],
+  "invocation_plan": {
+    "required": [
+      "release-checklist"
+    ],
+    "prefer_first": [],
+    "optional_fallback": [],
+    "suppress": [
+      "npm-install-smoke",
+      "imagegen"
+    ],
+    "blocked": [],
+    "human_review": []
+  },
+  "routing_explanation": {
+    "notes": [
+      "Policy layers (highest precedence first): blocked_and_explicit_suppress (memory + policy) → required_skills (static memory) → session_profile_routing (beats stored preferences; does not beat memory suppress/block) → negative_preferences (avoid) → positive_preferences (prefer) → static_recommended_skills → optional_fallback_and_soft_signals",
+      "Session profile routing signals: 1 applicable entry from .brain/runtime/session-profile.json."
+    ],
+    "skill_evidence_keys": [
+      "imagegen",
+      "npm-install-smoke",
+      "release-checklist"
+    ]
+  }
+}

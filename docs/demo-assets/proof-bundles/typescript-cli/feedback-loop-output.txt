@@ -1,0 +1,25 @@
+=== workflow_failure → preference candidate ===
+{
+  "applied": [
+    {
+      "kind": "preference_candidate_saved",
+      "detail": "Saved avoid preference candidate: pref-workflow-adhoc-publish.md",
+      "event_type": "workflow_failure"
+    }
+  ],
+  "skipped": [],
+  "pending_review": []
+}
+
+=== skill_followed → confidence bump or pending ===
+{
+  "applied": [
+    {
+      "kind": "preference_confidence_bumped",
+      "detail": "Bumped prefer confidence for skill \"release-checklist\" from 0.720 to 0.777.",
+      "event_type": "skill_followed"
+    }
+  ],
+  "skipped": [],
+  "pending_review": []
+}

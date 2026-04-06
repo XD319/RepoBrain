@@ -20,6 +20,7 @@
     ".codex/INSTALL.md",
     "scripts/setup-git-hooks.sh",
     "scripts/generate-demo-proof.mjs",
+    "scripts/generate-proof-bundles.mjs",
     "scripts/run-proof-evals.mjs",
     "docs/team-workflow.md",
     "docs/team-workflow.zh-CN.md",
@@ -50,6 +51,7 @@
     "test": "npm run build && node scripts/run-tests.mjs",
     "smoke:package": "node scripts/smoke-package.mjs",
     "demo:proof": "node scripts/generate-demo-proof.mjs",
+    "proof:bundles": "node scripts/generate-proof-bundles.mjs",
     "eval:proof": "node scripts/run-proof-evals.mjs",
     "typecheck": "tsc --noEmit",
     "mcp": "node dist/mcp/server.js"

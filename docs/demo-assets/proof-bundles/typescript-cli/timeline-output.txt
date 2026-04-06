@@ -1,0 +1,5 @@
+Memory evolution chain (oldest → newest):
+- Release validation used npm pack dry-run only | status=active | file=.brain\conventions\2026-03-01-release-validation-used-npm-pack-dry-run-only-100000000.md
+- Release must run packaged install smoke before publish | status=active | file=.brain\decisions\2026-04-01-release-must-run-packaged-install-smoke-before-p-100000000.md
+
+Note: superseded memory is filtered from inject / routing consumption but remains in Git history.

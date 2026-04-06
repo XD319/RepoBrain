@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -27,6 +27,14 @@ const config = {
 };
 
 const results = [];
+/** @type {Record<string, unknown>} */
+const metrics = {
+  extraction_accept_reject: { durable_lesson_accepted: false, chatter_rejected: false },
+  preference_phrase_hits: { passed: 0, total: 0, phrases: [] },
+  route_traceability: { routing_explanation_layers: false, skill_evidence_keys: false },
+  stale_superseded_filter: { superseded_preference_skipped: false },
+  session_pollution: { memory_unchanged_after_session_write: false },
+};
 
 await runCase("extract_quality", "accepts a durable repo-specific lesson", async () => {
   const memories = await extractMemories(
@@ -40,6 +48,7 @@ await runCase("extract_quality", "accepts a durable repo-specific lesson", async
   assert.ok(memories.length >= 1);
   assert.ok(memories.some((entry) => entry.type === "decision"));
   assert.ok(memories.some((entry) => entry.files?.includes("docs/release-guide.md")));
+  metrics.extraction_accept_reject.durable_lesson_accepted = true;
 });
 
 await runCase("extract_quality", "rejects low-information status chatter", async () => {
@@ -49,6 +58,7 @@ await runCase("extract_quality", "rejects low-information status chatter", async
   );
 
   assert.equal(memories.length, 0);
+  metrics.extraction_accept_reject.chatter_rejected = true;
 });
 
 await runCase("inject_hit", "prioritizes the task-matched memory over generic guidance", async () => {
@@ -161,7 +171,331 @@ await runCase("review_supersede", "keeps novel routing guidance as accept", asyn
   });
 });
 
+// --- New proof-layer cases (preference, feedback, session, temporal) ---
+
+await runCase(
+  "feedback_negative_workflow",
+  "workflow_failure with workflow + notes saves avoid preference candidate",
+  async () => {
+    await withTempRepo(async (repoRoot) => {
+      const events = [
+        {
+          type: "workflow_failure",
+          workflow: "heavy-migration",
+          notes: "This migration workflow broke prod twice; stop auto-suggesting it until reviewed.",
+          signal_strength: 0.9,
+        },
+      ];
+      const result = await storeApi.applyRoutingFeedback(repoRoot, events);
+      const saved = result.applied.filter((a) => a.kind === "preference_candidate_saved");
+      assert.ok(saved.length >= 1, "expected preference_candidate_saved");
+      const prefs = await storeApi.loadStoredPreferenceRecords(repoRoot);
+      const wf = prefs.find((p) => p.preference.target === "heavy-migration");
+      assert.ok(wf, "expected saved preference file");
+      assert.equal(wf.preference.preference, "avoid");
+      assert.equal(wf.preference.status, "candidate");
+    });
+  },
+);
+
+await runCase(
+  "preference_routing",
+  "avoid preference moves a recommended skill into suppress in invocation_plan",
+  async () => {
+    await withTempRepo(async (repoRoot) => {
+      await storeApi.saveMemory(
+        {
+          type: "decision",
+          title: "Bundler choice",
+          summary: "Rollup for library builds.",
+          detail: "## DECISION\n\nUse rollup.",
+          tags: ["build"],
+          importance: "medium",
+          date: "2026-04-03T10:00:00.000Z",
+          status: "active",
+          recommended_skills: ["rollup"],
+          skill_trigger_tasks: ["library build", "bundle package"],
+          skill_trigger_paths: ["rollup.config.mjs"],
+          invocation_mode: "optional",
+          risk_level: "low",
+        },
+        repoRoot,
+      );
+
+      const before = await storeApi.buildSkillShortlist(repoRoot, {
+        task: "library build for npm",
+        paths: ["rollup.config.mjs"],
+        path_source: "explicit",
+      });
+      assert.ok(
+        !before.invocation_plan.suppress.includes("rollup"),
+        "rollup should not start in suppress without avoid preference",
+      );
+
+      await storeApi.savePreference(
+        {
+          kind: "routing_preference",
+          target_type: "skill",
+          target: "rollup",
+          preference: "avoid",
+          reason: "CI uses a different bundler pipeline; avoid rollup locally.",
+          confidence: 0.85,
+          source: "manual",
+          created_at: "2026-04-03T11:00:00.000Z",
+          updated_at: "2026-04-03T11:00:00.000Z",
+          status: "active",
+        },
+        repoRoot,
+      );
+
+      const after = await storeApi.buildSkillShortlist(repoRoot, {
+        task: "library build for npm",
+        paths: ["rollup.config.mjs"],
+        path_source: "explicit",
+      });
+      assert.ok(after.invocation_plan.suppress.includes("rollup"));
+      assert.ok(after.routing_explanation?.notes.some((n) => n.includes("Policy layers")));
+      assert.ok(Object.keys(after.routing_explanation?.skill_evidence ?? {}).includes("rollup"));
+      metrics.route_traceability.routing_explanation_layers = true;
+      metrics.route_traceability.skill_evidence_keys = true;
+    });
+  },
+);
+
+await runCase(
+  "superseded_preference",
+  "preference with superseded_by does not participate in routing",
+  async () => {
+    await withTempRepo(async (repoRoot) => {
+      await storeApi.saveMemory(
+        {
+          type: "decision",
+          title: "Lint tooling",
+          summary: "ESLint and Prettier both mentioned.",
+          detail: "## DECISION\n\nLint.",
+          tags: ["lint"],
+          importance: "medium",
+          date: "2026-04-03T10:00:00.000Z",
+          status: "active",
+          recommended_skills: ["eslint", "prettier"],
+          skill_trigger_tasks: ["fix lint"],
+          skill_trigger_paths: [".eslintrc.cjs"],
+          invocation_mode: "optional",
+          risk_level: "low",
+        },
+        repoRoot,
+      );
+
+      const eslintPath = await storeApi.savePreference(
+        {
+          kind: "routing_preference",
+          target_type: "skill",
+          target: "eslint",
+          preference: "prefer",
+          reason: "legacy: prefer eslint",
+          confidence: 0.9,
+          source: "manual",
+          created_at: "2026-04-03T10:00:00.000Z",
+          updated_at: "2026-04-03T10:00:00.000Z",
+          status: "active",
+        },
+        repoRoot,
+      );
+
+      const prettierPath = await storeApi.savePreference(
+        {
+          kind: "routing_preference",
+          target_type: "skill",
+          target: "prettier",
+          preference: "prefer",
+          reason: "team switched to prettier-first formatting",
+          confidence: 0.88,
+          source: "manual",
+          created_at: "2026-04-03T11:00:00.000Z",
+          updated_at: "2026-04-03T11:00:00.000Z",
+          status: "active",
+        },
+        repoRoot,
+      );
+
+      const records = await storeApi.loadStoredPreferenceRecords(repoRoot);
+      const eslintRecord = records.find((r) => r.filePath === eslintPath);
+      const prettierRel = eslintRecord
+        ? records.find((r) => r.filePath === prettierPath)?.relativePath
+        : null;
+      assert.ok(eslintRecord && prettierRel);
+
+      await storeApi.overwriteStoredPreference({
+        ...eslintRecord,
+        preference: {
+          ...eslintRecord.preference,
+          status: "active",
+          superseded_by: prettierRel,
+          updated_at: new Date().toISOString(),
+        },
+      });
+
+      const routed = await storeApi.buildSkillShortlist(repoRoot, {
+        task: "fix lint in config",
+        paths: [".eslintrc.cjs"],
+        path_source: "explicit",
+      });
+
+      const skipped = routed.routing_explanation?.notes.filter((n) => n.includes("eslint")) ?? [];
+      assert.ok(
+        skipped.some((n) => n.includes("superseded") || n.toLowerCase().includes("skipped preference")),
+        "expected skipped superseded eslint preference in routing notes",
+      );
+      assert.ok(
+        !routed.resolved_skills
+          .find((s) => s.skill === "eslint")
+          ?.sources.some((s) => s.relation === "preference_prefer"),
+        "superseded eslint prefer should not apply",
+      );
+      metrics.stale_superseded_filter.superseded_preference_skipped = true;
+    });
+  },
+);
+
+await runCase(
+  "session_profile_routing",
+  "session skill_routing beats stored ordinary preference on the same skill",
+  async () => {
+    await withTempRepo(async (repoRoot) => {
+      await storeApi.savePreference(
+        {
+          kind: "routing_preference",
+          target_type: "skill",
+          target: "jest",
+          preference: "prefer",
+          reason: "stored default",
+          confidence: 0.9,
+          source: "manual",
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          status: "active",
+        },
+        repoRoot,
+      );
+
+      await writeSessionProfile(repoRoot, {
+        skill_routing: [{ skill: "jest", preference: "avoid", reason: "this session: skip jest" }],
+      });
+
+      const withSession = await storeApi.buildSkillShortlist(repoRoot, {
+        task: "run unit tests",
+        paths: [],
+        path_source: "none",
+      });
+      const jestSkill = withSession.resolved_skills.find((s) => s.skill === "jest");
+      assert.ok(jestSkill?.sources.some((s) => s.relation === "preference_prefer"));
+      assert.ok(jestSkill?.sources.some((s) => s.relation === "session_avoid"));
+      assert.equal(jestSkill?.plan_slot, "suppress");
+    });
+  },
+);
+
+await runCase(
+  "session_pollution",
+  "writing session profile does not add durable memory files",
+  async () => {
+    await withTempRepo(async (repoRoot) => {
+      await storeApi.saveMemory(
+        {
+          type: "decision",
+          title: "Durable only",
+          summary: "x",
+          detail: "## DECISION\n\nx",
+          tags: [],
+          importance: "low",
+          date: "2026-04-03T10:00:00.000Z",
+          status: "active",
+        },
+        repoRoot,
+      );
+
+      const before = await storeApi.loadStoredMemoryRecords(repoRoot);
+      await writeSessionProfile(repoRoot, {
+        hints: ["ephemeral scratch note that must not become a memory"],
+        skill_routing: [{ skill: "vitest", preference: "prefer" }],
+      });
+      const after = await storeApi.loadStoredMemoryRecords(repoRoot);
+      assert.equal(after.length, before.length);
+      metrics.session_pollution.memory_unchanged_after_session_write = true;
+    });
+  },
+);
+
+await runCase(
+  "routing_feedback_loop",
+  "positive routing feedback bumps prefer confidence; skill_ignored queues reinforcement",
+  async () => {
+    await withTempRepo(async (repoRoot) => {
+      await storeApi.savePreference(
+        {
+          kind: "routing_preference",
+          target_type: "skill",
+          target: "release-checklist",
+          preference: "prefer",
+          reason: "baseline",
+          confidence: 0.7,
+          source: "manual",
+          created_at: "2026-04-03T09:00:00.000Z",
+          updated_at: "2026-04-03T09:00:00.000Z",
+          status: "active",
+        },
+        repoRoot,
+      );
+
+      const bumpResult = await storeApi.applyRoutingFeedback(repoRoot, [
+        {
+          type: "skill_followed",
+          skill: "release-checklist",
+          notes: "Followed the checklist exactly; signal for reinforcement loop.",
+          signal_strength: 0.95,
+        },
+      ]);
+      assert.ok(
+        bumpResult.applied.some((a) => a.kind === "preference_confidence_bumped"),
+        "expected confidence bump from positive feedback",
+      );
+
+      const reinforce = await storeApi.applyRoutingFeedback(repoRoot, [
+        {
+          type: "skill_ignored",
+          skill: "eslint",
+          notes: "Agent ignored eslint suggestion from invocation plan; track for later review.",
+          signal_strength: 0.9,
+        },
+      ]);
+      assert.ok(
+        reinforce.applied.some((a) => a.kind === "reinforcement_reminder_queued"),
+        "expected reinforcement reminder",
+      );
+    });
+  },
+);
+
+await runCase("preference_phrase_precision", "representative NL phrases extract intended targets", async () => {
+  const table = [
+    { input: "I prefer playwright for our browser tests", expectTarget: "playwright", expectPref: "prefer" },
+    { input: "Please avoid jest for unit tests in this package", expectTarget: "jest", expectPref: "avoid" },
+  ];
+  for (const row of table) {
+    metrics.preference_phrase_hits.total += 1;
+    const p = storeApi.extractPreferenceFromNaturalLanguage(row.input, "eval");
+    assert.ok(p, `expected extraction for: ${row.input}`);
+    assert.equal(p.target.toLowerCase(), row.expectTarget);
+    assert.equal(p.preference, row.expectPref);
+    metrics.preference_phrase_hits.passed += 1;
+    metrics.preference_phrase_hits.phrases.push({ sample: row.input.slice(0, 48), ok: true });
+  }
+  const vague = storeApi.extractPreferenceFromNaturalLanguage("maybe prefer eslint later");
+  assert.equal(vague, null);
+});
+
 renderResults(results);
+renderMetrics(metrics);
 
 async function assertBuilt() {
   const candidates = [storeApiPath, extractPath, injectPath];
@@ -197,6 +531,18 @@ async function withTempRepo(callback) {
   }
 }
 
+async function writeSessionProfile(repoRoot, data) {
+  const runtimeDir = path.join(repoRoot, ".brain", "runtime");
+  await mkdir(runtimeDir, { recursive: true });
+  const profile = {
+    version: 1,
+    updated_at: new Date().toISOString(),
+    hints: [],
+    ...data,
+  };
+  await writeFile(path.join(runtimeDir, "session-profile.json"), `${JSON.stringify(profile, null, 2)}\n`, "utf8");
+}
+
 function renderResults(entries) {
   const grouped = new Map();
   for (const entry of entries) {
@@ -216,4 +562,29 @@ function renderResults(entries) {
     }
     process.stdout.write("\n");
   }
+}
+
+function renderMetrics(m) {
+  process.stdout.write("## Metrics (deterministic checks)\n\n");
+  process.stdout.write("| Metric | Result |\n");
+  process.stdout.write("| --- | --- |\n");
+  process.stdout.write(
+    "| Extraction accept / reject | " +
+      `lesson=${m.extraction_accept_reject.durable_lesson_accepted}, chatter_rejected=${m.extraction_accept_reject.chatter_rejected} |\n`,
+  );
+  process.stdout.write(
+    "| Preference phrase precision (sampled) | " +
+      `${m.preference_phrase_hits.passed}/${m.preference_phrase_hits.total} phrases matched expected target+value |\n`,
+  );
+  process.stdout.write(
+    "| Route traceability | routing_explanation layers + per-skill evidence: " +
+      `layers=${m.route_traceability.routing_explanation_layers}, evidence=${m.route_traceability.skill_evidence_keys} |\n`,
+  );
+  process.stdout.write(
+    `| Stale / superseded filtering | superseded preference skipped in routing: ${m.stale_superseded_filter.superseded_preference_skipped} |\n`,
+  );
+  process.stdout.write(
+    `| Session pollution prevention | memory file count unchanged after session write: ${m.session_pollution.memory_unchanged_after_session_write} |\n`,
+  );
+  process.stdout.write("\n");
 }

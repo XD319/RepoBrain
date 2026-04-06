@@ -1,0 +1,12 @@
+{
+  "kind": "repobrain.proof_bundle",
+  "flavor": "fullstack-web",
+  "route_artifacts": [
+    "route-before.json",
+    "route-after.json",
+    "route-with-session.json"
+  ],
+  "feedback_events": [
+    "skill_ignored"
+  ]
+}

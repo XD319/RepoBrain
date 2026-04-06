@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "updated_at": "2026-04-06T02:17:05.814Z",
+  "hints": [
+    "This session: prioritize checklist over extra smoke scripts."
+  ],
+  "skill_routing": [
+    {
+      "skill": "npm-install-smoke",
+      "preference": "prefer",
+      "reason": "temporary: reproduce customer install bug"
+    }
+  ]
+}
