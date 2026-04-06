@@ -104,10 +104,7 @@ await runTest("returns should_extract=false for debug-only work", () => {
 await runTest("returns should_extract=false for snapshot-only changes", () => {
   const result = evaluateExtractWorthiness({
     commitMessage: "update snapshots",
-    changedFiles: [
-      "test/__snapshots__/app.snap",
-      "test/__snapshots__/header.snap",
-    ],
+    changedFiles: ["test/__snapshots__/app.snap", "test/__snapshots__/header.snap"],
   });
 
   assert.equal(result.should_extract, false);
@@ -125,7 +122,7 @@ await runTest("returns should_extract=false for merge commits", () => {
 
 await runTest("returns should_extract=false for revert commits", () => {
   const result = evaluateExtractWorthiness({
-    commitMessage: "Revert \"feat: add new login flow\"",
+    commitMessage: 'Revert "feat: add new login flow"',
   });
 
   assert.equal(result.should_extract, false);
@@ -145,12 +142,7 @@ await runTest("detects cross-module changes as positive signal", () => {
   const result = evaluateExtractWorthiness({
     sessionSummary:
       "Decided to refactor the authentication module because the old pattern was causing race conditions in the API layer.",
-    changedFiles: [
-      "src/auth/login.ts",
-      "src/api/routes.ts",
-      "db/migrations/001.sql",
-      "test/auth.test.ts",
-    ],
+    changedFiles: ["src/auth/login.ts", "src/api/routes.ts", "db/migrations/001.sql", "test/auth.test.ts"],
   });
 
   assert.equal(result.should_extract, true);
@@ -200,8 +192,7 @@ await runTest("ambiguous input produces low confidence", () => {
 
 await runTest("Chinese gotcha language is detected", () => {
   const result = evaluateExtractWorthiness({
-    sessionSummary:
-      "不要直接往 payments 表里写数据，否则会导致数据丢失。必须通过 transaction helper 来操作。",
+    sessionSummary: "不要直接往 payments 表里写数据，否则会导致数据丢失。必须通过 transaction helper 来操作。",
   });
 
   assert.equal(result.should_extract, true);
@@ -248,7 +239,8 @@ await runTest("rename-only changes are suppressed", () => {
 
 await runTest("CI config-only changes are suppressed when no learning signal", () => {
   const result = evaluateExtractWorthiness({
-    sessionSummary: "Updated the GitHub Actions config to add node version 22 to the build matrix for broader compatibility.",
+    sessionSummary:
+      "Updated the GitHub Actions config to add node version 22 to the build matrix for broader compatibility.",
     changedFiles: [".github/workflows/ci.yml"],
   });
 
@@ -258,8 +250,7 @@ await runTest("CI config-only changes are suppressed when no learning signal", (
 
 await runTest("renderExtractSuggestionMarkdown produces valid markdown output", () => {
   const result = evaluateExtractWorthiness({
-    sessionSummary:
-      "We decided to use tsup because it produces clean ESM output. Never use webpack for this project.",
+    sessionSummary: "We decided to use tsup because it produces clean ESM output. Never use webpack for this project.",
   });
 
   const md = renderExtractSuggestionMarkdown(result);
@@ -321,7 +312,10 @@ await runTest("confidence is always between 0 and 1", () => {
   const inputs = [
     { sessionSummary: "" },
     { sessionSummary: "ok" },
-    { sessionSummary: "Decided to adopt because of safety. Must not skip. Never ignore. Avoid data loss. Risk of regression." },
+    {
+      sessionSummary:
+        "Decided to adopt because of safety. Must not skip. Never ignore. Avoid data loss. Risk of regression.",
+    },
     { commitMessage: "Merge branch 'x'" },
     { commitMessage: "Revert everything", sessionSummary: "console.log debug temporary" },
   ];
@@ -446,10 +440,14 @@ await runTest("phase completion without any content-value signals => suppressed"
 
 await runTest("diff scope threshold acts as phase-completion signal", () => {
   const result = evaluateExtractWorthiness({
-    sessionSummary: "Decided to standardize all API error responses because inconsistent formats were confusing the frontend team.",
+    sessionSummary:
+      "Decided to standardize all API error responses because inconsistent formats were confusing the frontend team.",
     changedFiles: [
-      "src/api/users.ts", "src/api/products.ts", "src/api/orders.ts",
-      "src/api/payments.ts", "src/api/errors.ts",
+      "src/api/users.ts",
+      "src/api/products.ts",
+      "src/api/orders.ts",
+      "src/api/payments.ts",
+      "src/api/errors.ts",
     ],
     diffStat: " 5 files changed, 85 insertions(+), 30 deletions(-)",
   });
@@ -471,7 +469,8 @@ await runTest("Chinese user text '这一版可以' triggers user_phase_done", ()
 await runTest("English user text 'let's move on' triggers user_phase_done", () => {
   const result = evaluateExtractWorthiness({
     task: "Looks good, let's move on to the next feature",
-    sessionSummary: "Adopted a convention: always put migration files under db/migrations/ with YYYYMMDD_description.sql naming.",
+    sessionSummary:
+      "Adopted a convention: always put migration files under db/migrations/ with YYYYMMDD_description.sql naming.",
   });
 
   assert.equal(result.should_extract, true);

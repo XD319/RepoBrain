@@ -55,7 +55,8 @@ await runTest("isSafeForAutoApproval rejects temporary-looking memories", async 
         type: "pattern",
         title: "Debug only pattern for error logging",
         summary: "This debug only pattern logs extra context when debugging auth issues locally.",
-        detail: "## PATTERN\n\nThis debug only pattern logs extra context when debugging auth issues locally. Should not go into production.",
+        detail:
+          "## PATTERN\n\nThis debug only pattern logs extra context when debugging auth issues locally. Should not go into production.",
         tags: ["debug"],
         importance: "low",
         date: "2026-04-01T08:00:00.000Z",
@@ -70,10 +71,7 @@ await runTest("isSafeForAutoApproval rejects temporary-looking memories", async 
     assert.ok(candidate);
     assert.equal(looksTemporary(candidate.memory), true);
 
-    const review = reviewCandidateMemory(
-      candidate.memory,
-      [],
-    );
+    const review = reviewCandidateMemory(candidate.memory, []);
 
     assert.equal(isSafeForAutoApproval(candidate.memory, review), false);
   });
@@ -86,7 +84,8 @@ await runTest("isSafeForAutoApproval accepts novel non-working non-temporary can
         type: "convention",
         title: "Use structured logging for all API handlers",
         summary: "API handlers should use the structured logger instead of console.log for consistent log formats.",
-        detail: "## CONVENTION\n\nAPI handlers should use the structured logger instead of console.log for consistent log formats across staging and production.",
+        detail:
+          "## CONVENTION\n\nAPI handlers should use the structured logger instead of console.log for consistent log formats across staging and production.",
         tags: ["api", "logging"],
         importance: "medium",
         date: "2026-04-01T08:00:00.000Z",
@@ -100,10 +99,7 @@ await runTest("isSafeForAutoApproval accepts novel non-working non-temporary can
     const candidate = records[0];
     assert.ok(candidate);
 
-    const review = reviewCandidateMemory(
-      candidate.memory,
-      [],
-    );
+    const review = reviewCandidateMemory(candidate.memory, []);
 
     assert.equal(review.decision, "accept");
     assert.equal(review.reason, "novel_memory");
@@ -133,7 +129,8 @@ await runTest("isSafeForAutoApproval rejects merge/supersede candidates", async 
         type: "decision",
         title: "Keep refund writes inside the transaction helper",
         summary: "Refund writes should also stay inside the transaction helper so the same rollback rule applies.",
-        detail: "## DECISION\n\nRefund writes should also stay inside the transaction helper so the same rollback rule applies.",
+        detail:
+          "## DECISION\n\nRefund writes should also stay inside the transaction helper so the same rollback rule applies.",
         tags: ["payments", "refunds"],
         importance: "medium",
         date: "2026-04-01T10:00:00.000Z",
@@ -189,7 +186,8 @@ await runTest("brain promote-candidates promotes safe candidates and keeps unsaf
         type: "pattern",
         title: "Use focused fixtures for CLI smoke tests",
         summary: "CLI smoke tests stay easier to debug with focused fixtures instead of the full demo repo.",
-        detail: "## PATTERN\n\nCLI smoke tests stay easier to debug with focused fixtures instead of the full demo repo.",
+        detail:
+          "## PATTERN\n\nCLI smoke tests stay easier to debug with focused fixtures instead of the full demo repo.",
         tags: ["cli", "tests"],
         importance: "medium",
         date: "2026-04-01T09:00:00.000Z",
@@ -204,7 +202,8 @@ await runTest("brain promote-candidates promotes safe candidates and keeps unsaf
         type: "decision",
         title: "Keep refund writes inside the transaction helper",
         summary: "Refund writes should also stay inside the transaction helper so the same rollback rule applies.",
-        detail: "## DECISION\n\nRefund writes should also stay inside the transaction helper so the same rollback rule applies.",
+        detail:
+          "## DECISION\n\nRefund writes should also stay inside the transaction helper so the same rollback rule applies.",
         tags: ["payments", "refunds"],
         importance: "medium",
         date: "2026-04-01T10:00:00.000Z",
@@ -237,7 +236,8 @@ await runTest("brain promote-candidates --dry-run does not change files", async 
         type: "convention",
         title: "Use structured logging for all API handlers",
         summary: "API handlers should use the structured logger instead of console.log for consistent log formats.",
-        detail: "## CONVENTION\n\nAPI handlers should use the structured logger instead of console.log for consistent log formats across staging and production.",
+        detail:
+          "## CONVENTION\n\nAPI handlers should use the structured logger instead of console.log for consistent log formats across staging and production.",
         tags: ["api", "logging"],
         importance: "medium",
         date: "2026-04-01T08:00:00.000Z",
@@ -266,7 +266,8 @@ await runTest("brain promote-candidates skips working memories even when review 
         type: "working",
         title: "Current refactor context for payment module redesign",
         summary: "Keep context about the ongoing payment module redesign effort available during this sprint.",
-        detail: "## WORKING\n\nKeep context about the ongoing payment module redesign effort available during this sprint.",
+        detail:
+          "## WORKING\n\nKeep context about the ongoing payment module redesign effort available during this sprint.",
         tags: ["payments"],
         importance: "medium",
         date: "2026-04-01T08:00:00.000Z",

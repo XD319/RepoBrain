@@ -71,27 +71,18 @@ const DEP_BUMP_PATTERN =
   /\b(?:bump version|upgrade dep|npm install|pnpm install|yarn install|dependency update|renovate|dependabot)\b|(?:升级依赖|依赖更新)/iu;
 const DEP_FILE_PATTERN =
   /(?:package-lock\.json|pnpm-lock\.yaml|yarn\.lock|package\.json|Gemfile\.lock|Cargo\.lock|go\.sum|requirements\.txt|poetry\.lock)$/i;
-const TYPO_PATTERN =
-  /\b(?:typo|spelling|fix typo|typo fix)\b|(?:修个 ?typo|拼写错误)/iu;
+const TYPO_PATTERN = /\b(?:typo|spelling|fix typo|typo fix)\b|(?:修个 ?typo|拼写错误)/iu;
 const DEBUG_PATTERN =
   /\b(?:console\.log|debug log|printf?\(|print\(|temporary|temp|for now|today only|one-off|debug only|wip)\b|(?:临时|暂时|一次性|仅调试|本次|这轮|打印日志|调试日志)/iu;
-const SNAPSHOT_PATTERN =
-  /(?:__snapshots__|\.snap)$/i;
-const CI_CONFIG_PATTERN =
-  /(?:\.github\/workflows\/|Jenkinsfile|\.gitlab-ci\.yml|\.circleci\/|\.travis\.yml)/i;
-const MERGE_COMMIT_PATTERN =
-  /^Merge (?:branch|pull request|remote)/iu;
-const REVERT_PATTERN =
-  /^Revert\b|(?:^revert[:\s])/iu;
-const RENAME_ONLY_PATTERN =
-  /\b(?:rename|moved? file|renamed?)\b/iu;
+const SNAPSHOT_PATTERN = /(?:__snapshots__|\.snap)$/i;
+const CI_CONFIG_PATTERN = /(?:\.github\/workflows\/|Jenkinsfile|\.gitlab-ci\.yml|\.circleci\/|\.travis\.yml)/i;
+const MERGE_COMMIT_PATTERN = /^Merge (?:branch|pull request|remote)/iu;
+const REVERT_PATTERN = /^Revert\b|(?:^revert[:\s])/iu;
+const RENAME_ONLY_PATTERN = /\b(?:rename|moved? file|renamed?)\b/iu;
 
-const SCHEMA_MIGRATION_PATTERN =
-  /(?:migration|migrate|schema|\.sql$)/i;
-const TEST_FIX_PATTERN =
-  /\b(?:fix(?:ed|es)?|failure|failing|broken|flaky)\b/iu;
-const TEST_FILE_PATTERN =
-  /(?:\.test\.|\.spec\.|__tests__|test\/|tests\/|fixture)/i;
+const SCHEMA_MIGRATION_PATTERN = /(?:migration|migrate|schema|\.sql$)/i;
+const TEST_FIX_PATTERN = /\b(?:fix(?:ed|es)?|failure|failing|broken|flaky)\b/iu;
+const TEST_FILE_PATTERN = /(?:\.test\.|\.spec\.|__tests__|test\/|tests\/|fixture)/i;
 
 // --- Phase-completion signal patterns ---
 
@@ -119,8 +110,7 @@ interface SignalRule {
 const POSITIVE_RULES: SignalRule[] = [
   {
     name: "architecture_decision",
-    test: (_input, combined) =>
-      DECISION_PATTERN.test(combined) && DECISION_RATIONALE_PATTERN.test(combined),
+    test: (_input, combined) => DECISION_PATTERN.test(combined) && DECISION_RATIONALE_PATTERN.test(combined),
     weight: 3.0,
     signal: "positive",
     detail: () => "Detected architecture or technology decision with rationale.",
@@ -203,8 +193,7 @@ const POSITIVE_RULES: SignalRule[] = [
   },
   {
     name: "schema_or_migration",
-    test: (input) =>
-      (input.changedFiles ?? []).some((f) => SCHEMA_MIGRATION_PATTERN.test(f)),
+    test: (input) => (input.changedFiles ?? []).some((f) => SCHEMA_MIGRATION_PATTERN.test(f)),
     weight: 2.0,
     signal: "positive",
     detail: () => "Changed files include schema or migration artifacts.",
@@ -212,8 +201,7 @@ const POSITIVE_RULES: SignalRule[] = [
   },
   {
     name: "decision_keyword_only",
-    test: (_input, combined) =>
-      DECISION_PATTERN.test(combined) && !DECISION_RATIONALE_PATTERN.test(combined),
+    test: (_input, combined) => DECISION_PATTERN.test(combined) && !DECISION_RATIONALE_PATTERN.test(combined),
     weight: 1.5,
     signal: "positive",
     detail: () => "Decision keyword found without explicit rationale.",
@@ -245,8 +233,7 @@ const NEGATIVE_RULES: SignalRule[] = [
   },
   {
     name: "typo_fix",
-    test: (input, combined) =>
-      TYPO_PATTERN.test(combined) && (input.changedFiles ?? []).length <= 2,
+    test: (input, combined) => TYPO_PATTERN.test(combined) && (input.changedFiles ?? []).length <= 2,
     weight: -3.5,
     signal: "negative",
     detail: () => "Change is a simple typo fix across few files.",
@@ -263,8 +250,7 @@ const NEGATIVE_RULES: SignalRule[] = [
   {
     name: "single_line_change",
     test: (input) =>
-      parseDiffStatTotalLines(input.diffStat ?? "") <= 3 &&
-      parseDiffStatTotalLines(input.diffStat ?? "") > 0,
+      parseDiffStatTotalLines(input.diffStat ?? "") <= 3 && parseDiffStatTotalLines(input.diffStat ?? "") > 0,
     weight: -2.5,
     signal: "negative",
     detail: (input) => `Diff stat shows only ${parseDiffStatTotalLines(input.diffStat ?? "")} line(s) changed.`,
@@ -273,8 +259,7 @@ const NEGATIVE_RULES: SignalRule[] = [
   {
     name: "snapshot_update",
     test: (input) =>
-      (input.changedFiles ?? []).length > 0 &&
-      (input.changedFiles ?? []).every((f) => SNAPSHOT_PATTERN.test(f)),
+      (input.changedFiles ?? []).length > 0 && (input.changedFiles ?? []).every((f) => SNAPSHOT_PATTERN.test(f)),
     weight: -4.0,
     signal: "negative",
     detail: () => "All changed files are test snapshots.",
@@ -309,9 +294,7 @@ const NEGATIVE_RULES: SignalRule[] = [
   },
   {
     name: "rename_only",
-    test: (input, combined) =>
-      RENAME_ONLY_PATTERN.test(combined) &&
-      !hasAnyPositiveContentSignal(combined),
+    test: (input, combined) => RENAME_ONLY_PATTERN.test(combined) && !hasAnyPositiveContentSignal(combined),
     weight: -3.0,
     signal: "negative",
     detail: () => "Change appears to be a rename-only operation.",
@@ -389,10 +372,7 @@ const PHASE_COMPLETION_RULES: PhaseCompletionRule[] = [
   },
 ];
 
-function detectPhaseCompletionSignals(
-  input: ExtractSuggestionInput,
-  combined: string,
-): PhaseCompletionSignal[] {
+function detectPhaseCompletionSignals(input: ExtractSuggestionInput, combined: string): PhaseCompletionSignal[] {
   const signals: PhaseCompletionSignal[] = [];
   for (const rule of PHASE_COMPLETION_RULES) {
     if (rule.test(input, combined)) {
@@ -413,9 +393,7 @@ function computePhaseBoost(signals: PhaseCompletionSignal[]): number {
   return Math.min(raw, PHASE_BOOST_MAX);
 }
 
-export function evaluateExtractWorthiness(
-  input: ExtractSuggestionInput,
-): ExtractSuggestionResult {
+export function evaluateExtractWorthiness(input: ExtractSuggestionInput): ExtractSuggestionResult {
   const combined = buildCombinedText(input);
   const evidence: ExtractSuggestionEvidence[] = [];
   const suppressions: ExtractSuggestionSuppression[] = [];
@@ -449,12 +427,8 @@ export function evaluateExtractWorthiness(
     }
   }
 
-  const positiveScore = evidence
-    .filter((e) => e.signal === "positive")
-    .reduce((sum, e) => sum + e.weight, 0);
-  const negativeScore = evidence
-    .filter((e) => e.signal === "negative")
-    .reduce((sum, e) => sum + e.weight, 0);
+  const positiveScore = evidence.filter((e) => e.signal === "positive").reduce((sum, e) => sum + e.weight, 0);
+  const negativeScore = evidence.filter((e) => e.signal === "negative").reduce((sum, e) => sum + e.weight, 0);
 
   const phaseSignals = detectPhaseCompletionSignals(input, combined);
   const phaseBoost = computePhaseBoost(phaseSignals);
@@ -509,9 +483,7 @@ export function evaluateExtractWorthiness(
   }
 
   if (suppressions.length > 0 && should_extract) {
-    reasons.push(
-      `${suppressions.length} suppression signal(s) detected but overridden by stronger positive evidence.`,
-    );
+    reasons.push(`${suppressions.length} suppression signal(s) detected but overridden by stronger positive evidence.`);
   }
 
   const summary = buildSummary(should_extract, confidence, suggested_type, reasons, evidence, phaseSignals);

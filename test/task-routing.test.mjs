@@ -50,7 +50,10 @@ await runTest("task routing returns a combined bundle", async () => {
     assert.match(parsed.context_markdown, /# Project Brain: Repo Knowledge Context/);
     assert.match(parsed.context_markdown, /Refund fixes must use the refund handler/);
     assert.deepEqual(parsed.skill_plan.required, ["refund-handler"]);
-    assert.deepEqual(parsed.resolved_skills.map((entry) => entry.skill), ["refund-handler"]);
+    assert.deepEqual(
+      parsed.resolved_skills.map((entry) => entry.skill),
+      ["refund-handler"],
+    );
     assert.equal(parsed.display_mode, "silent-ok");
   });
 });

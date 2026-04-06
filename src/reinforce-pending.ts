@@ -33,10 +33,7 @@ export async function loadPendingReinforcementState(projectRoot: string): Promis
   }
 }
 
-export async function savePendingReinforcementEvents(
-  projectRoot: string,
-  events: FailureEvent[],
-): Promise<void> {
+export async function savePendingReinforcementEvents(projectRoot: string, events: FailureEvent[]): Promise<void> {
   const pendingPath = getPendingReinforcementPath(projectRoot);
   const current = await loadPendingReinforcementState(projectRoot);
   const merged = dedupeFailureEvents([...current.events, ...events]);
@@ -144,15 +141,15 @@ function parsePendingReinforcementState(raw: string): PendingReinforcementState 
       : [];
 
     const routing_feedback_reminders = Array.isArray(parsed.routing_feedback_reminders)
-      ? parsed.routing_feedback_reminders.map(parseRoutingFeedbackReminder).filter((r): r is RoutingFeedbackReminder => r !== null)
+      ? parsed.routing_feedback_reminders
+          .map(parseRoutingFeedbackReminder)
+          .filter((r): r is RoutingFeedbackReminder => r !== null)
       : undefined;
 
     return {
       updatedAt: typeof parsed.updatedAt === "string" ? parsed.updatedAt : "",
       events,
-      ...(routing_feedback_reminders && routing_feedback_reminders.length > 0
-        ? { routing_feedback_reminders }
-        : {}),
+      ...(routing_feedback_reminders && routing_feedback_reminders.length > 0 ? { routing_feedback_reminders } : {}),
     };
   } catch {
     return {

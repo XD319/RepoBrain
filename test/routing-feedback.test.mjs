@@ -19,7 +19,9 @@ import {
 } from "../dist/store-api.js";
 
 await runTest("parseRoutingFeedbackStdin accepts JSON array and NDJSON", () => {
-  const a = parseRoutingFeedbackStdin(`[{"type":"skill_ignored","skill":"jest","notes":"plan asked for jest but agent used mocha"}]`);
+  const a = parseRoutingFeedbackStdin(
+    `[{"type":"skill_ignored","skill":"jest","notes":"plan asked for jest but agent used mocha"}]`,
+  );
   assert.equal(a.length, 1);
   assert.equal(a[0].type, "skill_ignored");
 

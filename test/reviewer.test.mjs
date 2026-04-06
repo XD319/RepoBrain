@@ -36,7 +36,8 @@ await runTest("accepts a novel memory when no strong overlap exists", async () =
       {
         type: "pattern",
         title: "Use focused fixtures for CLI smoke tests",
-        summary: "CLI smoke tests stay easier to debug when they rely on focused fixtures instead of the full demo repo.",
+        summary:
+          "CLI smoke tests stay easier to debug when they rely on focused fixtures instead of the full demo repo.",
         detail:
           "## PATTERN\n\nCLI smoke tests stay easier to debug when they rely on focused fixtures instead of the full demo repo.",
         tags: ["cli", "tests"],
@@ -61,7 +62,8 @@ await runTest("marks additive updates in the same scope as merge", async () => {
       {
         type: "decision",
         title: "Keep payment writes inside the transaction helper",
-        summary: "Refund and chargeback writes should stay inside the transaction helper to preserve rollback behavior.",
+        summary:
+          "Refund and chargeback writes should stay inside the transaction helper to preserve rollback behavior.",
         detail:
           "## DECISION\n\nRefund and chargeback writes should stay inside the transaction helper to preserve rollback behavior.",
         tags: ["payments", "transactions"],
@@ -78,7 +80,8 @@ await runTest("marks additive updates in the same scope as merge", async () => {
       {
         type: "decision",
         title: "Keep refund writes inside the transaction helper",
-        summary: "Refund update flows should also use the transaction helper so the same rollback rule applies everywhere.",
+        summary:
+          "Refund update flows should also use the transaction helper so the same rollback rule applies everywhere.",
         detail:
           "## DECISION\n\nRefund update flows should also use the transaction helper so the same rollback rule applies everywhere, extending the existing payments guidance.",
         tags: ["payments", "refunds"],
@@ -135,7 +138,8 @@ await runTest("prefers the active target over a candidate when both are merge ma
       {
         type: "decision",
         title: "Keep billing writes inside the transaction helper",
-        summary: "Billing reconciliation flows should also stay inside the transaction helper so the same rollback rule applies.",
+        summary:
+          "Billing reconciliation flows should also stay inside the transaction helper so the same rollback rule applies.",
         detail:
           "## DECISION\n\nBilling reconciliation flows should also stay inside the transaction helper so the same rollback rule applies to every billing mutation path.",
         tags: ["billing", "reconciliation"],
@@ -200,8 +204,7 @@ await runTest("merges an exact duplicate into the existing durable memory", asyn
         type: "gotcha",
         title: "Do not commit generated demo data",
         summary: "Generated demo data goes stale quickly and should stay out of the repository history.",
-        detail:
-          "## GOTCHA\n\nGenerated demo data goes stale quickly and should stay out of the repository history.",
+        detail: "## GOTCHA\n\nGenerated demo data goes stale quickly and should stay out of the repository history.",
         tags: ["git", "demo-data"],
         importance: "medium",
         date: "2026-04-01T08:00:00.000Z",
@@ -217,8 +220,7 @@ await runTest("merges an exact duplicate into the existing durable memory", asyn
         type: "gotcha",
         title: "Do not commit generated demo data",
         summary: "Generated demo data goes stale quickly and should stay out of the repository history.",
-        detail:
-          "## GOTCHA\n\nGenerated demo data goes stale quickly and should stay out of the repository history.",
+        detail: "## GOTCHA\n\nGenerated demo data goes stale quickly and should stay out of the repository history.",
         tags: ["git", "demo-data"],
         importance: "medium",
         date: "2026-04-01T09:00:00.000Z",
@@ -380,59 +382,62 @@ await runTest("rejects low-signal memories that are too thin to preserve", async
   });
 });
 
-await runTest("keeps validated external review input in context but still makes the local rule-based decision", async () => {
-  await withTempRepo(async (projectRoot) => {
-    const existingPath = await saveMemory(
-      {
-        type: "decision",
-        title: "Keep refund writes inside the transaction helper",
-        summary: "Refund update flows should use the transaction helper so rollback behavior stays consistent.",
-        detail:
-          "## DECISION\n\nRefund update flows should use the transaction helper so rollback behavior stays consistent.",
-        tags: ["payments", "transactions"],
-        importance: "high",
-        date: "2026-04-01T08:00:00.000Z",
-        status: "active",
-        path_scope: ["src/payments/**"],
-      },
-      projectRoot,
-    );
+await runTest(
+  "keeps validated external review input in context but still makes the local rule-based decision",
+  async () => {
+    await withTempRepo(async (projectRoot) => {
+      const existingPath = await saveMemory(
+        {
+          type: "decision",
+          title: "Keep refund writes inside the transaction helper",
+          summary: "Refund update flows should use the transaction helper so rollback behavior stays consistent.",
+          detail:
+            "## DECISION\n\nRefund update flows should use the transaction helper so rollback behavior stays consistent.",
+          tags: ["payments", "transactions"],
+          importance: "high",
+          date: "2026-04-01T08:00:00.000Z",
+          status: "active",
+          path_scope: ["src/payments/**"],
+        },
+        projectRoot,
+      );
 
-    const records = await loadStoredMemoryRecords(projectRoot);
-    const externalReviewInput = {
-      source: "agent-adapter",
-      suggestion: {
-        decision: "accept",
-        target_memory_ids: [],
-        reason: "agent_thinks_this_is_new",
-      },
-    };
+      const records = await loadStoredMemoryRecords(projectRoot);
+      const externalReviewInput = {
+        source: "agent-adapter",
+        suggestion: {
+          decision: "accept",
+          target_memory_ids: [],
+          reason: "agent_thinks_this_is_new",
+        },
+      };
 
-    const context = buildMemoryReviewContext(
-      {
-        type: "decision",
-        title: "Keep refund writes inside the transaction helper",
-        summary: "Refund update flows should use the transaction helper so rollback behavior stays consistent.",
-        detail:
-          "## DECISION\n\nRefund update flows should use the transaction helper so rollback behavior stays consistent.",
-        tags: ["payments", "transactions"],
-        importance: "medium",
-        date: "2026-04-01T10:00:00.000Z",
-        path_scope: ["src/payments/**"],
-      },
-      records,
-      externalReviewInput,
-    );
+      const context = buildMemoryReviewContext(
+        {
+          type: "decision",
+          title: "Keep refund writes inside the transaction helper",
+          summary: "Refund update flows should use the transaction helper so rollback behavior stays consistent.",
+          detail:
+            "## DECISION\n\nRefund update flows should use the transaction helper so rollback behavior stays consistent.",
+          tags: ["payments", "transactions"],
+          importance: "medium",
+          date: "2026-04-01T10:00:00.000Z",
+          path_scope: ["src/payments/**"],
+        },
+        records,
+        externalReviewInput,
+      );
 
-    assert.deepEqual(context.external_review_input, externalReviewInput);
+      assert.deepEqual(context.external_review_input, externalReviewInput);
 
-    const review = reviewCandidateMemory(context.memory, records, externalReviewInput);
-    assert.equal(review.decision, "merge");
-    assert.deepEqual(review.target_memory_ids, [path.basename(existingPath, ".md")]);
-    assert.equal(review.reason, "duplicate_memory");
-    assert.equal(review.internal_relation, "duplicate");
-  });
-});
+      const review = reviewCandidateMemory(context.memory, records, externalReviewInput);
+      assert.equal(review.decision, "merge");
+      assert.deepEqual(review.target_memory_ids, [path.basename(existingPath, ".md")]);
+      assert.equal(review.reason, "duplicate_memory");
+      assert.equal(review.internal_relation, "duplicate");
+    });
+  },
+);
 
 await runTest("ignores invalid external review input instead of trusting it", async () => {
   await withTempRepo(async (projectRoot) => {
@@ -482,7 +487,8 @@ await runTest("legacy reviewer overrides are ignored so Core never delegates fin
         {
           type: "pattern",
           title: "Use focused fixtures for CLI smoke tests",
-          summary: "CLI smoke tests stay easier to debug when they rely on focused fixtures instead of the full demo repo.",
+          summary:
+            "CLI smoke tests stay easier to debug when they rely on focused fixtures instead of the full demo repo.",
           detail:
             "## PATTERN\n\nCLI smoke tests stay easier to debug when they rely on focused fixtures instead of the full demo repo.",
           tags: ["cli", "tests"],
@@ -511,8 +517,7 @@ await runTest("superseded memories do not participate as active review baselines
         type: "convention",
         title: "Run CI checks with npm test",
         summary: "Older CI guidance that has already been replaced.",
-        detail:
-          "## CONVENTION\n\nThis older CI guidance has already been replaced and should not stay active.",
+        detail: "## CONVENTION\n\nThis older CI guidance has already been replaced and should not stay active.",
         tags: ["ci", "npm"],
         importance: "medium",
         date: "2026-04-01T08:00:00.000Z",
@@ -527,8 +532,7 @@ await runTest("superseded memories do not participate as active review baselines
         type: "convention",
         title: "Run CI checks with npm test",
         summary: "Current CI still runs npm test before merge so local and remote checks stay aligned.",
-        detail:
-          "## CONVENTION\n\nCurrent CI still runs npm test before merge so local and remote checks stay aligned.",
+        detail: "## CONVENTION\n\nCurrent CI still runs npm test before merge so local and remote checks stay aligned.",
         tags: ["ci", "npm"],
         importance: "medium",
         date: "2026-04-01T09:00:00.000Z",
@@ -566,7 +570,8 @@ await runTest("handles wording changes as additive updates when identity and sco
       {
         type: "pattern",
         title: "Route billing writes through the transaction helper",
-        summary: "Billing mutation routes should also use the shared transaction helper so the same rollback rule applies.",
+        summary:
+          "Billing mutation routes should also use the shared transaction helper so the same rollback rule applies.",
         detail:
           "## PATTERN\n\nBilling mutation paths should also use the shared transaction helper so the same rollback rule applies across billing flows.",
         tags: ["billing", "transactions"],
@@ -605,7 +610,8 @@ await runTest("rejects partial updates that should stay split from a broader mem
       {
         type: "decision",
         title: "Keep auth writes inside the transaction helper",
-        summary: "This partial auth update only applies to token refresh and should stay split from the broader auth write rule.",
+        summary:
+          "This partial auth update only applies to token refresh and should stay split from the broader auth write rule.",
         detail:
           "## DECISION\n\nThis partial auth update only applies to token refresh, so keep it separate instead of merging it into the broader auth write rule.",
         tags: ["auth", "token-refresh"],
@@ -661,7 +667,8 @@ await runTest("rejects ambiguous overlap when multiple old memories compete as t
       {
         type: "convention",
         title: "Run finance CI in the shared transaction test harness",
-        summary: "Finance CI should use the shared transaction test harness across billing and invoices, but this overlaps both existing memories.",
+        summary:
+          "Finance CI should use the shared transaction test harness across billing and invoices, but this overlaps both existing memories.",
         detail:
           "## CONVENTION\n\nFinance CI should use the shared transaction test harness across billing and invoices, but this candidate overlaps both existing memories and does not identify a single replacement target.",
         tags: ["finance", "ci"],
@@ -673,7 +680,10 @@ await runTest("rejects ambiguous overlap when multiple old memories compete as t
     );
 
     assert.equal(review.decision, "reject");
-    assert.deepEqual(review.target_memory_ids.sort(), [path.basename(firstPath, ".md"), path.basename(secondPath, ".md")].sort());
+    assert.deepEqual(
+      review.target_memory_ids.sort(),
+      [path.basename(firstPath, ".md"), path.basename(secondPath, ".md")].sort(),
+    );
     assert.equal(review.reason, "ambiguous_existing_overlap");
     assert.equal(review.internal_relation, "ambiguous_overlap");
   });

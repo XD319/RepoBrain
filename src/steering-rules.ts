@@ -16,7 +16,7 @@ const DEV_FALLBACK_SECTION = [
   "2. `npx brain <args>` — 全局不可用时通过 npx 调用",
   "3. `node dist/cli.js <args>` — 仅当本仓库是 RepoBrain 自身开发仓库且 `dist/cli.js` 文件存在时使用",
   "",
-  "判断方法：执行命令前先尝试 `brain --version`，成功则用路径 1；失败则尝试 `npx brain --version`，成功则用路径 2；若当前仓库根目录存在 `package.json` 且 `name` 为 `\"brain\"` 且 `dist/cli.js` 存在，则用路径 3。",
+  '判断方法：执行命令前先尝试 `brain --version`，成功则用路径 1；失败则尝试 `npx brain --version`，成功则用路径 2；若当前仓库根目录存在 `package.json` 且 `name` 为 `"brain"` 且 `dist/cli.js` 存在，则用路径 3。',
   "",
   "后续文档中所有 `brain <子命令>` 均表示按上述优先级解析后的实际命令。发布后的用户仓库通常只会命中路径 1。",
 ].join("\n");
@@ -392,10 +392,7 @@ echo "goal: <目标描述>，因为<原因>
 - 不要直接写入 \`.brain/\`。
 `;
 
-export async function writeSteeringRules(
-  projectRoot: string,
-  choice: SteeringRulesChoice,
-): Promise<string[]> {
+export async function writeSteeringRules(projectRoot: string, choice: SteeringRulesChoice): Promise<string[]> {
   const writtenPaths: string[] = [];
   const writeAll = choice === "all" || choice === "both";
 

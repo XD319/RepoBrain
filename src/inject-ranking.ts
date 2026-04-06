@@ -93,8 +93,8 @@ const TASK_STOP_WORDS = new Set([
 export function hasSelectionContext(options: MemorySelectionOptions): boolean {
   return Boolean(
     options.task?.trim() ||
-      (options.paths ?? []).some((value) => value.trim()) ||
-      (options.modules ?? []).some((value) => value.trim()),
+    (options.paths ?? []).some((value) => value.trim()) ||
+    (options.modules ?? []).some((value) => value.trim()),
   );
 }
 
@@ -128,7 +128,12 @@ export function buildInjectScoreReport(
   const moduleOverlap = buildModuleComponent(memory, options.modules ?? []);
   pushComponent(components, reasons, moduleOverlap);
 
-  const pathScope = buildPathComponent("path_scope_match", "Path Scope Match", options.paths ?? [], memory.path_scope ?? []);
+  const pathScope = buildPathComponent(
+    "path_scope_match",
+    "Path Scope Match",
+    options.paths ?? [],
+    memory.path_scope ?? [],
+  );
   pushComponent(components, reasons, pathScope);
 
   const skillTriggerPath = buildPathComponent(
@@ -183,14 +188,15 @@ export function buildInjectScoreReport(
 
   const contextScore = roundScore(
     components
-      .filter((component) =>
-        ![
-          "importance_adjustment",
-          "risk_adjustment",
-          "recency_adjustment",
-          "hit_count_adjustment",
-          "quality_adjustment",
-        ].includes(component.key),
+      .filter(
+        (component) =>
+          ![
+            "importance_adjustment",
+            "risk_adjustment",
+            "recency_adjustment",
+            "hit_count_adjustment",
+            "quality_adjustment",
+          ].includes(component.key),
       )
       .reduce((sum, component) => sum + component.score, 0),
   );
@@ -302,12 +308,7 @@ export function formatCompactReasons(reasons: string[], limit: number = 2): stri
 }
 
 export function normalizePath(value: string): string {
-  return value
-    .trim()
-    .replace(/\\/g, "/")
-    .replace(/^\.\//, "")
-    .replace(/\/+/g, "/")
-    .toLowerCase();
+  return value.trim().replace(/\\/g, "/").replace(/^\.\//, "").replace(/\/+/g, "/").toLowerCase();
 }
 
 function buildTaskPhraseComponent(memory: Memory, task: string | undefined): InjectScoreComponent | null {
@@ -471,7 +472,10 @@ function buildBranchHintComponent(memory: Memory, branchName: string): InjectSco
 
   const branchTokens = new Set(tokenizeText(branchName));
   const memoryHints = new Set(tokenizeText([memory.tags.join(" "), memory.title, memory.area ?? ""].join(" ")));
-  const matched = unique(Array.from(branchTokens).filter((token) => token.length >= 3 && memoryHints.has(token))).slice(0, 3);
+  const matched = unique(Array.from(branchTokens).filter((token) => token.length >= 3 && memoryHints.has(token))).slice(
+    0,
+    3,
+  );
   if (matched.length === 0) {
     return null;
   }
@@ -508,16 +512,14 @@ function collectPathCoverage(memory: Memory): string[] {
 }
 
 function collectSignatures(memory: Memory): string[] {
-  return unique(
-    [
-      ...collectModuleCoverage(memory).map((value) => `module:${value}`),
-      ...collectPathCoverage(memory).map((value) => `path:${value}`),
-      `type:${memory.type}`,
-      `risk:${memory.risk_level ?? "low"}`,
-      ...(memory.area ? [`area:${memory.area}`] : []),
-      ...(memory.tags ?? []).slice(0, 4).map((tag) => `tag:${normalizeText(tag)}`),
-    ],
-  );
+  return unique([
+    ...collectModuleCoverage(memory).map((value) => `module:${value}`),
+    ...collectPathCoverage(memory).map((value) => `path:${value}`),
+    `type:${memory.type}`,
+    `risk:${memory.risk_level ?? "low"}`,
+    ...(memory.area ? [`area:${memory.area}`] : []),
+    ...(memory.tags ?? []).slice(0, 4).map((tag) => `tag:${normalizeText(tag)}`),
+  ]);
 }
 
 function hasCoverage(

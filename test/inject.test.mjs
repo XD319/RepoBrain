@@ -89,7 +89,8 @@ await runTest("inject keeps task-aware rationale in the rendered output", async 
         type: "decision",
         title: "Payments writes must stay inside the transaction wrapper",
         summary: "Refund work breaks if writes escape the transaction boundary.",
-        detail: "## DECISION\n\nPayments and refunds must stay in the transaction wrapper before calling the ledger sync.",
+        detail:
+          "## DECISION\n\nPayments and refunds must stay in the transaction wrapper before calling the ledger sync.",
         tags: ["payments", "refund"],
         importance: "medium",
         date: "2026-04-01T09:00:00.000Z",
@@ -386,7 +387,8 @@ await runTest("inject boosts memories that match changed git files and explains 
     });
 
     assert.ok(
-      injection.indexOf("JWT auth changes must update the shared guard") < injection.indexOf("General release checklist"),
+      injection.indexOf("JWT auth changes must update the shared guard") <
+        injection.indexOf("General release checklist"),
       "expected the git-matched memory to rank ahead of the generic one",
     );
     assert.match(
@@ -614,15 +616,19 @@ await runTest("inject uses diversity-aware selection to keep cross-module covera
       projectRoot,
     );
 
-    const injection = await buildInjection(projectRoot, {
-      ...DEFAULT_BRAIN_CONFIG,
-      maxInjectTokens: 320,
-    }, {
-      task: "refactor shared service across auth and db",
-      paths: ["src/auth/token.ts", "src/db/ledger.ts"],
-      modules: ["auth", "db"],
-      explain: true,
-    });
+    const injection = await buildInjection(
+      projectRoot,
+      {
+        ...DEFAULT_BRAIN_CONFIG,
+        maxInjectTokens: 320,
+      },
+      {
+        task: "refactor shared service across auth and db",
+        paths: ["src/auth/token.ts", "src/db/ledger.ts"],
+        modules: ["auth", "db"],
+        explain: true,
+      },
+    );
 
     assert.match(injection, /Auth refactor must preserve token refresh boundary/);
     assert.match(injection, /DB refactor must preserve transaction envelope/);
@@ -668,15 +674,19 @@ await runTest("inject elevates high-risk fix memories across modules and shows t
       projectRoot,
     );
 
-    const injection = await buildInjection(projectRoot, {
-      ...DEFAULT_BRAIN_CONFIG,
-      injectExplainMaxItems: 8,
-    }, {
-      task: "fix refund transaction bug before release",
-      paths: ["src/payments/refund.ts", "src/ledger/sync.ts"],
-      modules: ["payments", "ledger"],
-      explain: true,
-    });
+    const injection = await buildInjection(
+      projectRoot,
+      {
+        ...DEFAULT_BRAIN_CONFIG,
+        injectExplainMaxItems: 8,
+      },
+      {
+        task: "fix refund transaction bug before release",
+        paths: ["src/payments/refund.ts", "src/ledger/sync.ts"],
+        modules: ["payments", "ledger"],
+        explain: true,
+      },
+    );
 
     assert.ok(
       injection.indexOf("Refund fixes must stay inside payments and ledger transaction boundaries") <
@@ -715,7 +725,7 @@ async function captureStderr(callback) {
   const originalWrite = process.stderr.write.bind(process.stderr);
   let stderr = "";
 
-  process.stderr.write = ((chunk, encoding, next) => {
+  process.stderr.write = (chunk, encoding, next) => {
     stderr += typeof chunk === "string" ? chunk : chunk.toString(typeof encoding === "string" ? encoding : "utf8");
     if (typeof encoding === "function") {
       encoding();
@@ -723,7 +733,7 @@ async function captureStderr(callback) {
       next();
     }
     return true;
-  });
+  };
 
   try {
     const result = await callback();

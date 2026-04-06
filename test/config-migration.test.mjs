@@ -79,11 +79,7 @@ await runTest("loading config with legacy extractMode: manual migrates to trigge
   await withTempRepo(async (projectRoot) => {
     await writeFile(
       path.join(projectRoot, ".brain", "config.yaml"),
-      [
-        "workflowMode: ultra-safe-manual",
-        "extractMode: manual",
-        "",
-      ].join("\n"),
+      ["workflowMode: ultra-safe-manual", "extractMode: manual", ""].join("\n"),
       "utf8",
     );
 
@@ -94,24 +90,23 @@ await runTest("loading config with legacy extractMode: manual migrates to trigge
   });
 });
 
-await runTest("loading config with legacy extractMode: auto migrates to triggerMode: detect + captureMode: direct", async () => {
-  await withTempRepo(async (projectRoot) => {
-    await writeFile(
-      path.join(projectRoot, ".brain", "config.yaml"),
-      [
-        "workflowMode: automation-first",
-        "extractMode: auto",
-        "",
-      ].join("\n"),
-      "utf8",
-    );
+await runTest(
+  "loading config with legacy extractMode: auto migrates to triggerMode: detect + captureMode: direct",
+  async () => {
+    await withTempRepo(async (projectRoot) => {
+      await writeFile(
+        path.join(projectRoot, ".brain", "config.yaml"),
+        ["workflowMode: automation-first", "extractMode: auto", ""].join("\n"),
+        "utf8",
+      );
 
-    const config = await loadConfig(projectRoot);
-    assert.equal(config.triggerMode, "detect");
-    assert.equal(config.captureMode, "direct");
-    assert.equal(config.extractMode, "auto");
-  });
-});
+      const config = await loadConfig(projectRoot);
+      assert.equal(config.triggerMode, "detect");
+      assert.equal(config.captureMode, "direct");
+      assert.equal(config.extractMode, "auto");
+    });
+  },
+);
 
 await runTest("new triggerMode + captureMode fields take precedence over legacy extractMode", async () => {
   await withTempRepo(async (projectRoot) => {
@@ -167,10 +162,7 @@ await runTest("default config without explicit fields inherits from workflow pre
   await withTempRepo(async (projectRoot) => {
     await writeFile(
       path.join(projectRoot, ".brain", "config.yaml"),
-      [
-        "workflowMode: automation-first",
-        "",
-      ].join("\n"),
+      ["workflowMode: automation-first", ""].join("\n"),
       "utf8",
     );
 

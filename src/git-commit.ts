@@ -1,9 +1,6 @@
 import { spawn } from "node:child_process";
 
-export async function buildCommitExtractionInput(
-  projectRoot: string,
-  revision = "HEAD",
-): Promise<string> {
+export async function buildCommitExtractionInput(projectRoot: string, revision = "HEAD"): Promise<string> {
   const commitMetadata = await runGitCommand(projectRoot, [
     "show",
     "-s",
@@ -11,18 +8,8 @@ export async function buildCommitExtractionInput(
     "--format=commit %H%nAuthor: %an <%ae>%nDate: %ad%n%nSubject: %s%n%nBody:%n%b",
     revision,
   ]);
-  const changedFiles = await runGitCommand(projectRoot, [
-    "show",
-    "--name-status",
-    "--format=",
-    revision,
-  ]);
-  const diffStat = await runGitCommand(projectRoot, [
-    "show",
-    "--stat=200,120",
-    "--format=",
-    revision,
-  ]);
+  const changedFiles = await runGitCommand(projectRoot, ["show", "--name-status", "--format=", revision]);
+  const diffStat = await runGitCommand(projectRoot, ["show", "--stat=200,120", "--format=", revision]);
 
   return [
     "Source: git-commit",

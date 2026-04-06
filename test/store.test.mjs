@@ -171,10 +171,7 @@ await runTest("inject updates usage metadata on selected memories", async () => 
       projectRoot,
     );
 
-    const result = await runNodeProcess(
-      [path.join(repoRoot, "dist", "cli.js"), "inject"],
-      projectRoot,
-    );
+    const result = await runNodeProcess([path.join(repoRoot, "dist", "cli.js"), "inject"], projectRoot);
 
     assert.equal(result.code, 0);
 
@@ -465,10 +462,7 @@ await runTest("brain lineage prints all latest roots and their superseded chains
       projectRoot,
     );
 
-    const result = await runNodeProcess(
-      [path.join(repoRoot, "dist", "cli.js"), "lineage"],
-      projectRoot,
-    );
+    const result = await runNodeProcess([path.join(repoRoot, "dist", "cli.js"), "lineage"], projectRoot);
 
     assert.equal(result.code, 0);
     assert.match(result.stdout, /\[decision\] decisions\/use-tsup\.md  v2 · score:90 · ✓ 有效/);
@@ -570,7 +564,10 @@ await runTest("brain lineage reports when a specified memory has no lineage rela
     );
 
     assert.equal(result.code, 0);
-    assert.match(result.stdout, /Memory "patterns\/2026-04-01-standalone-pattern-100000000\.md" has no lineage relationships\./);
+    assert.match(
+      result.stdout,
+      /Memory "patterns\/2026-04-01-standalone-pattern-100000000\.md" has no lineage relationships\./,
+    );
   });
 });
 
@@ -612,10 +609,7 @@ await runTest("brain lineage detects cycles and exits with an error", async () =
       projectRoot,
     );
 
-    const result = await runNodeProcess(
-      [path.join(repoRoot, "dist", "cli.js"), "lineage"],
-      projectRoot,
-    );
+    const result = await runNodeProcess([path.join(repoRoot, "dist", "cli.js"), "lineage"], projectRoot);
 
     assert.equal(result.code, 1);
     assert.match(result.stderr, /Memory lineage contains a cycle involving/);
@@ -757,41 +751,44 @@ await runTest("legacy remote review config fields are ignored with a deprecation
   });
 });
 
-await runTest("cli extract does not crash or call any remote path when legacy review config fields remain", async () => {
-  await withTempRepo(async (projectRoot) => {
-    await writeFile(
-      path.join(projectRoot, ".brain", "config.yaml"),
-      [
-        "maxInjectTokens: 1200",
-        "extractMode: suggest",
-        "language: zh-CN",
-        "provider: anthropic",
-        "model: claude-sonnet",
-        "apiKey: should-not-be-used",
-        "",
-      ].join("\n"),
-      "utf8",
-    );
+await runTest(
+  "cli extract does not crash or call any remote path when legacy review config fields remain",
+  async () => {
+    await withTempRepo(async (projectRoot) => {
+      await writeFile(
+        path.join(projectRoot, ".brain", "config.yaml"),
+        [
+          "maxInjectTokens: 1200",
+          "extractMode: suggest",
+          "language: zh-CN",
+          "provider: anthropic",
+          "model: claude-sonnet",
+          "apiKey: should-not-be-used",
+          "",
+        ].join("\n"),
+        "utf8",
+      );
 
-    const result = await runNodeProcess(
-      [path.join(repoRoot, "dist", "cli.js"), "extract", "--source", "session"],
-      projectRoot,
-      [
-        "decision: Keep API writes inside a transaction helper",
-        "",
-        "Mutation-heavy API flows should route writes through the transaction helper for consistency and rollback safety.",
-      ].join("\n"),
-    );
+      const result = await runNodeProcess(
+        [path.join(repoRoot, "dist", "cli.js"), "extract", "--source", "session"],
+        projectRoot,
+        [
+          "decision: Keep API writes inside a transaction helper",
+          "",
+          "Mutation-heavy API flows should route writes through the transaction helper for consistency and rollback safety.",
+        ].join("\n"),
+      );
 
-    assert.equal(result.code, 0);
-    assert.match(result.stderr, /Ignoring deprecated remote review config fields/);
-    assert.match(result.stdout, /decision=accept|accept \|/i);
+      assert.equal(result.code, 0);
+      assert.match(result.stderr, /Ignoring deprecated remote review config fields/);
+      assert.match(result.stdout, /decision=accept|accept \|/i);
 
-    const memories = await loadAllMemories(projectRoot);
-    assert.equal(memories.length, 1);
-    assert.equal(memories[0]?.title, "Keep API writes inside a transaction helper");
-  });
-});
+      const memories = await loadAllMemories(projectRoot);
+      assert.equal(memories.length, 1);
+      assert.equal(memories[0]?.title, "Keep API writes inside a transaction helper");
+    });
+  },
+);
 
 await runTest("cli extract writes initial memory metadata with legal frontmatter ordering", async () => {
   await withTempRepo(async (projectRoot) => {
@@ -822,10 +819,10 @@ await runTest("cli extract writes initial memory metadata with legal frontmatter
 
     const raw = await readFile(stored.filePath, "utf8");
     const scoreIndex = raw.indexOf("score: 75");
-    const hitCountIndex = raw.indexOf('hit_count: 0');
-    const lastUsedIndex = raw.indexOf('last_used: null');
+    const hitCountIndex = raw.indexOf("hit_count: 0");
+    const lastUsedIndex = raw.indexOf("last_used: null");
     const createdAtIndex = raw.indexOf("created_at:");
-    const staleIndex = raw.indexOf('stale: false');
+    const staleIndex = raw.indexOf("stale: false");
     const dateIndex = raw.indexOf("date:");
 
     assert.ok(scoreIndex > raw.indexOf('importance: "high"'));
@@ -957,81 +954,78 @@ await runTest("frontmatter parser handles multiline and escaped YAML values", as
     );
 
     const memories = await loadAllMemories(projectRoot);
-    const memory = memories.find((entry) => entry.title.includes("Quoted \"Title\""));
+    const memory = memories.find((entry) => entry.title.includes('Quoted "Title"'));
     assert.ok(memory);
     assert.equal(memory.summary, "First line\nSecond line with colon: value\n");
   });
 });
 
-await runTest("brain list supports type filters, goal grouping, and stats include working and goal counts", async () => {
-  await withTempRepo(async (projectRoot) => {
-    await saveMemory(
-      {
-        type: "working",
-        title: "Short-lived UI cleanup",
-        summary: "Track the UI cleanup while the refactor is in flight.",
-        detail: "## WORKING\n\nTrack the UI cleanup while the refactor is in flight.",
-        tags: ["ui"],
-        importance: "medium",
-        date: "2026-04-02T09:00:00.000Z",
-        expires: "2026-04-09",
-      },
-      projectRoot,
-    );
+await runTest(
+  "brain list supports type filters, goal grouping, and stats include working and goal counts",
+  async () => {
+    await withTempRepo(async (projectRoot) => {
+      await saveMemory(
+        {
+          type: "working",
+          title: "Short-lived UI cleanup",
+          summary: "Track the UI cleanup while the refactor is in flight.",
+          detail: "## WORKING\n\nTrack the UI cleanup while the refactor is in flight.",
+          tags: ["ui"],
+          importance: "medium",
+          date: "2026-04-02T09:00:00.000Z",
+          expires: "2026-04-09",
+        },
+        projectRoot,
+      );
 
-    await saveMemory(
-      {
-        type: "goal",
-        title: "Retire legacy auth middleware",
-        summary: "Finish retiring the legacy auth middleware.",
-        detail: "## GOAL\n\nRetire the legacy auth middleware.",
-        tags: ["auth"],
-        importance: "high",
-        date: "2026-04-02T10:00:00.000Z",
-        status: "active",
-      },
-      projectRoot,
-    );
+      await saveMemory(
+        {
+          type: "goal",
+          title: "Retire legacy auth middleware",
+          summary: "Finish retiring the legacy auth middleware.",
+          detail: "## GOAL\n\nRetire the legacy auth middleware.",
+          tags: ["auth"],
+          importance: "high",
+          date: "2026-04-02T10:00:00.000Z",
+          status: "active",
+        },
+        projectRoot,
+      );
 
-    await saveMemory(
-      {
-        type: "goal",
-        title: "Document the DB migration",
-        summary: "Wrap up the DB migration documentation.",
-        detail: "## GOAL\n\nDocument the DB migration.",
-        tags: ["db"],
-        importance: "medium",
-        date: "2026-04-02T11:00:00.000Z",
-        status: "done",
-      },
-      projectRoot,
-    );
+      await saveMemory(
+        {
+          type: "goal",
+          title: "Document the DB migration",
+          summary: "Wrap up the DB migration documentation.",
+          detail: "## GOAL\n\nDocument the DB migration.",
+          tags: ["db"],
+          importance: "medium",
+          date: "2026-04-02T11:00:00.000Z",
+          status: "done",
+        },
+        projectRoot,
+      );
 
-    const listByType = await runNodeProcess(
-      [path.join(repoRoot, "dist", "cli.js"), "list", "--type", "working"],
-      projectRoot,
-    );
-    assert.equal(listByType.code, 0);
-    assert.match(listByType.stdout, /\| working \|/);
-    assert.doesNotMatch(listByType.stdout, /\| goal \|/);
+      const listByType = await runNodeProcess(
+        [path.join(repoRoot, "dist", "cli.js"), "list", "--type", "working"],
+        projectRoot,
+      );
+      assert.equal(listByType.code, 0);
+      assert.match(listByType.stdout, /\| working \|/);
+      assert.doesNotMatch(listByType.stdout, /\| goal \|/);
 
-    const goalsResult = await runNodeProcess(
-      [path.join(repoRoot, "dist", "cli.js"), "list", "--goals"],
-      projectRoot,
-    );
-    assert.equal(goalsResult.code, 0);
-    assert.match(goalsResult.stdout, /\[active\][\s\S]*Retire legacy auth middleware/);
-    assert.match(goalsResult.stdout, /\[done\][\s\S]*Document the DB migration/);
-    assert.ok(goalsResult.stdout.indexOf("[active]") < goalsResult.stdout.indexOf("[done]"));
+      const goalsResult = await runNodeProcess([path.join(repoRoot, "dist", "cli.js"), "list", "--goals"], projectRoot);
+      assert.equal(goalsResult.code, 0);
+      assert.match(goalsResult.stdout, /\[active\][\s\S]*Retire legacy auth middleware/);
+      assert.match(goalsResult.stdout, /\[done\][\s\S]*Document the DB migration/);
+      assert.ok(goalsResult.stdout.indexOf("[active]") < goalsResult.stdout.indexOf("[done]"));
 
-    const statsResult = await runNodeProcess(
-      [path.join(repoRoot, "dist", "cli.js"), "stats"],
-      projectRoot,
-    );
-    assert.equal(statsResult.code, 0);
-    assert.match(statsResult.stdout, /By type: .*goal=2.*working=1/);
-  });
-});
+      const statsResult = await runNodeProcess([path.join(repoRoot, "dist", "cli.js"), "stats"], projectRoot);
+      assert.equal(statsResult.code, 0);
+      assert.match(statsResult.stdout, /By type: .*goal=2.*working=1/);
+    });
+  },
+);
 
 await runTest("brain goal done updates matching goal status and updated date", async () => {
   await withTempRepo(async (projectRoot) => {

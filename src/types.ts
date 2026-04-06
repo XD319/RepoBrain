@@ -333,8 +333,5 @@ export interface ValidatedExternalReviewInput {
 }
 
 export interface ReviewCandidateMemoriesOptions {
-  resolveExternalReviewInput?: (
-    memory: Memory,
-    existingRecords: StoredMemoryRecord[],
-  ) => unknown;
+  resolveExternalReviewInput?: (memory: Memory, existingRecords: StoredMemoryRecord[]) => unknown;
 }

@@ -150,10 +150,7 @@ await runTest("suggest-skills emits choose-required when required evidence clear
 
     assert.deepEqual(result.invocation_plan.required, ["playwright"]);
     assert.equal(result.conflicts[0]?.strategy_result, "choose-required");
-    assert.match(
-      result.conflicts[0]?.reason ?? "",
-      /Required score .* exceeds suppressed score .* by at least 5/,
-    );
+    assert.match(result.conflicts[0]?.reason ?? "", /Required score .* exceeds suppressed score .* by at least 5/);
   });
 });
 
@@ -254,54 +251,60 @@ await runTest("suggest-skills emits block when high-risk suppression meets or ou
   });
 });
 
-await runTest("suggest-skills keeps suppression when recommendation conflicts with a do-not-invoke memory", async () => {
-  await withTempRepo(async (projectRoot) => {
-    await saveMemory(
-      {
-        type: "pattern",
-        title: "Optional docs linter for handbook edits",
-        summary: "Docs linter is usually helpful for handbook edits.",
-        detail: "## PATTERN\n\nPrefer the docs linter for handbook edits.",
-        tags: ["docs"],
-        importance: "medium",
-        date: "2026-04-01T16:00:00.000Z",
-        status: "active",
-        recommended_skills: ["docs-linter"],
-        skill_trigger_tasks: ["handbook edit"],
-        invocation_mode: "prefer",
-        risk_level: "low",
-      },
-      projectRoot,
-    );
+await runTest(
+  "suggest-skills keeps suppression when recommendation conflicts with a do-not-invoke memory",
+  async () => {
+    await withTempRepo(async (projectRoot) => {
+      await saveMemory(
+        {
+          type: "pattern",
+          title: "Optional docs linter for handbook edits",
+          summary: "Docs linter is usually helpful for handbook edits.",
+          detail: "## PATTERN\n\nPrefer the docs linter for handbook edits.",
+          tags: ["docs"],
+          importance: "medium",
+          date: "2026-04-01T16:00:00.000Z",
+          status: "active",
+          recommended_skills: ["docs-linter"],
+          skill_trigger_tasks: ["handbook edit"],
+          invocation_mode: "prefer",
+          risk_level: "low",
+        },
+        projectRoot,
+      );
 
-    await saveMemory(
-      {
-        type: "gotcha",
-        title: "Disable docs linter for generated handbook dumps",
-        summary: "Generated handbook exports should not invoke the linter.",
-        detail: "## GOTCHA\n\nSuppress the docs linter for generated handbook dumps.",
-        tags: ["docs"],
-        importance: "medium",
-        date: "2026-04-01T16:05:00.000Z",
-        status: "active",
-        suppressed_skills: ["docs-linter"],
-        skill_trigger_tasks: ["handbook edit"],
-        risk_level: "medium",
-      },
-      projectRoot,
-    );
+      await saveMemory(
+        {
+          type: "gotcha",
+          title: "Disable docs linter for generated handbook dumps",
+          summary: "Generated handbook exports should not invoke the linter.",
+          detail: "## GOTCHA\n\nSuppress the docs linter for generated handbook dumps.",
+          tags: ["docs"],
+          importance: "medium",
+          date: "2026-04-01T16:05:00.000Z",
+          status: "active",
+          suppressed_skills: ["docs-linter"],
+          skill_trigger_tasks: ["handbook edit"],
+          risk_level: "medium",
+        },
+        projectRoot,
+      );
 
-    const result = await buildSkillShortlist(projectRoot, {
-      task: "handbook edit",
-      paths: [],
+      const result = await buildSkillShortlist(projectRoot, {
+        task: "handbook edit",
+        paths: [],
+      });
+
+      assert.deepEqual(result.invocation_plan.suppress, ["docs-linter"]);
+      assert.equal(result.conflicts[0]?.kind, "recommended_vs_suppressed");
+      assert.equal(result.conflicts[0]?.strategy_result, "suppress");
+      assert.match(
+        result.conflicts[0]?.reason ?? "",
+        /recommendations are advisory while suppressions are explicit do-not-invoke hints/,
+      );
     });
-
-    assert.deepEqual(result.invocation_plan.suppress, ["docs-linter"]);
-    assert.equal(result.conflicts[0]?.kind, "recommended_vs_suppressed");
-    assert.equal(result.conflicts[0]?.strategy_result, "suppress");
-    assert.match(result.conflicts[0]?.reason ?? "", /recommendations are advisory while suppressions are explicit do-not-invoke hints/);
-  });
-});
+  },
+);
 
 await runTest("suggest-skills exposes a stable JSON contract for agent adapters", async () => {
   await withTempRepo(async (projectRoot) => {
@@ -379,35 +382,38 @@ await runTest("suggest-skills sets path_source to git_diff when caller marks pat
   });
 });
 
-await runTest("suggest-skills defaults path_source to explicit when paths are provided without path_source", async () => {
-  await withTempRepo(async (projectRoot) => {
-    await saveMemory(
-      {
-        type: "decision",
-        title: "Use Playwright for browser tests",
-        summary: "Browser tests need Playwright.",
-        detail: "## DECISION\n\nUse Playwright.",
-        tags: ["playwright"],
-        importance: "high",
-        date: "2026-04-01T19:00:00.000Z",
-        status: "active",
-        required_skills: ["playwright"],
-        skill_trigger_tasks: ["browser tests"],
-      },
-      projectRoot,
-    );
+await runTest(
+  "suggest-skills defaults path_source to explicit when paths are provided without path_source",
+  async () => {
+    await withTempRepo(async (projectRoot) => {
+      await saveMemory(
+        {
+          type: "decision",
+          title: "Use Playwright for browser tests",
+          summary: "Browser tests need Playwright.",
+          detail: "## DECISION\n\nUse Playwright.",
+          tags: ["playwright"],
+          importance: "high",
+          date: "2026-04-01T19:00:00.000Z",
+          status: "active",
+          required_skills: ["playwright"],
+          skill_trigger_tasks: ["browser tests"],
+        },
+        projectRoot,
+      );
 
-    const result = await buildSkillShortlist(projectRoot, {
-      task: "browser tests",
-      paths: ["tests/e2e/login.spec.ts"],
+      const result = await buildSkillShortlist(projectRoot, {
+        task: "browser tests",
+        paths: ["tests/e2e/login.spec.ts"],
+      });
+
+      assert.equal(result.path_source, "explicit");
+      const stdout = renderSkillShortlist(result);
+      assert.match(stdout, /^Paths:$/m);
+      assert.doesNotMatch(stdout, /from git diff/);
     });
-
-    assert.equal(result.path_source, "explicit");
-    const stdout = renderSkillShortlist(result);
-    assert.match(stdout, /^Paths:$/m);
-    assert.doesNotMatch(stdout, /from git diff/);
-  });
-});
+  },
+);
 
 await runTest("suggest-skills supports task-only routing with path_source none when no paths provided", async () => {
   await withTempRepo(async (projectRoot) => {
@@ -475,7 +481,7 @@ await runTest("collectGitDiffPaths returns changed files when git diff reports t
       path.join(fakeGitDir, "git.cmd"),
       [
         "@echo off",
-        "if \"%1\"==\"diff\" if \"%2\"==\"--name-only\" if \"%3\"==\"HEAD\" (",
+        'if "%1"=="diff" if "%2"=="--name-only" if "%3"=="HEAD" (',
         "  echo changed.txt",
         "  echo initial.txt",
         "  exit /b 0",

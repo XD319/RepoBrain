@@ -111,43 +111,122 @@ interface SignalRule {
 
 const TYPE_SIGNAL_RULES: Record<MemoryType, SignalRule[]> = {
   decision: [
-    { pattern: /\b(?:decision|decided|choose|chose|adopt|adopted|switch to|standardize|standardized|keep using|use\b|selected)\b/iu, weight: 2.2, detail: "decision keyword" },
+    {
+      pattern:
+        /\b(?:decision|decided|choose|chose|adopt|adopted|switch to|standardize|standardized|keep using|use\b|selected)\b/iu,
+      weight: 2.2,
+      detail: "decision keyword",
+    },
     { pattern: /(?:决定|采用|改为|统一使用|选用|保留|切换到|标准化)/u, weight: 2.3, detail: "decision keyword (zh)" },
-    { pattern: /\b(?:because|so that|to avoid|for consistency|for rollback|for safety)\b/iu, weight: 1.2, detail: "decision rationale", kind: "cause" },
+    {
+      pattern: /\b(?:because|so that|to avoid|for consistency|for rollback|for safety)\b/iu,
+      weight: 1.2,
+      detail: "decision rationale",
+      kind: "cause",
+    },
   ],
   gotcha: [
-    { pattern: /\b(?:gotcha|pitfall|beware|avoid|never|must not|do not|don't|fails? when|breaks? when|otherwise|regression|partial write|data loss|rollback|race condition|deadlock)\b/iu, weight: 2.8, detail: "risk or gotcha keyword", kind: "risk" },
-    { pattern: /(?:不要|避免|否则|会导致|陷阱|注意|坑|报错|失败|死锁|回滚|半写入|数据丢失)/u, weight: 2.8, detail: "risk or gotcha keyword (zh)", kind: "risk" },
-    { pattern: /\b(?:must stay|must keep|only when|cannot|can't|outside the|directly write)\b/iu, weight: 1.3, detail: "limitation wording", kind: "limit" },
+    {
+      pattern:
+        /\b(?:gotcha|pitfall|beware|avoid|never|must not|do not|don't|fails? when|breaks? when|otherwise|regression|partial write|data loss|rollback|race condition|deadlock)\b/iu,
+      weight: 2.8,
+      detail: "risk or gotcha keyword",
+      kind: "risk",
+    },
+    {
+      pattern: /(?:不要|避免|否则|会导致|陷阱|注意|坑|报错|失败|死锁|回滚|半写入|数据丢失)/u,
+      weight: 2.8,
+      detail: "risk or gotcha keyword (zh)",
+      kind: "risk",
+    },
+    {
+      pattern: /\b(?:must stay|must keep|only when|cannot|can't|outside the|directly write)\b/iu,
+      weight: 1.3,
+      detail: "limitation wording",
+      kind: "limit",
+    },
   ],
   convention: [
-    { pattern: /\b(?:convention|naming|directory|layout|folder|style|standard|always put|store .* under|keep .* under|use the .* folder)\b/iu, weight: 2.3, detail: "convention keyword" },
-    { pattern: /(?:约定|规范|统一放在|统一使用|命名|目录|放到.*目录|保持.*结构)/u, weight: 2.4, detail: "convention keyword (zh)" },
-    { pattern: /\b(?:prefer|recommended|should live in|belongs in)\b/iu, weight: 1.1, detail: "convention preference", kind: "keyword" },
+    {
+      pattern:
+        /\b(?:convention|naming|directory|layout|folder|style|standard|always put|store .* under|keep .* under|use the .* folder)\b/iu,
+      weight: 2.3,
+      detail: "convention keyword",
+    },
+    {
+      pattern: /(?:约定|规范|统一放在|统一使用|命名|目录|放到.*目录|保持.*结构)/u,
+      weight: 2.4,
+      detail: "convention keyword (zh)",
+    },
+    {
+      pattern: /\b(?:prefer|recommended|should live in|belongs in)\b/iu,
+      weight: 1.1,
+      detail: "convention preference",
+      kind: "keyword",
+    },
   ],
   pattern: [
-    { pattern: /\b(?:pattern|reusable|workflow|pipeline|helper|wrap .* with|route .* through|extract .* helper|template|fan out|shared .* parser)\b/iu, weight: 2.3, detail: "pattern keyword" },
-    { pattern: /(?:模式|流程|封装|抽成.*helper|通过.*处理|复用|共享解析器|统一走)/u, weight: 2.4, detail: "pattern keyword (zh)" },
-    { pattern: /\b(?:use .* to|so callers|shared path|common path)\b/iu, weight: 1.1, detail: "pattern phrasing", kind: "keyword" },
+    {
+      pattern:
+        /\b(?:pattern|reusable|workflow|pipeline|helper|wrap .* with|route .* through|extract .* helper|template|fan out|shared .* parser)\b/iu,
+      weight: 2.3,
+      detail: "pattern keyword",
+    },
+    {
+      pattern: /(?:模式|流程|封装|抽成.*helper|通过.*处理|复用|共享解析器|统一走)/u,
+      weight: 2.4,
+      detail: "pattern keyword (zh)",
+    },
+    {
+      pattern: /\b(?:use .* to|so callers|shared path|common path)\b/iu,
+      weight: 1.1,
+      detail: "pattern phrasing",
+      kind: "keyword",
+    },
   ],
   working: [
-    { pattern: /\b(?:working|for now|in progress|pending|follow-up|remaining|checklist|track this|until rollout|next step|ongoing)\b/iu, weight: 2.2, detail: "working-context keyword" },
-    { pattern: /(?:进行中|待办|剩余|跟进|清单|当前先|后续|推进中|直到发布)/u, weight: 2.2, detail: "working-context keyword (zh)" },
+    {
+      pattern:
+        /\b(?:working|for now|in progress|pending|follow-up|remaining|checklist|track this|until rollout|next step|ongoing)\b/iu,
+      weight: 2.2,
+      detail: "working-context keyword",
+    },
+    {
+      pattern: /(?:进行中|待办|剩余|跟进|清单|当前先|后续|推进中|直到发布)/u,
+      weight: 2.2,
+      detail: "working-context keyword (zh)",
+    },
   ],
   goal: [
-    { pattern: /\b(?:goal|target|migration|roadmap|objective|end state|eventually|long term|north star)\b/iu, weight: 2.4, detail: "goal keyword" },
+    {
+      pattern: /\b(?:goal|target|migration|roadmap|objective|end state|eventually|long term|north star)\b/iu,
+      weight: 2.4,
+      detail: "goal keyword",
+    },
     { pattern: /(?:目标|迁移到|最终|长期|收敛到|规划|里程碑|终态)/u, weight: 2.4, detail: "goal keyword (zh)" },
-    { pattern: /\b(?:finish|complete|move .* to|remove the legacy path)\b/iu, weight: 1.1, detail: "goal action phrasing", kind: "keyword" },
+    {
+      pattern: /\b(?:finish|complete|move .* to|remove the legacy path)\b/iu,
+      weight: 1.1,
+      detail: "goal action phrasing",
+      kind: "keyword",
+    },
   ],
 };
 
-const CAUSE_PATTERN = /\b(?:because|since|so that|to avoid|to prevent|to keep|ensures?|prevents?|due to|why:)\b|(?:因为|因此|以便|为了|避免|防止|否则|这样可以|原因是)/iu;
-const RISK_PATTERN = /\b(?:risk|bug|regression|rollback|corrupt|partial|leak|crash|panic|unsafe|inconsistent|drift)\b|(?:风险|问题|报错|失败|泄漏|回滚|不一致|漂移|半写入)/iu;
-const LIMIT_PATTERN = /\b(?:must|must not|should|should not|never|always|cannot|can't|only|required|forbidden)\b|(?:必须|不要|不能|只能|禁止|务必|一律)/iu;
-const TEMPORARY_PATTERN = /\b(?:temporary|temp|for now|today only|one-off|debug only|wip|todo|this run|current branch)\b|(?:临时|暂时|一次性|仅调试|本次|这轮)/iu;
-const NOISE_PATTERN = /\b(?:console\.log|debug log|printf?\(|print\(|typo|format only|snapshot update|ran tests?|npm install|pnpm install|yarn install|bump version)\b|(?:打印日志|调试日志|修个 typo|只改格式|跑了测试)/iu;
-const ACTION_LOG_ONLY_PATTERN = /^\s*(?:[-*]\s*)?(?:fixed|updated|renamed|added|removed|changed|touched|ran|修复了|更新了|改了|新增了|删除了)/iu;
-const COMMIT_SUBJECT_ONLY_PATTERN = /^(?:subject:\s*)?(?:feat|fix|refactor|chore|docs|test|build|ci|perf)(?:\(.+?\))?:/iu;
+const CAUSE_PATTERN =
+  /\b(?:because|since|so that|to avoid|to prevent|to keep|ensures?|prevents?|due to|why:)\b|(?:因为|因此|以便|为了|避免|防止|否则|这样可以|原因是)/iu;
+const RISK_PATTERN =
+  /\b(?:risk|bug|regression|rollback|corrupt|partial|leak|crash|panic|unsafe|inconsistent|drift)\b|(?:风险|问题|报错|失败|泄漏|回滚|不一致|漂移|半写入)/iu;
+const LIMIT_PATTERN =
+  /\b(?:must|must not|should|should not|never|always|cannot|can't|only|required|forbidden)\b|(?:必须|不要|不能|只能|禁止|务必|一律)/iu;
+const TEMPORARY_PATTERN =
+  /\b(?:temporary|temp|for now|today only|one-off|debug only|wip|todo|this run|current branch)\b|(?:临时|暂时|一次性|仅调试|本次|这轮)/iu;
+const NOISE_PATTERN =
+  /\b(?:console\.log|debug log|printf?\(|print\(|typo|format only|snapshot update|ran tests?|npm install|pnpm install|yarn install|bump version)\b|(?:打印日志|调试日志|修个 typo|只改格式|跑了测试)/iu;
+const ACTION_LOG_ONLY_PATTERN =
+  /^\s*(?:[-*]\s*)?(?:fixed|updated|renamed|added|removed|changed|touched|ran|修复了|更新了|改了|新增了|删除了)/iu;
+const COMMIT_SUBJECT_ONLY_PATTERN =
+  /^(?:subject:\s*)?(?:feat|fix|refactor|chore|docs|test|build|ci|perf)(?:\(.+?\))?:/iu;
 const GENERIC_TITLE_PATTERN = /^(?:summary|notes|update|fixes|changes|修复记录|总结|说明)$/iu;
 const FILE_PATH_PATTERN = /(?:^|[\s`"'(])((?:[A-Za-z0-9._-]+[\\/])+[A-Za-z0-9._*-]+(?:\.[A-Za-z0-9._-]+)?)/gu;
 const SENTENCE_SPLIT_PATTERN = /(?<=[.!?。！？；;])\s+/u;
@@ -163,11 +242,24 @@ const TYPE_PRIORITY: Record<MemoryType, number> = {
 
 const AREA_RULES: Array<{ area: MemoryArea; pattern: RegExp }> = [
   { area: "auth", pattern: /\b(?:auth|token|session|login|oauth|permission)\b|(?:认证|登录态|权限|令牌|会话)/iu },
-  { area: "api", pattern: /\b(?:api|route|request|response|http|graphql|rpc|endpoint|controller)\b|(?:接口|路由|请求|响应)/iu },
-  { area: "db", pattern: /\b(?:db|database|sql|query|migration|transaction|schema|ledger|orm)\b|(?:数据库|事务|迁移|表结构|账本)/iu },
-  { area: "infra", pattern: /\b(?:infra|build|deploy|ci|release|config|hook|docker|env|cli)\b|(?:基础设施|构建|发布|配置|钩子|命令行)/iu },
+  {
+    area: "api",
+    pattern: /\b(?:api|route|request|response|http|graphql|rpc|endpoint|controller)\b|(?:接口|路由|请求|响应)/iu,
+  },
+  {
+    area: "db",
+    pattern: /\b(?:db|database|sql|query|migration|transaction|schema|ledger|orm)\b|(?:数据库|事务|迁移|表结构|账本)/iu,
+  },
+  {
+    area: "infra",
+    pattern:
+      /\b(?:infra|build|deploy|ci|release|config|hook|docker|env|cli)\b|(?:基础设施|构建|发布|配置|钩子|命令行)/iu,
+  },
   { area: "ui", pattern: /\b(?:ui|component|page|css|frontend|view|layout)\b|(?:界面|组件|页面|前端|布局)/iu },
-  { area: "testing", pattern: /\b(?:test|spec|fixture|mock|assert|snapshot|integration)\b|(?:测试|夹具|断言|集成测试|mock)/iu },
+  {
+    area: "testing",
+    pattern: /\b(?:test|spec|fixture|mock|assert|snapshot|integration)\b|(?:测试|夹具|断言|集成测试|mock)/iu,
+  },
 ];
 
 const DOMAIN_TAG_RULES: Array<{ tag: string; pattern: RegExp }> = [
@@ -310,11 +402,7 @@ async function runExtractorCommand(command: string, prompt: string): Promise<str
   });
 }
 
-function safeParsePayload(
-  raw: string,
-):
-  | { ok: true; payload: ExtractedMemoriesPayload }
-  | { ok: false; error: string } {
+function safeParsePayload(raw: string): { ok: true; payload: ExtractedMemoriesPayload } | { ok: false; error: string } {
   try {
     const parsed = JSON.parse(raw) as { memories?: unknown };
     if (!Array.isArray(parsed.memories)) {
@@ -370,9 +458,7 @@ function normalizeMemory(value: unknown): Memory | null {
     title,
     summary,
     detail,
-    tags: Array.isArray(candidate.tags)
-      ? candidate.tags.map((tag) => String(tag).trim()).filter(Boolean)
-      : [],
+    tags: Array.isArray(candidate.tags) ? candidate.tags.map((tag) => String(tag).trim()).filter(Boolean) : [],
     importance: importance as Memory["importance"],
     date: now,
     score: getInitialExtractedMemoryScore(type as MemoryType, importance as Memory["importance"]),
@@ -383,9 +469,7 @@ function normalizeMemory(value: unknown): Memory | null {
     updated: asOptionalIsoDateOnly(candidate.updated) ?? createdAt,
     stale: false,
     status: "active",
-    files: Array.isArray(candidate.files)
-      ? candidate.files.map((file) => String(file).trim()).filter(Boolean)
-      : [],
+    files: Array.isArray(candidate.files) ? candidate.files.map((file) => String(file).trim()).filter(Boolean) : [],
   };
 
   const source = normalizeSource(candidate.source);
@@ -435,10 +519,7 @@ function preprocessExtractionInput(conversationText: string): PreprocessedExtrac
   const source = detectSource(normalizedText);
   const sections = splitIntoSections(normalizedText);
   const commitFiles = extractCommitFiles(sections);
-  const discoveredFiles = normalizeFilePaths([
-    ...commitFiles,
-    ...extractPathsFromText(normalizedText),
-  ]);
+  const discoveredFiles = normalizeFilePaths([...commitFiles, ...extractPathsFromText(normalizedText)]);
 
   return {
     text: normalizedText,
@@ -524,7 +605,10 @@ function segmentIntoFragments(input: PreprocessedExtractionInput): ExtractionFra
         consumedBlocks.add(blockIndex + 1);
       }
 
-      const lines = block.split(/\n/u).map((line) => line.trim()).filter(Boolean);
+      const lines = block
+        .split(/\n/u)
+        .map((line) => line.trim())
+        .filter(Boolean);
       const bullets = lines.filter((line) => isBulletLine(line));
       if (bullets.length > 0) {
         const bulletHeader = lines.find((line) => !isBulletLine(line));
@@ -548,7 +632,10 @@ function segmentIntoFragments(input: PreprocessedExtractionInput): ExtractionFra
           }
 
           const windowText = second ? `${first} ${second}` : first;
-          pushFragment(windowText, windowText, section.name, sectionFiles, [`section:${section.kind}`, "sentence-window"]);
+          pushFragment(windowText, windowText, section.name, sectionFiles, [
+            `section:${section.kind}`,
+            "sentence-window",
+          ]);
         }
       }
     }
@@ -572,14 +659,7 @@ function identifyCandidate(fragment: ExtractionFragment): LocalCandidateDraft | 
   for (const type of MEMORY_TYPES) {
     for (const rule of TYPE_SIGNAL_RULES[type]) {
       if (rule.pattern.test(text)) {
-        addEvidence(
-          typeScores,
-          extractionEvidence,
-          type,
-          rule.weight,
-          rule.kind ?? "keyword",
-          rule.detail,
-        );
+        addEvidence(typeScores, extractionEvidence, type, rule.weight, rule.kind ?? "keyword", rule.detail);
       }
     }
   }
@@ -607,7 +687,8 @@ function identifyCandidate(fragment: ExtractionFragment): LocalCandidateDraft | 
 
   if (
     (/\b(?:goal|target|migration|roadmap|objective)\b/iu.test(text) || /(?:目标|迁移|规划|里程碑)/u.test(text)) &&
-    (/\b(?:end state|long term|eventually|remove the legacy path|after rollout)\b/iu.test(text) || /(?:终态|长期|最终|去掉旧路径|完成发布后)/u.test(text))
+    (/\b(?:end state|long term|eventually|remove the legacy path|after rollout)\b/iu.test(text) ||
+      /(?:终态|长期|最终|去掉旧路径|完成发布后)/u.test(text))
   ) {
     extractionEvidence.push({ kind: "keyword", detail: "goal + end-state combination", weight: 1.6 });
     typeScores.goal += 1.8;
@@ -749,7 +830,10 @@ function extractCommitFiles(sections: ExtractionSection[]): string[] {
       continue;
     }
 
-    const lines = section.content.split(/\n/u).map((line) => line.trim()).filter(Boolean);
+    const lines = section.content
+      .split(/\n/u)
+      .map((line) => line.trim())
+      .filter(Boolean);
     for (const line of lines) {
       const statusMatch = line.match(/^(?:[A-Z?]{1,2})\s+(.+)$/u);
       if (statusMatch?.[1]) {
@@ -984,9 +1068,10 @@ function deriveTitle(text: string, contextText: string, type: MemoryType): strin
     .replace(/^body:\s*/iu, "")
     .replace(/^fix(?:es)? summary:\s*/iu, "")
     .trim();
-  const withoutCause = withoutLabels
-    .split(/\b(?:because|so that|to avoid|to prevent|otherwise)\b|(?:因为|以便|为了|避免|否则)/iu)[0]
-    ?.trim() ?? withoutLabels;
+  const withoutCause =
+    withoutLabels
+      .split(/\b(?:because|so that|to avoid|to prevent|otherwise)\b|(?:因为|以便|为了|避免|否则)/iu)[0]
+      ?.trim() ?? withoutLabels;
   let title = withoutCause.replace(/[;；,.，。]+$/u, "").trim();
 
   for (const pattern of TITLE_FILLER_PREFIXES) {
@@ -1004,7 +1089,10 @@ function deriveTitle(text: string, contextText: string, type: MemoryType): strin
   }
 
   if (title.length > 88) {
-    title = title.slice(0, 88).replace(/\s+\S*$/u, "").trim();
+    title = title
+      .slice(0, 88)
+      .replace(/\s+\S*$/u, "")
+      .trim();
   }
 
   if (!title) {
@@ -1025,8 +1113,13 @@ function deriveSummary(contextText: string, text: string, language: string): str
     return summary;
   }
 
-  const shortened = summary.slice(0, 140).replace(/\s+\S*$/u, "").trim();
-  return shortened || (language.startsWith("zh") ? "提取出一条可复用的仓库记忆。" : "Extracted one reusable repo memory.");
+  const shortened = summary
+    .slice(0, 140)
+    .replace(/\s+\S*$/u, "")
+    .trim();
+  return (
+    shortened || (language.startsWith("zh") ? "提取出一条可复用的仓库记忆。" : "Extracted one reusable repo memory.")
+  );
 }
 
 function pickBestSentence(value: string): string {
@@ -1086,12 +1179,7 @@ function buildDetail(type: MemoryType, contextText: string, files: string[]): st
   return lines.join("\n");
 }
 
-function deriveTags(
-  contextText: string,
-  files: string[],
-  type: MemoryType,
-  area: MemoryArea,
-): string[] {
+function deriveTags(contextText: string, files: string[], type: MemoryType, area: MemoryArea): string[] {
   const tags: string[] = [type, area];
 
   for (const rule of DOMAIN_TAG_RULES) {
@@ -1167,9 +1255,13 @@ function deriveArea(contextText: string, files: string[]): MemoryArea {
 function deriveImportance(contextText: string, type: MemoryType, files: string[]): Importance {
   const combined = `${contextText}\n${files.join("\n")}`;
   const strongRisk =
-    /\b(?:critical|core|never|must|must not|data loss|security|rollback|unsafe|cannot)\b|(?:关键|核心|必须|绝不能|数据丢失|回滚|安全)/iu.test(combined);
+    /\b(?:critical|core|never|must|must not|data loss|security|rollback|unsafe|cannot)\b|(?:关键|核心|必须|绝不能|数据丢失|回滚|安全)/iu.test(
+      combined,
+    );
   const mediumSignal =
-    /\b(?:prefer|should|recommended|consistency|shared|standardize|migration|goal)\b|(?:建议|应该|统一|规范|迁移|目标)/iu.test(combined);
+    /\b(?:prefer|should|recommended|consistency|shared|standardize|migration|goal)\b|(?:建议|应该|统一|规范|迁移|目标)/iu.test(
+      combined,
+    );
 
   if (type === "gotcha" && (strongRisk || RISK_PATTERN.test(combined))) {
     return "high";
@@ -1273,10 +1365,7 @@ function buildDedupeKeys(candidate: ScoredLocalCandidate): string[] {
   ].filter(Boolean);
 }
 
-function choosePreferredCandidate(
-  left: ScoredLocalCandidate,
-  right: ScoredLocalCandidate,
-): ScoredLocalCandidate {
+function choosePreferredCandidate(left: ScoredLocalCandidate, right: ScoredLocalCandidate): ScoredLocalCandidate {
   const leftHasPrefix = left.extractionEvidence.some((entry) => entry.kind === "prefix");
   const rightHasPrefix = right.extractionEvidence.some((entry) => entry.kind === "prefix");
 
@@ -1295,10 +1384,7 @@ function choosePreferredCandidate(
   return right.fragment.order < left.fragment.order ? right : left;
 }
 
-function isNearDuplicateCandidate(
-  left: ScoredLocalCandidate,
-  right: ScoredLocalCandidate,
-): boolean {
+function isNearDuplicateCandidate(left: ScoredLocalCandidate, right: ScoredLocalCandidate): boolean {
   const leftTitle = normalizeForKey(left.memory.title);
   const rightTitle = normalizeForKey(right.memory.title);
   const leftSummary = normalizeForKey(left.memory.summary);
@@ -1383,10 +1469,7 @@ function normalizeSource(value: unknown): Memory["source"] | null {
   return "session";
 }
 
-function getInitialExtractedMemoryScore(
-  type: MemoryType,
-  importance: Memory["importance"],
-): number {
+function getInitialExtractedMemoryScore(type: MemoryType, importance: Memory["importance"]): number {
   if (type === "gotcha") {
     if (importance === "high") {
       return 75;
@@ -1466,9 +1549,7 @@ function asOptionalIsoDateOnly(value: unknown): string | undefined {
 
 function buildJsonParseErrorMessage(raw: string): string {
   const preview = raw.replace(/\s+/g, " ").trim().slice(0, 200);
-  return preview
-    ? `stdout was not valid JSON. Preview: ${preview}`
-    : "stdout was empty or not valid JSON.";
+  return preview ? `stdout was not valid JSON. Preview: ${preview}` : "stdout was empty or not valid JSON.";
 }
 
 function clamp(value: number, min: number, max: number): number {

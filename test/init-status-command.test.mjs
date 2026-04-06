@@ -74,9 +74,7 @@ await runTest("brain init helpers can generate cursor steering rules independent
     await initBrain(projectRoot);
     const writtenPaths = await writeSteeringRules(projectRoot, "cursor");
 
-    assert.deepEqual(writtenPaths, [
-      ".cursor/rules/brain-session.mdc",
-    ]);
+    assert.deepEqual(writtenPaths, [".cursor/rules/brain-session.mdc"]);
 
     const status = await getSteeringRulesStatus(projectRoot);
     assert.deepEqual(status, {

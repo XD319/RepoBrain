@@ -1,9 +1,5 @@
 export const INTEGRATION_IDS = ["claude", "codex", "cursor", "copilot"] as const;
-export const INTEGRATION_INSTRUCTION_KINDS = [
-  "skill",
-  "rules",
-  "custom-instructions",
-] as const;
+export const INTEGRATION_INSTRUCTION_KINDS = ["skill", "rules", "custom-instructions"] as const;
 
 export type IntegrationId = (typeof INTEGRATION_IDS)[number];
 export type IntegrationInstructionKind = (typeof INTEGRATION_INSTRUCTION_KINDS)[number];
@@ -47,7 +43,8 @@ export const INTEGRATION_ADAPTERS: readonly IntegrationAdapter[] = [
       "Translate RepoBrain outputs into Claude-friendly skill instructions.",
       "Keep Claude setup thin and avoid adapter-local memory stores.",
     ],
-    failureFallback: "When structured extraction or reinforcement is unavailable, persist the raw summary and run brain extract or brain reinforce manually.",
+    failureFallback:
+      "When structured extraction or reinforcement is unavailable, persist the raw summary and run brain extract or brain reinforce manually.",
   },
   {
     id: "codex",
@@ -73,7 +70,8 @@ export const INTEGRATION_ADAPTERS: readonly IntegrationAdapter[] = [
       "Translate RepoBrain outputs into Codex-friendly session instructions.",
       "Keep Codex setup thin and avoid adapter-local memory stores.",
     ],
-    failureFallback: "When structured extraction or reinforcement is unavailable, persist the raw summary and run brain extract or brain reinforce manually.",
+    failureFallback:
+      "When structured extraction or reinforcement is unavailable, persist the raw summary and run brain extract or brain reinforce manually.",
   },
   {
     id: "cursor",
@@ -99,7 +97,8 @@ export const INTEGRATION_ADAPTERS: readonly IntegrationAdapter[] = [
       "Translate RepoBrain outputs into Cursor rules or project instructions.",
       "Keep Cursor setup thin and avoid adapter-local memory stores.",
     ],
-    failureFallback: "When Cursor rules cannot emit structured output, copy the session summary into a markdown artifact and hand it to brain extract or brain reinforce.",
+    failureFallback:
+      "When Cursor rules cannot emit structured output, copy the session summary into a markdown artifact and hand it to brain extract or brain reinforce.",
   },
   {
     id: "copilot",
@@ -125,7 +124,8 @@ export const INTEGRATION_ADAPTERS: readonly IntegrationAdapter[] = [
       "Translate RepoBrain outputs into Copilot custom instructions.",
       "Keep Copilot setup thin and avoid adapter-local memory stores.",
     ],
-    failureFallback: "When Copilot cannot emit structured output directly, route a saved markdown summary into brain extract or brain reinforce from the shell or CI step.",
+    failureFallback:
+      "When Copilot cannot emit structured output directly, route a saved markdown summary into brain extract or brain reinforce from the shell or CI step.",
   },
 ];
 

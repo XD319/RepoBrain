@@ -61,9 +61,7 @@ export function parseSessionProfileJson(raw: string): SessionProfile {
   const obj = parsed as Record<string, unknown>;
   const version = obj.version;
   if (version !== SESSION_PROFILE_VERSION) {
-    throw new Error(
-      `Unsupported session profile version ${String(version)}. Expected ${SESSION_PROFILE_VERSION}.`,
-    );
+    throw new Error(`Unsupported session profile version ${String(version)}. Expected ${SESSION_PROFILE_VERSION}.`);
   }
   const hints = obj.hints;
   if (!Array.isArray(hints) || hints.some((h) => typeof h !== "string")) {
@@ -177,10 +175,7 @@ export async function ensureSessionRuntimeLayout(projectRoot: string): Promise<v
   }
 }
 
-function syntheticPreferenceFromSessionRow(
-  row: SessionSkillRoutingEntry,
-  profileUpdatedAt: string,
-): Preference {
+function syntheticPreferenceFromSessionRow(row: SessionSkillRoutingEntry, profileUpdatedAt: string): Preference {
   const now = new Date().toISOString();
   return {
     kind: "routing_preference",
@@ -216,10 +211,7 @@ export function buildApplicableSessionPreferences(
   return applicable;
 }
 
-const WORKFLOW_HINTS: Record<
-  keyof NonNullable<SessionProfile["workflow_flags"]>,
-  string
-> = {
+const WORKFLOW_HINTS: Record<keyof NonNullable<SessionProfile["workflow_flags"]>, string> = {
   minimal_change: "[workflow] Prefer minimal changes for this session.",
   skip_full_tests: "[workflow] Skip full test suite this session unless needed for the touched code.",
   no_schema_changes: "[workflow] Avoid schema / migration changes in this session unless unavoidable.",
@@ -244,11 +236,7 @@ export function applyWorkflowFlagHints(profile: SessionProfile): SessionProfile 
   return { ...profile, hints: merged };
 }
 
-export function mergeHints(
-  existing: string[],
-  incoming: string[],
-  mode: "append" | "replace",
-): string[] {
+export function mergeHints(existing: string[], incoming: string[], mode: "append" | "replace"): string[] {
   const inc = incoming.map((s) => s.trim()).filter(Boolean);
   if (mode === "replace") {
     return inc;

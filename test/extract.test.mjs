@@ -117,11 +117,7 @@ try {
 
   await runTest("local extractor rejects low-information debug noise", async () => {
     const memories = await extractMemories(
-      [
-        "Ran npm test.",
-        "Added console.log around the parser.",
-        "Fixed one README typo.",
-      ].join("\n"),
+      ["Ran npm test.", "Added console.log around the parser.", "Fixed one README typo."].join("\n"),
       config,
     );
 

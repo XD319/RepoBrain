@@ -31,7 +31,8 @@ await runTest("brain approve --safe only promotes low-risk novel candidates", as
         type: "pattern",
         title: "Use focused fixtures for CLI smoke tests",
         summary: "CLI smoke tests stay easier to debug with focused fixtures instead of the full demo repo.",
-        detail: "## PATTERN\n\nCLI smoke tests stay easier to debug with focused fixtures instead of the full demo repo.",
+        detail:
+          "## PATTERN\n\nCLI smoke tests stay easier to debug with focused fixtures instead of the full demo repo.",
         tags: ["cli", "tests"],
         importance: "medium",
         date: "2026-04-01T09:00:00.000Z",
@@ -46,7 +47,8 @@ await runTest("brain approve --safe only promotes low-risk novel candidates", as
         type: "decision",
         title: "Keep refund writes inside the transaction helper",
         summary: "Refund writes should also stay inside the transaction helper so the same rollback rule applies.",
-        detail: "## DECISION\n\nRefund writes should also stay inside the transaction helper so the same rollback rule applies.",
+        detail:
+          "## DECISION\n\nRefund writes should also stay inside the transaction helper so the same rollback rule applies.",
         tags: ["payments", "refunds"],
         importance: "medium",
         date: "2026-04-01T10:00:00.000Z",
@@ -63,7 +65,9 @@ await runTest("brain approve --safe only promotes low-risk novel candidates", as
 
     const records = await loadStoredMemoryRecords(projectRoot);
     const safeCandidate = records.find((entry) => entry.memory.title === "Use focused fixtures for CLI smoke tests");
-    const manualCandidate = records.find((entry) => entry.memory.title === "Keep refund writes inside the transaction helper");
+    const manualCandidate = records.find(
+      (entry) => entry.memory.title === "Keep refund writes inside the transaction helper",
+    );
 
     assert.equal(safeCandidate?.memory.status, "active");
     assert.equal(manualCandidate?.memory.status, "candidate");
@@ -92,7 +96,8 @@ await runTest("brain approve --safe rejects a specific candidate that still need
         type: "decision",
         title: "Keep refund writes inside the transaction helper",
         summary: "Refund writes should also stay inside the transaction helper so the same rollback rule applies.",
-        detail: "## DECISION\n\nRefund writes should also stay inside the transaction helper so the same rollback rule applies.",
+        detail:
+          "## DECISION\n\nRefund writes should also stay inside the transaction helper so the same rollback rule applies.",
         tags: ["payments", "refunds"],
         importance: "medium",
         date: "2026-04-01T10:00:00.000Z",
@@ -106,7 +111,10 @@ await runTest("brain approve --safe rejects a specific candidate that still need
     const candidate = records.find((entry) => entry.memory.status === "candidate");
     assert.ok(candidate);
 
-    const result = await runCliProcess(["approve", candidate ? path.basename(candidate.filePath, ".md") : "", "--safe"], projectRoot);
+    const result = await runCliProcess(
+      ["approve", candidate ? path.basename(candidate.filePath, ".md") : "", "--safe"],
+      projectRoot,
+    );
     assert.equal(result.code, 1);
     assert.match(result.stderr, /still requires manual review \(merge: same_scope_summary_overlap\)/);
   });

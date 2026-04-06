@@ -9,8 +9,7 @@ if (stdin.includes("You are a repo failure detector.")) {
   }
 
   const relatedMemoryFile =
-    process.env.DETECT_RELATED_FILE ??
-    "2026-04-01-keep-payment-writes-inside-the-transaction-helper.md";
+    process.env.DETECT_RELATED_FILE ?? "2026-04-01-keep-payment-writes-inside-the-transaction-helper.md";
   process.stdout.write(
     JSON.stringify([
       {

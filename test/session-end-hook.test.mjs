@@ -58,7 +58,10 @@ await runTest("session-end hook queues reinforcement suggestions instead of appl
     assert.equal(pending.events[1]?.suggestedAction, "extract_new");
 
     const records = await loadStoredMemoryRecords(projectRoot);
-    assert.equal(records.some((entry) => entry.memory.origin === "failure"), false);
+    assert.equal(
+      records.some((entry) => entry.memory.origin === "failure"),
+      false,
+    );
   });
 });
 

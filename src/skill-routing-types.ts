@@ -1,9 +1,4 @@
-import type {
-  Importance,
-  InvocationMode,
-  RiskLevel,
-  StoredMemoryRecord,
-} from "./types.js";
+import type { Importance, InvocationMode, RiskLevel, StoredMemoryRecord } from "./types.js";
 
 export type PathSource = "explicit" | "git_diff" | "none";
 

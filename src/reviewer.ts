@@ -145,14 +145,32 @@ export function decideCandidateMemoryReview(context: MemoryReviewContext): Candi
   const { memory, comparable_matches: comparableMatches } = context;
 
   if (hasInsufficientSignal(memory)) {
-    return finalizeReview("reject", [], "insufficient_signal", null, 0.98, context, "Candidate is too thin to preserve as durable repo memory.");
+    return finalizeReview(
+      "reject",
+      [],
+      "insufficient_signal",
+      null,
+      0.98,
+      context,
+      "Candidate is too thin to preserve as durable repo memory.",
+    );
   }
 
   if (looksTemporary(memory)) {
-    return finalizeReview("reject", [], "temporary_detail", null, 0.97, context, "Candidate looks temporary or debugging-only, so it should not become durable memory.");
+    return finalizeReview(
+      "reject",
+      [],
+      "temporary_detail",
+      null,
+      0.97,
+      context,
+      "Candidate looks temporary or debugging-only, so it should not become durable memory.",
+    );
   }
 
-  const duplicateMatches = comparableMatches.filter((match) => match.relation === "duplicate" && match.confidence >= 0.74);
+  const duplicateMatches = comparableMatches.filter(
+    (match) => match.relation === "duplicate" && match.confidence >= 0.74,
+  );
   if (duplicateMatches.length > 0) {
     const winningTargets = duplicateMatches.map((entry) => entry.target_memory_id);
     const confidence = Math.max(...duplicateMatches.map((entry) => entry.confidence));
@@ -167,7 +185,9 @@ export function decideCandidateMemoryReview(context: MemoryReviewContext): Candi
     );
   }
 
-  const replacementMatches = comparableMatches.filter((match) => match.relation === "full_replacement" && match.confidence >= 0.56);
+  const replacementMatches = comparableMatches.filter(
+    (match) => match.relation === "full_replacement" && match.confidence >= 0.56,
+  );
   const bestReplacement = replacementMatches[0];
   if (bestReplacement && !hasCompetingMatch(bestReplacement, replacementMatches)) {
     return finalizeReview(
@@ -181,9 +201,15 @@ export function decideCandidateMemoryReview(context: MemoryReviewContext): Candi
     );
   }
 
-  const additiveMatches = comparableMatches.filter((match) => match.relation === "additive_update" && match.confidence >= 0.58);
+  const additiveMatches = comparableMatches.filter(
+    (match) => match.relation === "additive_update" && match.confidence >= 0.58,
+  );
   const bestAdditive = additiveMatches[0];
-  if (bestAdditive && !hasCompetingMatch(bestAdditive, additiveMatches) && !hasAmbiguousConflict(bestAdditive, comparableMatches)) {
+  if (
+    bestAdditive &&
+    !hasCompetingMatch(bestAdditive, additiveMatches) &&
+    !hasAmbiguousConflict(bestAdditive, comparableMatches)
+  ) {
     return finalizeReview(
       "merge",
       [bestAdditive.target_memory_id],
@@ -195,7 +221,9 @@ export function decideCandidateMemoryReview(context: MemoryReviewContext): Candi
     );
   }
 
-  const splitMatches = comparableMatches.filter((match) => match.relation === "possible_split" && match.confidence >= 0.28);
+  const splitMatches = comparableMatches.filter(
+    (match) => match.relation === "possible_split" && match.confidence >= 0.28,
+  );
   if (splitMatches.length > 0) {
     return finalizeReview(
       "reject",
@@ -242,7 +270,11 @@ function buildReviewMatch(memory: Memory, entry: StoredMemoryRecord): MemoryRevi
 
   const sameScope = hasSameScopeIdentity(memory, entry.memory);
   const overlappingScope = !sameScope && scopesOverlap(memory.path_scope ?? [], entry.memory.path_scope ?? []);
-  const scopeRelation: MemoryScopeRelation = sameScope ? "same_scope" : overlappingScope ? "overlapping_scope" : "disjoint_scope";
+  const scopeRelation: MemoryScopeRelation = sameScope
+    ? "same_scope"
+    : overlappingScope
+      ? "overlapping_scope"
+      : "disjoint_scope";
   const titleSimilarity = getTextSimilarity(memory.title, entry.memory.title);
   const summarySimilarity = getTextSimilarity(memory.summary, entry.memory.summary);
   const detailSimilarity = getTextSimilarity(memory.detail, entry.memory.detail);
@@ -309,7 +341,9 @@ function buildEvidenceVector(
   const target = entry.memory;
   const replacementSignal = hasReplacementSignal(candidate);
   const additiveSignal = ADDITIVE_SIGNAL_PATTERN.test(`${candidate.title}\n${candidate.summary}\n${candidate.detail}`);
-  const partialUpdateSignal = PARTIAL_UPDATE_PATTERN.test(`${candidate.title}\n${candidate.summary}\n${candidate.detail}`);
+  const partialUpdateSignal = PARTIAL_UPDATE_PATTERN.test(
+    `${candidate.title}\n${candidate.summary}\n${candidate.detail}`,
+  );
   const splitSignal = SPLIT_SIGNAL_PATTERN.test(`${candidate.title}\n${candidate.summary}\n${candidate.detail}`);
   const candidateIsNewer = isCandidateNewer(candidate, target);
 
@@ -318,17 +352,27 @@ function buildEvidenceVector(
     identityItems.push(makeEvidence("same_title_slug", "Normalized titles match", 0.42, true));
   }
   if (metrics.titleSimilarity >= 0.92) {
-    identityItems.push(makeEvidence("title_overlap_strong", "Title similarity is very high", 0.28, metrics.titleSimilarity));
+    identityItems.push(
+      makeEvidence("title_overlap_strong", "Title similarity is very high", 0.28, metrics.titleSimilarity),
+    );
   } else if (metrics.titleSimilarity >= 0.75) {
-    identityItems.push(makeEvidence("title_overlap_moderate", "Title similarity is moderate", 0.18, metrics.titleSimilarity));
+    identityItems.push(
+      makeEvidence("title_overlap_moderate", "Title similarity is moderate", 0.18, metrics.titleSimilarity),
+    );
   }
   if (metrics.summarySimilarity >= 0.7) {
-    identityItems.push(makeEvidence("summary_overlap_strong", "Summary similarity is strong", 0.2, metrics.summarySimilarity));
+    identityItems.push(
+      makeEvidence("summary_overlap_strong", "Summary similarity is strong", 0.2, metrics.summarySimilarity),
+    );
   } else if (metrics.summarySimilarity >= 0.48) {
-    identityItems.push(makeEvidence("summary_overlap_moderate", "Summary similarity is moderate", 0.12, metrics.summarySimilarity));
+    identityItems.push(
+      makeEvidence("summary_overlap_moderate", "Summary similarity is moderate", 0.12, metrics.summarySimilarity),
+    );
   }
   if (metrics.detailSimilarity >= 0.62) {
-    identityItems.push(makeEvidence("detail_overlap_support", "Detail overlap supports same identity", 0.12, metrics.detailSimilarity));
+    identityItems.push(
+      makeEvidence("detail_overlap_support", "Detail overlap supports same identity", 0.12, metrics.detailSimilarity),
+    );
   }
   if (metrics.sameScope && metrics.titleSimilarity >= 0.72) {
     identityItems.push(makeEvidence("same_scope_support", "Exact scope match supports same identity", 0.08, true));
@@ -341,11 +385,32 @@ function buildEvidenceVector(
 
   const scopeItems: MemoryReviewEvidenceItem[] = [];
   if (metrics.sameScope) {
-    scopeItems.push(makeEvidence("same_scope", "Normalized path scopes are identical", 0.65, buildScopeIdentity(candidate.path_scope ?? [])));
+    scopeItems.push(
+      makeEvidence(
+        "same_scope",
+        "Normalized path scopes are identical",
+        0.65,
+        buildScopeIdentity(candidate.path_scope ?? []),
+      ),
+    );
   } else if (metrics.overlappingScope) {
-    scopeItems.push(makeEvidence("overlapping_scope", "Path scopes overlap by parent/child scope", 0.35, `${buildScopeIdentity(candidate.path_scope ?? [])} ~ ${buildScopeIdentity(target.path_scope ?? [])}`));
+    scopeItems.push(
+      makeEvidence(
+        "overlapping_scope",
+        "Path scopes overlap by parent/child scope",
+        0.35,
+        `${buildScopeIdentity(candidate.path_scope ?? [])} ~ ${buildScopeIdentity(target.path_scope ?? [])}`,
+      ),
+    );
   } else {
-    scopeItems.push(makeEvidence("disjoint_scope", "Path scopes are disjoint", -0.45, `${buildScopeIdentity(candidate.path_scope ?? [])} x ${buildScopeIdentity(target.path_scope ?? [])}`));
+    scopeItems.push(
+      makeEvidence(
+        "disjoint_scope",
+        "Path scopes are disjoint",
+        -0.45,
+        `${buildScopeIdentity(candidate.path_scope ?? [])} x ${buildScopeIdentity(target.path_scope ?? [])}`,
+      ),
+    );
   }
   const scope = scoreBucket(scopeItems, true);
 
@@ -373,7 +438,14 @@ function buildEvidenceVector(
   const recencyItems: MemoryReviewEvidenceItem[] = [];
   const recencyDeltaDays = getDateDeltaDays(candidate.updated ?? candidate.date, target.updated ?? target.date);
   if (candidateIsNewer) {
-    recencyItems.push(makeEvidence("candidate_newer", "Candidate is newer than target", recencyDeltaDays >= 7 ? 0.24 : 0.16, recencyDeltaDays));
+    recencyItems.push(
+      makeEvidence(
+        "candidate_newer",
+        "Candidate is newer than target",
+        recencyDeltaDays >= 7 ? 0.24 : 0.16,
+        recencyDeltaDays,
+      ),
+    );
   } else {
     recencyItems.push(makeEvidence("candidate_older", "Candidate is older than target", -0.22, recencyDeltaDays));
   }
@@ -381,14 +453,37 @@ function buildEvidenceVector(
 
   const statusLineageItems: MemoryReviewEvidenceItem[] = [];
   if (target.status === "active" || !target.status) {
-    statusLineageItems.push(makeEvidence("active_target", "Target is active and can own the durable relationship", 0.2, target.status ?? "active"));
+    statusLineageItems.push(
+      makeEvidence(
+        "active_target",
+        "Target is active and can own the durable relationship",
+        0.2,
+        target.status ?? "active",
+      ),
+    );
   } else if (target.status === "candidate") {
-    statusLineageItems.push(makeEvidence("candidate_target", "Target is only a candidate, so confidence is slightly lower", 0.08, target.status));
+    statusLineageItems.push(
+      makeEvidence(
+        "candidate_target",
+        "Target is only a candidate, so confidence is slightly lower",
+        0.08,
+        target.status,
+      ),
+    );
   } else if (target.status === "done") {
-    statusLineageItems.push(makeEvidence("done_target", "Target is done, so overlap is weaker as a replacement baseline", -0.08, target.status));
+    statusLineageItems.push(
+      makeEvidence(
+        "done_target",
+        "Target is done, so overlap is weaker as a replacement baseline",
+        -0.08,
+        target.status,
+      ),
+    );
   }
   if (target.supersedes) {
-    statusLineageItems.push(makeEvidence("lineage_present", "Target is already part of a lineage chain", -0.04, target.supersedes));
+    statusLineageItems.push(
+      makeEvidence("lineage_present", "Target is already part of a lineage chain", -0.04, target.supersedes),
+    );
   }
   const statusLineage = scoreBucket(statusLineageItems, true);
 
@@ -424,11 +519,24 @@ function classifyReviewRelation(input: {
   candidateIsNewer: boolean;
   replacementSignal: boolean;
 }): MemoryReviewRelation {
-  const { sameScope, overlappingScope, sameIdentity, titleSimilarity, summarySimilarity, detailSimilarity, evidence, targetStatus, candidateIsNewer, replacementSignal } = input;
+  const {
+    sameScope,
+    overlappingScope,
+    sameIdentity,
+    titleSimilarity,
+    summarySimilarity,
+    detailSimilarity,
+    evidence,
+    targetStatus,
+    candidateIsNewer,
+    replacementSignal,
+  } = input;
   const overlapScore = evidence.title_summary_detail_overlap.score;
   const replacementScore = evidence.replacement_wording.score;
   const hasSplitSignal = evidence.replacement_wording.items.some((item) => item.code === "split_wording");
-  const hasPartialUpdateSignal = evidence.replacement_wording.items.some((item) => item.code === "partial_update_wording");
+  const hasPartialUpdateSignal = evidence.replacement_wording.items.some(
+    (item) => item.code === "partial_update_wording",
+  );
 
   if (
     (targetStatus === "active" || targetStatus === "candidate") &&
@@ -507,11 +615,23 @@ function computeRelationConfidence(relation: MemoryReviewRelation, evidence: Mem
     case "duplicate":
       return clamp(identity * 0.42 + scope * 0.2 + overlap * 0.3 + status * 0.08, 0, 1);
     case "full_replacement":
-      return clamp(identity * 0.28 + scope * 0.14 + overlap * 0.18 + replacement * 0.24 + recency * 0.1 + status * 0.06, 0, 1);
+      return clamp(
+        identity * 0.28 + scope * 0.14 + overlap * 0.18 + replacement * 0.24 + recency * 0.1 + status * 0.06,
+        0,
+        1,
+      );
     case "additive_update":
-      return clamp(identity * 0.26 + scope * 0.16 + overlap * 0.32 + Math.max(0, 1 - replacement) * 0.14 + status * 0.12, 0, 1);
+      return clamp(
+        identity * 0.26 + scope * 0.16 + overlap * 0.32 + Math.max(0, 1 - replacement) * 0.14 + status * 0.12,
+        0,
+        1,
+      );
     case "possible_split":
-      return clamp(identity * 0.18 + scope * 0.18 + overlap * 0.18 + Math.abs(replacement) * 0.28 + recency * 0.06 + status * 0.12, 0, 1);
+      return clamp(
+        identity * 0.18 + scope * 0.18 + overlap * 0.18 + Math.abs(replacement) * 0.28 + recency * 0.06 + status * 0.12,
+        0,
+        1,
+      );
     case "ambiguous_overlap":
       return clamp(identity * 0.18 + scope * 0.18 + overlap * 0.22 + status * 0.08, 0, 1);
   }
@@ -676,7 +796,10 @@ function getTextSimilarity(left: string, right: string): number {
 }
 
 function tokenize(value: string): string[] {
-  return value.split(" ").map((token) => token.trim()).filter(Boolean);
+  return value
+    .split(" ")
+    .map((token) => token.trim())
+    .filter(Boolean);
 }
 
 function getBigrams(value: string): string[] {
@@ -892,7 +1015,12 @@ function pushSimilarityEvidence(
   }
 }
 
-function makeEvidence(code: string, label: string, weight: number, value?: string | number | boolean): MemoryReviewEvidenceItem {
+function makeEvidence(
+  code: string,
+  label: string,
+  weight: number,
+  value?: string | number | boolean,
+): MemoryReviewEvidenceItem {
   return { code, label, weight, ...(value === undefined ? {} : { value }) };
 }
 

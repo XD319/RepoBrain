@@ -1,10 +1,6 @@
 import path from "node:path";
 
-import {
-  loadStoredMemoryRecords,
-  loadStoredPreferenceRecords,
-  normalizeBrainRelativePath,
-} from "./store.js";
+import { loadStoredMemoryRecords, loadStoredPreferenceRecords, normalizeBrainRelativePath } from "./store.js";
 import { describeMemoryTemporalBlock, describePreferenceTemporalBlock } from "./temporal.js";
 import type { Memory, Preference, StoredMemoryRecord, StoredPreferenceRecord } from "./types.js";
 
@@ -12,10 +8,7 @@ function brainRel(relativePath: string): string {
   return normalizeBrainRelativePath(relativePath.replace(/\\/g, "/"));
 }
 
-function findMemoryRecordByBrainPath(
-  records: StoredMemoryRecord[],
-  brainPath: string,
-): StoredMemoryRecord | undefined {
+function findMemoryRecordByBrainPath(records: StoredMemoryRecord[], brainPath: string): StoredMemoryRecord | undefined {
   const target = normalizeBrainRelativePath(brainPath);
   return records.find((r) => brainRel(r.relativePath) === target);
 }
@@ -171,9 +164,7 @@ export function renderPreferenceTimeline(
   lines.push("## All preferences (by created_at)", "");
   for (const r of sorted) {
     const p = r.preference;
-    lines.push(
-      `- ${brainRel(r.relativePath)} | ${p.target} | ${p.status} | until=${p.valid_until ?? "—"}`,
-    );
+    lines.push(`- ${brainRel(r.relativePath)} | ${p.target} | ${p.status} | until=${p.valid_until ?? "—"}`);
   }
   return lines.join("\n");
 }

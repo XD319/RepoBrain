@@ -149,9 +149,7 @@ export function isPreferenceReviewEligible(pref: Preference): boolean {
 export function describePreferenceTemporalBlock(pref: Preference, now: Date): string[] {
   const lines: string[] = [];
   const eligible =
-    pref.status === "active" &&
-    !(pref.superseded_by && pref.superseded_by.trim()) &&
-    isPreferenceReviewEligible(pref);
+    pref.status === "active" && !(pref.superseded_by && pref.superseded_by.trim()) && isPreferenceReviewEligible(pref);
 
   let windowOk = true;
   if (pref.valid_from) {

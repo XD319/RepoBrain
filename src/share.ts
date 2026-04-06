@@ -36,18 +36,14 @@ export async function buildSharePlan(
 
   if (matches.length > 1) {
     const suggestions = matches.map((entry) => `- ${getCandidateId(entry)} (${entry.memory.title})`);
-    throw new Error(
-      [`Multiple memories matched "${memoryId}". Use a more specific id:`, ...suggestions].join("\n"),
-    );
+    throw new Error([`Multiple memories matched "${memoryId}". Use a more specific id:`, ...suggestions].join("\n"));
   }
 
   return createSharePlan(projectRoot, matches);
 }
 
 function createSharePlan(projectRoot: string, records: StoredMemoryRecord[]): SharePlan {
-  const sortedRecords = [...records].sort((left, right) =>
-    right.memory.date.localeCompare(left.memory.date),
-  );
+  const sortedRecords = [...records].sort((left, right) => right.memory.date.localeCompare(left.memory.date));
   const addCommands = sortedRecords.map((entry) => `git add ${quoteForShell(entry.relativePath)}`);
 
   return {
@@ -66,12 +62,7 @@ function matchStoredMemories(records: StoredMemoryRecord[], rawQuery: string): S
     const candidateId = normalizeIdentifier(getCandidateId(entry));
     const title = normalizeIdentifier(entry.memory.title);
 
-    return (
-      relativePath.includes(query) ||
-      fileName === query ||
-      candidateId === query ||
-      title.includes(query)
-    );
+    return relativePath.includes(query) || fileName === query || candidateId === query || title.includes(query);
   });
 }
 

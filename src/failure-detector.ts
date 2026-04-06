@@ -277,7 +277,5 @@ function asFailureKind(value: unknown): FailureEvent["kind"] | null {
 }
 
 function asSuggestedAction(value: unknown): FailureEvent["suggestedAction"] | null {
-  return value === "boost_score" || value === "rewrite_memory" || value === "extract_new"
-    ? value
-    : null;
+  return value === "boost_score" || value === "rewrite_memory" || value === "extract_new" ? value : null;
 }

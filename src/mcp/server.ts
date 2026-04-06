@@ -180,10 +180,7 @@ async function handleRequest(
   }
 }
 
-async function callTool(
-  params: Record<string, unknown>,
-  projectRoot: string,
-): Promise<Record<string, unknown>> {
+async function callTool(params: Record<string, unknown>, projectRoot: string): Promise<Record<string, unknown>> {
   const name = typeof params.name === "string" ? params.name : "";
   const args = isPlainObject(params.arguments) ? params.arguments : {};
 
@@ -197,23 +194,24 @@ async function callTool(
   }
 }
 
-async function handleGetContext(
-  args: Record<string, unknown>,
-  projectRoot: string,
-): Promise<Record<string, unknown>> {
+async function handleGetContext(args: Record<string, unknown>, projectRoot: string): Promise<Record<string, unknown>> {
   const config = await loadConfig(projectRoot);
   const maxTokens = normalizePositiveInteger(args.maxTokens);
   const task = typeof args.task === "string" && args.task.trim() ? args.task.trim() : undefined;
   const paths = asOptionalStringArray(args.paths, "paths");
   const modules = asOptionalStringArray(args.modules, "modules");
-  const injection = await buildInjection(projectRoot, {
-    ...config,
-    ...(maxTokens ? { maxInjectTokens: maxTokens } : {}),
-  }, {
-    ...(task ? { task } : {}),
-    ...(paths.length > 0 ? { paths } : {}),
-    ...(modules.length > 0 ? { modules } : {}),
-  });
+  const injection = await buildInjection(
+    projectRoot,
+    {
+      ...config,
+      ...(maxTokens ? { maxInjectTokens: maxTokens } : {}),
+    },
+    {
+      ...(task ? { task } : {}),
+      ...(paths.length > 0 ? { paths } : {}),
+      ...(modules.length > 0 ? { modules } : {}),
+    },
+  );
 
   return {
     content: [
@@ -228,10 +226,7 @@ async function handleGetContext(
   };
 }
 
-async function handleAddMemory(
-  args: Record<string, unknown>,
-  projectRoot: string,
-): Promise<Record<string, unknown>> {
+async function handleAddMemory(args: Record<string, unknown>, projectRoot: string): Promise<Record<string, unknown>> {
   const type = asRequiredEnum(args.type, ["decision", "gotcha", "convention", "pattern", "working", "goal"], "type");
   const title = asRequiredString(args.title, "title");
   const content = asRequiredString(args.content, "content");

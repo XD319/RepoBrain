@@ -3,12 +3,7 @@ import path from "node:path";
 
 import { getBrainDir } from "./config.js";
 import type { Preference, StoredPreferenceRecord } from "./types.js";
-import {
-  initBrain,
-  loadStoredPreferenceRecords,
-  overwriteStoredPreference,
-  savePreference,
-} from "./store.js";
+import { initBrain, loadStoredPreferenceRecords, overwriteStoredPreference, savePreference } from "./store.js";
 import { appendRoutingFeedbackReminders, type RoutingFeedbackReminder } from "./reinforce-pending.js";
 
 export const ROUTING_FEEDBACK_EVENT_TYPES = [
@@ -43,11 +38,7 @@ export interface RoutingFeedbackApplyResult {
 }
 
 export interface RoutingFeedbackAppliedAction {
-  kind:
-    | "preference_candidate_saved"
-    | "preference_confidence_bumped"
-    | "reinforcement_reminder_queued"
-    | "log_only";
+  kind: "preference_candidate_saved" | "preference_confidence_bumped" | "reinforcement_reminder_queued" | "log_only";
   detail: string;
   event_type: RoutingFeedbackEventType;
 }
@@ -94,7 +85,10 @@ export function parseRoutingFeedbackStdin(raw: string): RoutingFeedbackEvent[] {
     // NDJSON or invalid — try line-wise
   }
 
-  const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  const lines = text
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter(Boolean);
   const fromLines: RoutingFeedbackEvent[] = [];
   for (const line of lines) {
     try {
@@ -188,7 +182,12 @@ export function shouldProcessRoutingFeedbackEvent(event: RoutingFeedbackEvent): 
     return { ok: false, reason: "missing skill/workflow/plan and notes too weak for this event type" };
   }
 
-  if ((event.type === "workflow_too_heavy" || event.type === "workflow_failure") && !hasWorkflow && !hasSkill && notes.length < 16) {
+  if (
+    (event.type === "workflow_too_heavy" || event.type === "workflow_failure") &&
+    !hasWorkflow &&
+    !hasSkill &&
+    notes.length < 16
+  ) {
     return { ok: false, reason: "workflow/skill context or longer notes required" };
   }
 
@@ -344,7 +343,8 @@ async function tryBumpPreferConfidence(
       ...latest.preference,
       confidence: next,
       updated_at: now,
-      reason: `${latest.preference.reason.trim()}\n\n> Routing feedback (${event.type}): ${event.notes?.trim() || "positive signal"}`.trim(),
+      reason:
+        `${latest.preference.reason.trim()}\n\n> Routing feedback (${event.type}): ${event.notes?.trim() || "positive signal"}`.trim(),
     },
   };
 
@@ -559,7 +559,9 @@ export async function explainRoutingFeedbackForSkill(
 ): Promise<ExplainRoutingFeedbackResult> {
   const normalized = skill.trim().toLowerCase();
   const records = await loadStoredPreferenceRecords(projectRoot);
-  const prefs = records.filter((r) => r.preference.target_type === "skill" && r.preference.target.trim().toLowerCase() === normalized);
+  const prefs = records.filter(
+    (r) => r.preference.target_type === "skill" && r.preference.target.trim().toLowerCase() === normalized,
+  );
 
   const log = await loadRoutingFeedbackLog(projectRoot);
   const recent_feedback = log.entries.filter(
@@ -607,9 +609,7 @@ export function renderExplainRoutingFeedbackText(result: ExplainRoutingFeedbackR
     lines.push("  (none)");
   } else {
     for (const p of result.preferences) {
-      lines.push(
-        `  - [${p.status}] ${p.preference} conf=${p.confidence.toFixed(3)} — ${p.relative_path}`,
-      );
+      lines.push(`  - [${p.status}] ${p.preference} conf=${p.confidence.toFixed(3)} — ${p.relative_path}`);
       lines.push(`    ${p.reason_excerpt}`);
     }
   }

@@ -33,8 +33,8 @@ const INVOCATION_WEIGHT: Record<InvocationMode, number> = {
 export function hasSelectionContext(options: MemorySelectionOptions): boolean {
   return Boolean(
     options.task?.trim() ||
-      (options.paths ?? []).some((value) => value.trim()) ||
-      (options.modules ?? []).some((value) => value.trim()),
+    (options.paths ?? []).some((value) => value.trim()) ||
+    (options.modules ?? []).some((value) => value.trim()),
   );
 }
 
@@ -50,10 +50,7 @@ export function normalizeSelectionOptions(options: MemorySelectionOptions): Memo
   };
 }
 
-export function scoreMemoryForSelection(
-  memory: Memory,
-  rawOptions: MemorySelectionOptions,
-): MemorySelectionMatch {
+export function scoreMemoryForSelection(memory: Memory, rawOptions: MemorySelectionOptions): MemorySelectionMatch {
   const options = normalizeSelectionOptions(rawOptions);
   const reasons: string[] = [];
   let score = IMPORTANCE_WEIGHT[memory.importance];
@@ -145,12 +142,7 @@ export function normalizePaths(values: string[]): string[] {
 }
 
 export function normalizePath(value: string): string {
-  return value
-    .trim()
-    .replace(/\\/g, "/")
-    .replace(/^\.\//, "")
-    .replace(/\/+/g, "/")
-    .toLowerCase();
+  return value.trim().replace(/\\/g, "/").replace(/^\.\//, "").replace(/\/+/g, "/").toLowerCase();
 }
 
 export function normalizeText(value: string): string {
@@ -172,14 +164,14 @@ function buildTaskKeywordReason(task: string, memory: Memory): string | null {
   }
 
   const memoryTokens = new Set(
-    normalizeText(
-      [memory.title, memory.summary, memory.tags.join(" "), extractScopeText(memory.detail)].join(" "),
-    )
+    normalizeText([memory.title, memory.summary, memory.tags.join(" "), extractScopeText(memory.detail)].join(" "))
       .split(" ")
       .filter(Boolean),
   );
 
-  const matched = Array.from(taskTokens).filter((token) => token.length >= 3 && memoryTokens.has(token)).slice(0, 3);
+  const matched = Array.from(taskTokens)
+    .filter((token) => token.length >= 3 && memoryTokens.has(token))
+    .slice(0, 3);
   if (matched.length === 0) {
     return null;
   }
@@ -226,13 +218,13 @@ function extractScopeText(detail: string): string {
 function hasRoutingMetadata(memory: Memory): boolean {
   return Boolean(
     (memory.path_scope ?? []).length > 0 ||
-      (memory.recommended_skills ?? []).length > 0 ||
-      (memory.required_skills ?? []).length > 0 ||
-      (memory.suppressed_skills ?? []).length > 0 ||
-      (memory.skill_trigger_paths ?? []).length > 0 ||
-      (memory.skill_trigger_tasks ?? []).length > 0 ||
-      (memory.invocation_mode ?? "optional") !== "optional" ||
-      (memory.risk_level ?? "low") !== "low",
+    (memory.recommended_skills ?? []).length > 0 ||
+    (memory.required_skills ?? []).length > 0 ||
+    (memory.suppressed_skills ?? []).length > 0 ||
+    (memory.skill_trigger_paths ?? []).length > 0 ||
+    (memory.skill_trigger_tasks ?? []).length > 0 ||
+    (memory.invocation_mode ?? "optional") !== "optional" ||
+    (memory.risk_level ?? "low") !== "low",
   );
 }
 

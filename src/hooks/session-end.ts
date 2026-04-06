@@ -7,7 +7,15 @@ import { extractMemories } from "../extract.js";
 import { detectFailures } from "../failure-detector.js";
 import { savePendingReinforcementEvents } from "../reinforce-pending.js";
 import { isSafeForAutoApproval, reviewCandidateMemories, reviewCandidateMemory } from "../reviewer.js";
-import { appendErrorLog, approveCandidateMemory, getMemoryStatus, initBrain, loadStoredMemoryRecords, saveMemory, updateIndex } from "../store.js";
+import {
+  appendErrorLog,
+  approveCandidateMemory,
+  getMemoryStatus,
+  initBrain,
+  loadStoredMemoryRecords,
+  saveMemory,
+  updateIndex,
+} from "../store.js";
 import type { Memory } from "../types.js";
 
 async function main(): Promise<void> {
@@ -34,13 +42,12 @@ async function main(): Promise<void> {
     for (const entry of reviewedCandidates) {
       const { memory, review } = entry;
       if (review.decision === "reject") {
-        debugLog(
-          `Rejected extracted memory "${memory.title}" (${review.reason})`,
-        );
+        debugLog(`Rejected extracted memory "${memory.title}" (${review.reason})`);
         continue;
       }
 
-      const useCandidate = config.captureMode === "candidate" || config.captureMode === "reviewable" || review.decision !== "accept";
+      const useCandidate =
+        config.captureMode === "candidate" || config.captureMode === "reviewable" || review.decision !== "accept";
       const toSave: Memory = {
         ...memory,
         ...(memory.source ? {} : { source: "session" }),
@@ -57,9 +64,7 @@ async function main(): Promise<void> {
 
     if (config.autoApproveSafeCandidates) {
       const postExtractRecords = await loadStoredMemoryRecords(projectRoot);
-      const candidates = postExtractRecords.filter(
-        (entry) => getMemoryStatus(entry.memory) === "candidate",
-      );
+      const candidates = postExtractRecords.filter((entry) => getMemoryStatus(entry.memory) === "candidate");
       let autoPromoted = 0;
       for (const record of candidates) {
         const review = reviewCandidateMemory(

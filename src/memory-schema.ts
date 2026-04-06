@@ -228,11 +228,27 @@ function scanMemoryFile(projectRoot: string, filePath: string, content: string):
     memory: normalizedMemory,
   };
 
-  return finalizeScannedFile(filePath, relativePath, memoryId, issues, normalizedMemory, normalizedContent, record, content);
+  return finalizeScannedFile(
+    filePath,
+    relativePath,
+    memoryId,
+    issues,
+    normalizedMemory,
+    normalizedContent,
+    record,
+    content,
+  );
 }
 
 function buildNormalizedMemory(frontmatter: RawFrontmatter, rawDetail: string): Memory | null {
-  if (!frontmatter.type || !frontmatter.title || !frontmatter.summary || !frontmatter.importance || !frontmatter.date || !rawDetail) {
+  if (
+    !frontmatter.type ||
+    !frontmatter.title ||
+    !frontmatter.summary ||
+    !frontmatter.importance ||
+    !frontmatter.date ||
+    !rawDetail
+  ) {
     return null;
   }
 
@@ -325,7 +341,8 @@ function finalizeScannedFile(
   originalContent: string,
 ): ScannedMemoryFile {
   const hasErrors = issues.some((issue) => issue.severity === "error");
-  const normalized = normalizedContent !== null && normalizeFileContent(normalizedContent) !== normalizeFileContent(originalContent);
+  const normalized =
+    normalizedContent !== null && normalizeFileContent(normalizedContent) !== normalizeFileContent(originalContent);
   const fixable = !hasErrors && normalized;
 
   return {
@@ -424,9 +441,24 @@ function collectConflictIssues(memory: Memory, issues: MemorySchemaIssue[]): voi
   }
 
   const overlaps = [
-    ...findSkillOverlap(memory.required_skills ?? [], memory.recommended_skills ?? [], "required_skills", "recommended_skills"),
-    ...findSkillOverlap(memory.required_skills ?? [], memory.suppressed_skills ?? [], "required_skills", "suppressed_skills"),
-    ...findSkillOverlap(memory.recommended_skills ?? [], memory.suppressed_skills ?? [], "recommended_skills", "suppressed_skills"),
+    ...findSkillOverlap(
+      memory.required_skills ?? [],
+      memory.recommended_skills ?? [],
+      "required_skills",
+      "recommended_skills",
+    ),
+    ...findSkillOverlap(
+      memory.required_skills ?? [],
+      memory.suppressed_skills ?? [],
+      "required_skills",
+      "suppressed_skills",
+    ),
+    ...findSkillOverlap(
+      memory.recommended_skills ?? [],
+      memory.suppressed_skills ?? [],
+      "recommended_skills",
+      "suppressed_skills",
+    ),
   ];
   issues.push(...overlaps);
 }
@@ -434,11 +466,12 @@ function collectConflictIssues(memory: Memory, issues: MemorySchemaIssue[]): voi
 function collectMeaninglessScopeIssues(frontmatter: RawFrontmatter, memory: Memory, issues: MemorySchemaIssue[]): void {
   for (const field of ["path_scope", "files", "skill_trigger_paths"] satisfies Array<keyof RawFrontmatter>) {
     const original = frontmatter[field];
-    const normalized = field === "path_scope"
-      ? memory.path_scope ?? []
-      : field === "files"
-        ? memory.files ?? []
-        : memory.skill_trigger_paths ?? [];
+    const normalized =
+      field === "path_scope"
+        ? (memory.path_scope ?? [])
+        : field === "files"
+          ? (memory.files ?? [])
+          : (memory.skill_trigger_paths ?? []);
 
     if (original.length > 0 && normalized.length === 0) {
       issues.push({
@@ -470,11 +503,12 @@ function collectMeaninglessScopeIssues(frontmatter: RawFrontmatter, memory: Memo
 function collectSkillMetadataIssues(frontmatter: RawFrontmatter, memory: Memory, issues: MemorySchemaIssue[]): void {
   for (const field of ["recommended_skills", "required_skills", "suppressed_skills"] as const) {
     const original = normalizeLooseArray(frontmatter[field]);
-    const normalized = field === "recommended_skills"
-      ? memory.recommended_skills ?? []
-      : field === "required_skills"
-        ? memory.required_skills ?? []
-        : memory.suppressed_skills ?? [];
+    const normalized =
+      field === "recommended_skills"
+        ? (memory.recommended_skills ?? [])
+        : field === "required_skills"
+          ? (memory.required_skills ?? [])
+          : (memory.suppressed_skills ?? []);
 
     if (original.length > normalized.length) {
       issues.push({
@@ -501,17 +535,13 @@ function collectSkillMetadataIssues(frontmatter: RawFrontmatter, memory: Memory,
       code: "missing_skill_metadata",
       severity: "warning",
       field: "skill_trigger_paths",
-      message: "Skill metadata exists, but there are no path/task triggers or scoped files to explain when it should apply.",
+      message:
+        "Skill metadata exists, but there are no path/task triggers or scoped files to explain when it should apply.",
     });
   }
 }
 
-function findSkillOverlap(
-  left: string[],
-  right: string[],
-  leftField: string,
-  rightField: string,
-): MemorySchemaIssue[] {
+function findSkillOverlap(left: string[], right: string[], leftField: string, rightField: string): MemorySchemaIssue[] {
   const rightSet = new Set(right);
   return left
     .filter((skill) => rightSet.has(skill))
@@ -526,7 +556,9 @@ function findSkillOverlap(
 function summarizeSchemaHealth(scanned: ScannedMemoryFile[]): MemorySchemaHealthSummary {
   const totalFiles = scanned.length;
   const healthyFiles = scanned.filter((entry) => entry.report.healthy).length;
-  const filesWithErrors = scanned.filter((entry) => entry.report.issues.some((issue) => issue.severity === "error")).length;
+  const filesWithErrors = scanned.filter((entry) =>
+    entry.report.issues.some((issue) => issue.severity === "error"),
+  ).length;
   const filesWithWarnings = scanned.filter((entry) =>
     entry.report.issues.some((issue) => issue.severity === "warning"),
   ).length;
@@ -554,13 +586,7 @@ export function renderSchemaHealthSummary(summary: MemorySchemaHealthSummary): s
 }
 
 function normalizeLooseArray(values: string[]): string[] {
-  return Array.from(
-    new Set(
-      values
-        .map((value) => value.trim())
-        .filter(Boolean),
-    ),
-  );
+  return Array.from(new Set(values.map((value) => value.trim()).filter(Boolean)));
 }
 
 function normalizeFileContent(value: string): string {
@@ -593,12 +619,7 @@ function sortIssues(issues: MemorySchemaIssue[]): MemorySchemaIssue[] {
 }
 
 function isMissingDirectoryError(error: unknown): boolean {
-  return (
-    error instanceof Error &&
-    "code" in error &&
-    typeof error.code === "string" &&
-    error.code === "ENOENT"
-  );
+  return error instanceof Error && "code" in error && typeof error.code === "string" && error.code === "ENOENT";
 }
 
 function toDisplayPath(value: string): string {

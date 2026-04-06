@@ -181,10 +181,7 @@ export async function deleteExpiredWorking(candidate: ExpiredWorkingCandidate): 
   await rm(candidate.record.filePath, { force: true });
 }
 
-export async function downgradeStaleMemory(
-  candidate: StaleMemoryCandidate,
-  today: string,
-): Promise<void> {
+export async function downgradeStaleMemory(candidate: StaleMemoryCandidate, today: string): Promise<void> {
   await overwriteStoredMemory({
     ...candidate.record,
     memory: {
@@ -195,10 +192,7 @@ export async function downgradeStaleMemory(
   });
 }
 
-export async function archiveGoalMemory(
-  projectRoot: string,
-  candidate: ArchiveGoalCandidate,
-): Promise<string> {
+export async function archiveGoalMemory(projectRoot: string, candidate: ArchiveGoalCandidate): Promise<string> {
   const archiveDir = path.join(getBrainDir(projectRoot), "archive");
   await mkdir(archiveDir, { recursive: true });
 
@@ -221,7 +215,9 @@ export async function archiveGoalMemory(
     }
   }
 
-  throw new Error(`Failed to archive memory "${candidate.record.memory.title}" because no unique archive file name was available.`);
+  throw new Error(
+    `Failed to archive memory "${candidate.record.memory.title}" because no unique archive file name was available.`,
+  );
 }
 
 export async function applySweepAuto(

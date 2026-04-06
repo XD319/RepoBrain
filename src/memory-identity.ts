@@ -41,13 +41,7 @@ export function normalizeTextForComparison(value: string): string {
 }
 
 function normalizeScopeEntries(values: string[]): string[] {
-  return Array.from(
-    new Set(
-      values
-        .map((value) => normalizeScopeEntry(value))
-        .filter(Boolean),
-    ),
-  ).sort();
+  return Array.from(new Set(values.map((value) => normalizeScopeEntry(value)).filter(Boolean))).sort();
 }
 
 function normalizeScopeEntry(value: string): string {

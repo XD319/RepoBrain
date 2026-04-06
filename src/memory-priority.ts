@@ -18,8 +18,7 @@ export function computeInjectPriorityReport(memory: Memory, now: number = Date.n
   const qualityAdjustment = roundScore((memory.score ?? 60) * 0.18);
   const hitCountAdjustment = roundScore(Math.min(Math.log2((memory.hit_count ?? 0) + 1) * 4, 12));
   const recency = computeRecency(memory, now);
-  const importanceAdjustment =
-    memory.importance === "high" ? 16 : memory.importance === "medium" ? 10 : 5;
+  const importanceAdjustment = memory.importance === "high" ? 16 : memory.importance === "medium" ? 10 : 5;
   const riskAdjustment =
     (memory.risk_level ?? "low") === "high" ? 8 : (memory.risk_level ?? "low") === "medium" ? 4 : 1;
 

@@ -41,17 +41,11 @@ export interface TaskRoutingBundle {
   routing_explanation?: RoutingExplanation;
 }
 
-export function shouldEscalateRoutingPlan(
-  plan: InvocationPlan,
-  conflicts: SkillConflict[],
-): boolean {
+export function shouldEscalateRoutingPlan(plan: InvocationPlan, conflicts: SkillConflict[]): boolean {
   return plan.blocked.length > 0 || plan.human_review.length > 0 || hasStrongRoutingConflict(conflicts);
 }
 
-export function summarizeRoutingEscalation(
-  plan: InvocationPlan,
-  conflicts: SkillConflict[],
-): string[] {
+export function summarizeRoutingEscalation(plan: InvocationPlan, conflicts: SkillConflict[]): string[] {
   const warnings: string[] = [];
 
   if (plan.blocked.length > 0) {
@@ -106,10 +100,7 @@ export async function buildTaskRoutingBundle(
 
   warnings.push(...summarizeRoutingEscalation(shortlist.invocation_plan, shortlist.conflicts));
 
-  const display_mode: TaskRoutingDisplayMode = shouldEscalateRoutingPlan(
-    shortlist.invocation_plan,
-    shortlist.conflicts,
-  )
+  const display_mode: TaskRoutingDisplayMode = shouldEscalateRoutingPlan(shortlist.invocation_plan, shortlist.conflicts)
     ? "needs-review"
     : "silent-ok";
 

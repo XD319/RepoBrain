@@ -212,9 +212,7 @@ await runTest("normalizeMemorySchemas fills missing temporal fields on disk", as
       status: "active",
     });
     const full = serializeMemory(body);
-    const stripped = full
-      .replace(/^valid_from:.*\n/m, "")
-      .replace(/^observed_at:.*\n/m, "");
+    const stripped = full.replace(/^valid_from:.*\n/m, "").replace(/^observed_at:.*\n/m, "");
     await writeFile(memPath, stripped, "utf8");
 
     const before = await readFile(memPath, "utf8");

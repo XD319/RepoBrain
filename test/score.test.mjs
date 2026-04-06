@@ -67,11 +67,7 @@ await runTest("brain score reviews stale and low-quality memories interactively"
       projectRoot,
     );
 
-    const result = await runCliProcess(
-      ["score"],
-      projectRoot,
-      ["k", "d", "s"].join("\n"),
-    );
+    const result = await runCliProcess(["score"], projectRoot, ["k", "d", "s"].join("\n"));
 
     assert.equal(result.code, 0);
     assert.match(result.stdout, /File\s+\|\s+Type\s+\|\s+Score\s+\|\s+Hit Count\s+\|\s+Last Used\s+\|\s+Trigger/);
@@ -85,8 +81,7 @@ await runTest("brain score reviews stale and low-quality memories interactively"
       "expected condition C entries to rank ahead of condition B entries",
     );
     assert.ok(
-      result.stdout.indexOf("2026-01-02-low-score-memory") <
-        result.stdout.indexOf("2026-01-01-old-memory"),
+      result.stdout.indexOf("2026-01-02-low-score-memory") < result.stdout.indexOf("2026-01-01-old-memory"),
       "expected condition B entries to rank ahead of condition A entries",
     );
 

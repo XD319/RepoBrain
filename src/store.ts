@@ -4,10 +4,7 @@ import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 
 import { getBrainDir, hasBrain, writeDefaultConfig } from "./config.js";
 import { ensureSessionRuntimeLayout } from "./session-profile.js";
-import {
-  buildMemoryIdentity as buildScopedMemoryIdentity,
-  slugifyMemoryTitle,
-} from "./memory-identity.js";
+import { buildMemoryIdentity as buildScopedMemoryIdentity, slugifyMemoryTitle } from "./memory-identity.js";
 import { parseTemporalInstant } from "./temporal.js";
 import type {
   BrainActivityState,
@@ -103,10 +100,7 @@ export async function initBrain(projectRoot: string): Promise<void> {
     }
   }
 
-  await Promise.all([
-    touchFile(path.join(brainDir, "errors.log")),
-    updateIndex(projectRoot),
-  ]);
+  await Promise.all([touchFile(path.join(brainDir, "errors.log")), updateIndex(projectRoot)]);
 }
 
 export async function saveMemory(memory: Memory, projectRoot: string): Promise<string> {
@@ -124,10 +118,7 @@ export async function saveMemory(memory: Memory, projectRoot: string): Promise<s
   const content = serializeMemory(normalizedMemory);
 
   for (let attempt = 0; attempt < 1000; attempt += 1) {
-    const relativePath = path.join(
-      directory,
-      ensureUniqueFileNameSuffix(normalizedMemory, fileName, attempt),
-    );
+    const relativePath = path.join(directory, ensureUniqueFileNameSuffix(normalizedMemory, fileName, attempt));
     const filePath = path.join(brainDir, relativePath);
 
     try {
@@ -148,9 +139,7 @@ export async function saveMemory(memory: Memory, projectRoot: string): Promise<s
 export async function loadAllMemories(projectRoot: string): Promise<Memory[]> {
   const storedMemories = await loadStoredMemories(projectRoot);
 
-  return storedMemories
-    .map((entry) => entry.memory)
-    .sort((left, right) => right.date.localeCompare(left.date));
+  return storedMemories.map((entry) => entry.memory).sort((left, right) => right.date.localeCompare(left.date));
 }
 
 export async function loadStoredMemoryRecords(projectRoot: string): Promise<StoredMemoryRecord[]> {
@@ -231,18 +220,11 @@ async function loadStoredMemories(projectRoot: string): Promise<StoredMemoryReco
     }),
   );
 
-  return memoriesByType
-    .flat()
-    .sort((left, right) => right.memory.date.localeCompare(left.memory.date));
+  return memoriesByType.flat().sort((left, right) => right.memory.date.localeCompare(left.memory.date));
 }
 
 function isMissingDirectoryError(error: unknown): boolean {
-  return (
-    error instanceof Error &&
-    "code" in error &&
-    typeof error.code === "string" &&
-    error.code === "ENOENT"
-  );
+  return error instanceof Error && "code" in error && typeof error.code === "string" && error.code === "ENOENT";
 }
 
 async function pathExists(targetPath: string): Promise<boolean> {
@@ -257,17 +239,10 @@ async function pathExists(targetPath: string): Promise<boolean> {
 export async function appendErrorLog(projectRoot: string, message: string): Promise<void> {
   const brainDir = getBrainDir(projectRoot);
   await mkdir(brainDir, { recursive: true });
-  await appendFile(
-    path.join(brainDir, "errors.log"),
-    `[${new Date().toISOString()}] ${message}\n`,
-    "utf8",
-  );
+  await appendFile(path.join(brainDir, "errors.log"), `[${new Date().toISOString()}] ${message}\n`, "utf8");
 }
 
-export async function recordInjectedMemories(
-  projectRoot: string,
-  memories: Memory[],
-): Promise<void> {
+export async function recordInjectedMemories(projectRoot: string, memories: Memory[]): Promise<void> {
   const brainDir = getBrainDir(projectRoot);
   await mkdir(brainDir, { recursive: true });
   const injectedAt = new Date().toISOString().slice(0, 10);
@@ -360,10 +335,7 @@ export async function supersedeMemoryPair(
   };
 }
 
-export async function approveCandidateMemory(
-  record: StoredMemoryRecord,
-  projectRoot: string,
-): Promise<void> {
+export async function approveCandidateMemory(record: StoredMemoryRecord, projectRoot: string): Promise<void> {
   const nowIso = new Date().toISOString();
   const promotedMemory: Memory = normalizeMemory({
     ...record.memory,
@@ -381,10 +353,7 @@ export async function approveCandidateMemory(
   });
 }
 
-export async function updateStoredMemoryStatus(
-  record: StoredMemoryRecord,
-  status: MemoryStatus,
-): Promise<void> {
+export async function updateStoredMemoryStatus(record: StoredMemoryRecord, status: MemoryStatus): Promise<void> {
   const nowIso = new Date().toISOString();
   const nextMemory: Memory = {
     ...record.memory,
@@ -398,8 +367,7 @@ export async function updateStoredMemoryStatus(
   }
   if (status === "superseded") {
     nextMemory.valid_until = record.memory.valid_until ?? nowIso;
-    nextMemory.supersession_reason =
-      record.memory.supersession_reason ?? "Marked superseded via brain status update";
+    nextMemory.supersession_reason = record.memory.supersession_reason ?? "Marked superseded via brain status update";
   }
   await overwriteStoredMemory({
     ...record,
@@ -462,9 +430,7 @@ export function validateMemory(memory: Memory, context = "Memory"): void {
   }
 
   if (memory.area && !MEMORY_AREAS.includes(memory.area)) {
-    throw new Error(
-      `${context} has unsupported area "${memory.area}". Expected one of: ${MEMORY_AREAS.join(", ")}.`,
-    );
+    throw new Error(`${context} has unsupported area "${memory.area}". Expected one of: ${MEMORY_AREAS.join(", ")}.`);
   }
 
   if (!memory.title.trim() || !memory.summary.trim() || !memory.detail.trim()) {
@@ -642,9 +608,7 @@ function parseMemory(content: string, filePath: string): Memory {
     ...(frontmatter.valid_from ? { valid_from: frontmatter.valid_from } : {}),
     ...(frontmatter.valid_until ? { valid_until: frontmatter.valid_until } : {}),
     ...(frontmatter.observed_at ? { observed_at: frontmatter.observed_at } : {}),
-    ...(frontmatter.supersession_reason !== undefined
-      ? { supersession_reason: frontmatter.supersession_reason }
-      : {}),
+    ...(frontmatter.supersession_reason !== undefined ? { supersession_reason: frontmatter.supersession_reason } : {}),
     ...(frontmatter.confidence !== undefined ? { confidence: frontmatter.confidence } : {}),
     ...(frontmatter.source_episode ? { source_episode: frontmatter.source_episode } : {}),
     ...(frontmatter.review_state ? { review_state: frontmatter.review_state as ReviewState } : {}),
@@ -911,16 +875,10 @@ function toStringArray(value: unknown): string[] {
   if (!Array.isArray(value)) {
     return [];
   }
-  return value
-    .map((entry) => toOptionalString(entry))
-    .filter((entry): entry is string => typeof entry === "string");
+  return value.map((entry) => toOptionalString(entry)).filter((entry): entry is string => typeof entry === "string");
 }
 
-function assignIfDefined(
-  target: Record<string, unknown>,
-  key: string,
-  value: unknown,
-): void {
+function assignIfDefined(target: Record<string, unknown>, key: string, value: unknown): void {
   if (value !== undefined) {
     target[key] = value;
   }
@@ -957,8 +915,7 @@ export function normalizeMemory(memory: Memory): Memory {
   const updated = normalizeOptionalIsoDateOnly(memory.updated ?? created ?? isoDateOnlyFromKnownDate(memory.date));
   const expires = normalizeOptionalIsoDateOnly(memory.expires);
   const status = normalizeMemoryStatus(memory.type, memory.status);
-  const valid_from =
-    normalizeOptionalIsoDateOnly(memory.valid_from) ?? isoDateOnlyFromKnownDate(normalizedCreatedAt);
+  const valid_from = normalizeOptionalIsoDateOnly(memory.valid_from) ?? isoDateOnlyFromKnownDate(normalizedCreatedAt);
   const valid_until = normalizeOptionalTemporalBoundary(memory.valid_until);
   const observed_at = normalizeOptionalTemporalBoundary(memory.observed_at) ?? normalizedCreatedAt;
   const confidence = clampUnitInterval(memory.confidence ?? DEFAULT_MEMORY_CONFIDENCE);
@@ -983,9 +940,7 @@ export function normalizeMemory(memory: Memory): Memory {
     updated: updated ?? created ?? isoDateOnlyFromKnownDate(memory.date),
     stale: memory.stale ?? DEFAULT_MEMORY_STALE,
     supersedes: normalizeNullableBrainRelativePath(memory.supersedes ?? DEFAULT_MEMORY_SUPERSEDES),
-    superseded_by: normalizeNullableBrainRelativePath(
-      memory.superseded_by ?? DEFAULT_MEMORY_SUPERSEDED_BY,
-    ),
+    superseded_by: normalizeNullableBrainRelativePath(memory.superseded_by ?? DEFAULT_MEMORY_SUPERSEDED_BY),
     version: memory.version ?? DEFAULT_MEMORY_VERSION,
     invocation_mode: memory.invocation_mode ?? DEFAULT_INVOCATION_MODE,
     risk_level: memory.risk_level ?? DEFAULT_RISK_LEVEL,
@@ -1074,12 +1029,7 @@ function validateNullableRelativeBrainPath(
   }
 
   const normalized = normalizeBrainRelativePath(trimmed);
-  if (
-    !normalized ||
-    trimmed.startsWith("/") ||
-    normalized.startsWith("../") ||
-    /^[A-Za-z]:/.test(trimmed)
-  ) {
+  if (!normalized || trimmed.startsWith("/") || normalized.startsWith("../") || /^[A-Za-z]:/.test(trimmed)) {
     throw new Error(`${context} field "${fieldName}" must stay relative to .brain/.`);
   }
 }
@@ -1125,9 +1075,7 @@ function titleForType(type: MemoryType): string {
 }
 
 function ensureUniqueFileNameSuffix(memory: Memory, fileName: string, attempt: number = 0): string {
-  const stamp = memory.date
-    .replace(/[^\d]/g, "")
-    .slice(8, 17);
+  const stamp = memory.date.replace(/[^\d]/g, "").slice(8, 17);
 
   const extension = path.extname(fileName);
   const baseName = fileName.slice(0, -extension.length);
@@ -1145,12 +1093,7 @@ function ensureUniqueFileNameSuffix(memory: Memory, fileName: string, attempt: n
 }
 
 function isFileAlreadyExistsError(error: unknown): boolean {
-  return (
-    error instanceof Error &&
-    "code" in error &&
-    typeof error.code === "string" &&
-    error.code === "EEXIST"
-  );
+  return error instanceof Error && "code" in error && typeof error.code === "string" && error.code === "EEXIST";
 }
 
 function getActivityStatePath(projectRoot: string): string {
@@ -1202,12 +1145,8 @@ async function commitAtomicWriteOperations(operations: AtomicWriteOperation[]): 
       committed.push(operation);
     }
 
-    await Promise.all(
-      movedToBackup.map((operation) => rm(operation.backupPath, { force: true })),
-    );
-    await Promise.all(
-      prepared.map((operation) => rm(operation.tempPath, { force: true })),
-    );
+    await Promise.all(movedToBackup.map((operation) => rm(operation.backupPath, { force: true })));
+    await Promise.all(prepared.map((operation) => rm(operation.tempPath, { force: true })));
   } catch (error) {
     for (const operation of committed.reverse()) {
       await rm(operation.targetPath, { force: true }).catch(() => undefined);
@@ -1303,9 +1242,7 @@ function parseActivityState(raw: string): BrainActivityState {
       : [];
 
     const lastInjectedAt =
-      typeof parsed.lastInjectedAt === "string" && parsed.lastInjectedAt.trim()
-        ? parsed.lastInjectedAt
-        : null;
+      typeof parsed.lastInjectedAt === "string" && parsed.lastInjectedAt.trim() ? parsed.lastInjectedAt : null;
 
     return lastInjectedAt
       ? {
@@ -1376,8 +1313,9 @@ function normalizeSkillArray(values: string[]): string[] {
 }
 
 function normalizeRelativePathArray(values: string[]): string[] {
-  return normalizeStringArray(values.map((value) => normalizeBrainRelativePath(value)))
-    .sort((left, right) => left.localeCompare(right));
+  return normalizeStringArray(values.map((value) => normalizeBrainRelativePath(value))).sort((left, right) =>
+    left.localeCompare(right),
+  );
 }
 
 function normalizePathArray(values: string[]): string[] {
@@ -1401,11 +1339,7 @@ function isMeaninglessScopeValue(value: string): boolean {
   return !normalized || normalized === "." || normalized === "*" || normalized === "**" || normalized === "/";
 }
 
-function normalizeCreatedAt(
-  createdAt: string | undefined,
-  created: string | undefined,
-  fallbackDate: string,
-): string {
+function normalizeCreatedAt(createdAt: string | undefined, created: string | undefined, fallbackDate: string): string {
   const explicit = normalizeIsoDateTime(createdAt);
   if (explicit) {
     return explicit;
@@ -1470,7 +1404,9 @@ export async function savePreference(preference: Preference, projectRoot: string
 
 export async function loadAllPreferences(projectRoot: string): Promise<Preference[]> {
   const records = await loadStoredPreferenceRecords(projectRoot);
-  return records.map((entry) => entry.preference).sort((left, right) => right.created_at.localeCompare(left.created_at));
+  return records
+    .map((entry) => entry.preference)
+    .sort((left, right) => right.created_at.localeCompare(left.created_at));
 }
 
 export async function loadStoredPreferenceRecords(projectRoot: string): Promise<StoredPreferenceRecord[]> {
@@ -1509,8 +1445,7 @@ export async function overwriteStoredPreference(record: StoredPreferenceRecord):
 export function normalizePreference(pref: Preference): Preference {
   const updated_at = pref.updated_at || pref.created_at || new Date().toISOString();
   const created_at = pref.created_at || new Date().toISOString();
-  const observed_at =
-    normalizeOptionalTemporalBoundary(pref.observed_at) ?? updated_at;
+  const observed_at = normalizeOptionalTemporalBoundary(pref.observed_at) ?? updated_at;
   return {
     ...pref,
     confidence: clampUnitInterval(pref.confidence ?? 0.5),
@@ -1601,7 +1536,7 @@ export function parsePreference(content: string, filePath: string): Preference {
 
   const { rawFrontmatter, body: rawReason } = extracted;
   if (rawFrontmatter === undefined || rawReason === undefined) {
-     throw new Error(`Preference file "${filePath}" has invalid structure.`);
+    throw new Error(`Preference file "${filePath}" has invalid structure.`);
   }
   const frontmatter = parseFrontmatter(rawFrontmatter);
 

@@ -1,25 +1,12 @@
 import { execSync } from "node:child_process";
 import { getMemoryStatus, loadAllPreferences, loadStoredMemoryRecords } from "./store.js";
 import { isMemoryCurrentlyValid } from "./temporal.js";
-import {
-  matchPathPatterns,
-  matchTaskTriggers,
-  normalizePaths,
-} from "./memory-relevance.js";
+import { matchPathPatterns, matchTaskTriggers, normalizePaths } from "./memory-relevance.js";
 import { buildInvocationPlan } from "./invocation-plan-renderer.js";
-import {
-  buildPreferencePolicyInput,
-  buildStaticMemoryPolicyInput,
-  buildTaskContextInput,
-} from "./routing-inputs.js";
+import { buildPreferencePolicyInput, buildStaticMemoryPolicyInput, buildTaskContextInput } from "./routing-inputs.js";
 import { runRoutingEngine } from "./routing-engine.js";
 import { buildApplicableSessionPreferences, loadSessionProfile } from "./session-profile.js";
-import type {
-  Importance,
-  InvocationMode,
-  RiskLevel,
-  StoredMemoryRecord,
-} from "./types.js";
+import type { Importance, InvocationMode, RiskLevel, StoredMemoryRecord } from "./types.js";
 
 export type {
   InvocationPlan,
@@ -32,10 +19,7 @@ export type {
   SkillSuggestionSource,
   SuggestSkillsOptions,
 } from "./skill-routing-types.js";
-export {
-  SUGGEST_SKILLS_CONTRACT_KIND,
-  SUGGEST_SKILLS_CONTRACT_VERSION,
-} from "./skill-routing-types.js";
+export { SUGGEST_SKILLS_CONTRACT_KIND, SUGGEST_SKILLS_CONTRACT_VERSION } from "./skill-routing-types.js";
 
 import type {
   MatchedMemory,
@@ -44,10 +28,7 @@ import type {
   SkillSuggestionResult,
   SuggestSkillsOptions,
 } from "./skill-routing-types.js";
-import {
-  SUGGEST_SKILLS_CONTRACT_KIND,
-  SUGGEST_SKILLS_CONTRACT_VERSION,
-} from "./skill-routing-types.js";
+import { SUGGEST_SKILLS_CONTRACT_KIND, SUGGEST_SKILLS_CONTRACT_VERSION } from "./skill-routing-types.js";
 
 export type SuggestSkillsOutputFormat = "markdown" | "json";
 
@@ -81,18 +62,15 @@ export async function buildSkillShortlist(
   if (!task && paths.length === 0) {
     throw new Error(
       'Provide a task with "--task" (or stdin) and/or at least one "--path". ' +
-      "When --path is omitted, the CLI auto-collects paths from git diff; " +
-      "pass --task alone if no git context is available.",
+        "When --path is omitted, the CLI auto-collects paths from git diff; " +
+        "pass --task alone if no git context is available.",
     );
   }
 
   const records = await loadStoredMemoryRecords(projectRoot);
   const now = new Date();
   const matched_memories = records
-    .filter(
-      (entry) =>
-        getMemoryStatus(entry.memory) === "active" && isMemoryCurrentlyValid(entry.memory, now),
-    )
+    .filter((entry) => getMemoryStatus(entry.memory) === "active" && isMemoryCurrentlyValid(entry.memory, now))
     .map((entry) => matchMemory(entry, task, paths))
     .filter((entry): entry is MatchedMemory => entry !== null)
     .sort((left, right) => {
@@ -113,11 +91,8 @@ export async function buildSkillShortlist(
     ...(options.modules !== undefined ? { modules: options.modules } : {}),
   });
 
-  const sessionProfile =
-    options.includeSessionProfile === false ? null : await loadSessionProfile(projectRoot);
-  const sessionApplicable = sessionProfile
-    ? buildApplicableSessionPreferences(sessionProfile, task, paths)
-    : [];
+  const sessionProfile = options.includeSessionProfile === false ? null : await loadSessionProfile(projectRoot);
+  const sessionApplicable = sessionProfile ? buildApplicableSessionPreferences(sessionProfile, task, paths) : [];
 
   const routing = runRoutingEngine(
     staticInput,
@@ -181,9 +156,7 @@ export function renderSkillShortlist(result: SkillSuggestionResult): string {
     lines.push("- None.");
   } else {
     for (const skill of result.resolved_skills) {
-      lines.push(
-        `- ${skill.skill} | ${skill.disposition} | plan=${skill.plan_slot} | score=${skill.score}`,
-      );
+      lines.push(`- ${skill.skill} | ${skill.disposition} | plan=${skill.plan_slot} | score=${skill.score}`);
       lines.push(`  From: ${formatSources(skill.sources)}`);
     }
   }
@@ -194,9 +167,7 @@ export function renderSkillShortlist(result: SkillSuggestionResult): string {
     lines.push("- None.");
   } else {
     for (const conflict of result.conflicts) {
-      lines.push(
-        `- ${conflict.skill} | ${conflict.kind} | strategy=${conflict.strategy_result}`,
-      );
+      lines.push(`- ${conflict.skill} | ${conflict.kind} | strategy=${conflict.strategy_result}`);
       lines.push(`  Reason: ${conflict.reason}`);
       lines.push(`  From: ${formatSources(conflict.sources)}`);
     }
@@ -233,14 +204,8 @@ export function renderSkillShortlistJson(result: SkillSuggestionResult): string 
   return JSON.stringify(result, null, 2);
 }
 
-function matchMemory(
-  record: StoredMemoryRecord,
-  task: string | undefined,
-  paths: string[],
-): MatchedMemory | null {
-  const taskReasons = task
-    ? matchTaskTriggers(task, record.memory.skill_trigger_tasks ?? [], "task")
-    : [];
+function matchMemory(record: StoredMemoryRecord, task: string | undefined, paths: string[]): MatchedMemory | null {
+  const taskReasons = task ? matchTaskTriggers(task, record.memory.skill_trigger_tasks ?? [], "task") : [];
   const pathReasons = matchPathPatterns(paths, record.memory.skill_trigger_paths ?? [], "path");
   const reasons = [...taskReasons, ...pathReasons];
 
@@ -283,7 +248,12 @@ export function collectGitDiffPaths(projectRoot: string): string[] {
       stdio: ["ignore", "pipe", "ignore"],
     })
       .split("\n")
-      .map((value) => value.trim().replace(/\\/g, "/").replace(/^\.\/+/, ""))
+      .map((value) =>
+        value
+          .trim()
+          .replace(/\\/g, "/")
+          .replace(/^\.\/+/, ""),
+      )
       .filter(Boolean);
   } catch {
     return [];
@@ -319,9 +289,7 @@ export function resolveSuggestedSkillPaths(
   return {
     paths: [],
     path_source: "none",
-    warnings: [
-      "Git diff paths were unavailable, so RepoBrain continued with task-only routing.",
-    ],
+    warnings: ["Git diff paths were unavailable, so RepoBrain continued with task-only routing."],
   };
 }
 

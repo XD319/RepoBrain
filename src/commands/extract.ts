@@ -8,150 +8,165 @@ import type { Memory, MemoryType } from "../types.js";
 import * as helpers from "./helpers.js";
 
 export function register(program: Command): void {
-program
-  .command("extract")
-  .description("Extract long-lived repo knowledge from stdin and save it into .brain.")
-  .option("--source <source>", "Memory source label", "session")
-  .option("--type <type>", "Force a memory type for extracted entries.", helpers.parseMemoryTypeOption)
-  .option("--candidate", "Save extracted memories as candidates for later review.")
-  .action(async (options: { source: Memory["source"]; type?: MemoryType; candidate?: boolean }) => {
-    const projectRoot = await helpers.resolveProjectRoot();
-    await initBrain(projectRoot);
+  program
+    .command("extract")
+    .description("Extract long-lived repo knowledge from stdin and save it into .brain.")
+    .option("--source <source>", "Memory source label", "session")
+    .option("--type <type>", "Force a memory type for extracted entries.", helpers.parseMemoryTypeOption)
+    .option("--candidate", "Save extracted memories as candidates for later review.")
+    .action(async (options: { source: Memory["source"]; type?: MemoryType; candidate?: boolean }) => {
+      const projectRoot = await helpers.resolveProjectRoot();
+      await initBrain(projectRoot);
 
-    const config = await loadConfig(projectRoot);
-    renderConfigWarnings(config).forEach((warning) => process.stderr.write(`[repobrain] ${warning}\n`));
-    const stdinText = await helpers.readStdin();
-    await helpers.runExtractionWorkflow(projectRoot, config, stdinText, options);
-  });
-
-program
-
-program
-  .command("extract-commit")
-  .description("Extract repo knowledge from a richer git commit context for the latest commit or a target revision.")
-  .option("--rev <revision>", "Git revision to analyze", "HEAD")
-  .option("--candidate", "Save extracted memories as candidates for later review.")
-  .action(async (options: { rev?: string; candidate?: boolean }) => {
-    const projectRoot = await helpers.resolveProjectRoot();
-    await initBrain(projectRoot);
-
-    const config = await loadConfig(projectRoot);
-    renderConfigWarnings(config).forEach((warning) => process.stderr.write(`[repobrain] ${warning}\n`));
-    const commitContext = await buildCommitExtractionInput(projectRoot, options.rev?.trim() || "HEAD");
-    await helpers.runExtractionWorkflow(projectRoot, config, commitContext, options.candidate
-      ? { source: "git-commit", candidate: true }
-      : { source: "git-commit" });
-  });
-
-program
-
-program
-  .command("capture")
-  .description(
-    "Evaluate whether the current session or change is worth extracting, " +
-    "and save as candidate memory when recommended. " +
-    "Combines suggest-extract detection with the extract pipeline.",
-  )
-  .option("--task <task>", "Current task description.")
-  .option(
-    "--path <path>",
-    "Override changed paths (skips git diff auto-detection). Repeat or pass a comma-separated list.",
-    helpers.collectValues,
-    [] as string[],
-  )
-  .option("--rev <revision>", "Git revision for commit context.", "HEAD")
-  .option("--test-summary <text>", "Optional test result summary text.")
-  .option("--source <source>", "Memory source label.", "session")
-  .option("--type <type>", "Force a memory type for extracted entries (overrides suggested_type).", helpers.parseMemoryTypeOption)
-  .option("--force-candidate", "Save as candidate even when signals are ambiguous (not clearly positive).")
-  .option("--json", 'Print the capture result as JSON. Equivalent to "--format json".')
-  .option("--format <format>", 'Output format: "markdown" or "json".', "markdown")
-  .action(async (options: {
-    task?: string;
-    path: string[];
-    rev?: string;
-    testSummary?: string;
-    source: Memory["source"];
-    type?: MemoryType;
-    forceCandidate?: boolean;
-    json?: boolean;
-    format?: string;
-  }) => {
-    const projectRoot = await helpers.resolveProjectRoot();
-    await initBrain(projectRoot);
-
-    const task = options.task?.trim() || undefined;
-    const sessionSummary = (await helpers.readOptionalStdin())?.trim() || undefined;
-    const changedFiles = helpers.resolveChangedFiles(projectRoot, options.path);
-    const commitContext = await helpers.safeLoadCommitContext(projectRoot, options.rev ?? "HEAD");
-
-    const suggestion = evaluateExtractWorthiness({
-      task,
-      sessionSummary,
-      changedFiles,
-      commitMessage: commitContext.commitMessage,
-      diffStat: commitContext.diffStat,
-      testResultSummary: options.testSummary?.trim() || undefined,
-      source: commitContext.commitMessage ? "git-commit" : "session",
+      const config = await loadConfig(projectRoot);
+      renderConfigWarnings(config).forEach((warning) => process.stderr.write(`[repobrain] ${warning}\n`));
+      const stdinText = await helpers.readStdin();
+      await helpers.runExtractionWorkflow(projectRoot, config, stdinText, options);
     });
 
-    const shouldProceed = suggestion.should_extract || (options.forceCandidate && suggestion.confidence < 0.5);
+  program;
 
-    if (!shouldProceed) {
-      const format = helpers.resolveSuggestSkillsOutputFormat(options);
-      const captureResult: helpers.CaptureResult = {
-        action: "skipped",
-        reason: suggestion.summary,
-        suggestion,
-        saved_paths: [],
-      };
+  program
+    .command("extract-commit")
+    .description("Extract repo knowledge from a richer git commit context for the latest commit or a target revision.")
+    .option("--rev <revision>", "Git revision to analyze", "HEAD")
+    .option("--candidate", "Save extracted memories as candidates for later review.")
+    .action(async (options: { rev?: string; candidate?: boolean }) => {
+      const projectRoot = await helpers.resolveProjectRoot();
+      await initBrain(projectRoot);
 
-      if (format === "json") {
-        output.write(`${JSON.stringify(captureResult, null, 2)}\n`);
-      } else {
-        output.write("[capture] Not recommended for extraction.\n");
-        output.write(`Reason: ${suggestion.summary}\n`);
-        if (suggestion.evidence.length > 0) {
-          output.write("Evidence:\n");
-          for (const e of suggestion.evidence) {
-            const mark = e.signal === "positive" ? "+" : e.signal === "negative" ? "-" : "~";
-            output.write(`  [${mark}${Math.abs(e.weight).toFixed(1)}] ${e.rule}: ${e.detail}\n`);
+      const config = await loadConfig(projectRoot);
+      renderConfigWarnings(config).forEach((warning) => process.stderr.write(`[repobrain] ${warning}\n`));
+      const commitContext = await buildCommitExtractionInput(projectRoot, options.rev?.trim() || "HEAD");
+      await helpers.runExtractionWorkflow(
+        projectRoot,
+        config,
+        commitContext,
+        options.candidate ? { source: "git-commit", candidate: true } : { source: "git-commit" },
+      );
+    });
+
+  program;
+
+  program
+    .command("capture")
+    .description(
+      "Evaluate whether the current session or change is worth extracting, " +
+        "and save as candidate memory when recommended. " +
+        "Combines suggest-extract detection with the extract pipeline.",
+    )
+    .option("--task <task>", "Current task description.")
+    .option(
+      "--path <path>",
+      "Override changed paths (skips git diff auto-detection). Repeat or pass a comma-separated list.",
+      helpers.collectValues,
+      [] as string[],
+    )
+    .option("--rev <revision>", "Git revision for commit context.", "HEAD")
+    .option("--test-summary <text>", "Optional test result summary text.")
+    .option("--source <source>", "Memory source label.", "session")
+    .option(
+      "--type <type>",
+      "Force a memory type for extracted entries (overrides suggested_type).",
+      helpers.parseMemoryTypeOption,
+    )
+    .option("--force-candidate", "Save as candidate even when signals are ambiguous (not clearly positive).")
+    .option("--json", 'Print the capture result as JSON. Equivalent to "--format json".')
+    .option("--format <format>", 'Output format: "markdown" or "json".', "markdown")
+    .action(
+      async (options: {
+        task?: string;
+        path: string[];
+        rev?: string;
+        testSummary?: string;
+        source: Memory["source"];
+        type?: MemoryType;
+        forceCandidate?: boolean;
+        json?: boolean;
+        format?: string;
+      }) => {
+        const projectRoot = await helpers.resolveProjectRoot();
+        await initBrain(projectRoot);
+
+        const task = options.task?.trim() || undefined;
+        const sessionSummary = (await helpers.readOptionalStdin())?.trim() || undefined;
+        const changedFiles = helpers.resolveChangedFiles(projectRoot, options.path);
+        const commitContext = await helpers.safeLoadCommitContext(projectRoot, options.rev ?? "HEAD");
+
+        const suggestion = evaluateExtractWorthiness({
+          task,
+          sessionSummary,
+          changedFiles,
+          commitMessage: commitContext.commitMessage,
+          diffStat: commitContext.diffStat,
+          testResultSummary: options.testSummary?.trim() || undefined,
+          source: commitContext.commitMessage ? "git-commit" : "session",
+        });
+
+        const shouldProceed = suggestion.should_extract || (options.forceCandidate && suggestion.confidence < 0.5);
+
+        if (!shouldProceed) {
+          const format = helpers.resolveSuggestSkillsOutputFormat(options);
+          const captureResult: helpers.CaptureResult = {
+            action: "skipped",
+            reason: suggestion.summary,
+            suggestion,
+            saved_paths: [],
+          };
+
+          if (format === "json") {
+            output.write(`${JSON.stringify(captureResult, null, 2)}\n`);
+          } else {
+            output.write("[capture] Not recommended for extraction.\n");
+            output.write(`Reason: ${suggestion.summary}\n`);
+            if (suggestion.evidence.length > 0) {
+              output.write("Evidence:\n");
+              for (const e of suggestion.evidence) {
+                const mark = e.signal === "positive" ? "+" : e.signal === "negative" ? "-" : "~";
+                output.write(`  [${mark}${Math.abs(e.weight).toFixed(1)}] ${e.rule}: ${e.detail}\n`);
+              }
+            }
+            if (!options.forceCandidate) {
+              output.write('Tip: use "--force-candidate" to save as candidate despite ambiguous signals.\n');
+            }
           }
+          return;
         }
-        if (!options.forceCandidate) {
-          output.write('Tip: use "--force-candidate" to save as candidate despite ambiguous signals.\n');
+
+        const config = await loadConfig(projectRoot);
+        renderConfigWarnings(config).forEach((warning) => process.stderr.write(`[repobrain] ${warning}\n`));
+
+        const rawInput = helpers.buildCaptureExtractionInput(
+          task,
+          sessionSummary,
+          commitContext,
+          changedFiles,
+          options.testSummary,
+        );
+        const resolvedType = options.type ?? suggestion.suggested_type ?? undefined;
+
+        const savedPaths = await helpers.runExtractionWorkflow(projectRoot, config, rawInput, {
+          source: options.source ?? "session",
+          ...(resolvedType ? { type: resolvedType } : {}),
+          candidate: true,
+        });
+
+        const format = helpers.resolveSuggestSkillsOutputFormat(options);
+        const captureResult: helpers.CaptureResult = {
+          action: savedPaths.length > 0 ? "saved_as_candidate" : "extraction_empty",
+          reason: suggestion.summary,
+          suggestion,
+          saved_paths: savedPaths,
+        };
+
+        if (format === "json") {
+          output.write(`${JSON.stringify(captureResult, null, 2)}\n`);
+        } else if (savedPaths.length === 0) {
+          output.write("[capture] Extraction recommended but no memories were produced from the input.\n");
+          output.write(`Suggestion: ${suggestion.summary}\n`);
         }
-      }
-      return;
-    }
+      },
+    );
 
-    const config = await loadConfig(projectRoot);
-    renderConfigWarnings(config).forEach((warning) => process.stderr.write(`[repobrain] ${warning}\n`));
-
-    const rawInput = helpers.buildCaptureExtractionInput(task, sessionSummary, commitContext, changedFiles, options.testSummary);
-    const resolvedType = options.type ?? suggestion.suggested_type ?? undefined;
-
-    const savedPaths = await helpers.runExtractionWorkflow(projectRoot, config, rawInput, {
-      source: options.source ?? "session",
-      ...(resolvedType ? { type: resolvedType } : {}),
-      candidate: true,
-    });
-
-    const format = helpers.resolveSuggestSkillsOutputFormat(options);
-    const captureResult: helpers.CaptureResult = {
-      action: savedPaths.length > 0 ? "saved_as_candidate" : "extraction_empty",
-      reason: suggestion.summary,
-      suggestion,
-      saved_paths: savedPaths,
-    };
-
-    if (format === "json") {
-      output.write(`${JSON.stringify(captureResult, null, 2)}\n`);
-    } else if (savedPaths.length === 0) {
-      output.write("[capture] Extraction recommended but no memories were produced from the input.\n");
-      output.write(`Suggestion: ${suggestion.summary}\n`);
-    }
-  });
-
-program
+  program;
 }

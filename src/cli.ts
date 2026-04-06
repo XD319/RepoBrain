@@ -18,10 +18,7 @@ import { register as registerMcp } from "./commands/mcp.js";
 
 const program = new Command();
 
-program
-  .name("brain")
-  .description("Repo-native project knowledge memory for coding agents.")
-  .version("0.1.0");
+program.name("brain").description("Repo-native project knowledge memory for coding agents.").version("0.1.0");
 
 registerInitSetup(program);
 registerExtract(program);

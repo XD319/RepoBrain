@@ -4,12 +4,7 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-import {
-  buildMemorySchemaReport,
-  initBrain,
-  normalizeMemorySchemas,
-  saveMemory,
-} from "../dist/store-api.js";
+import { buildMemorySchemaReport, initBrain, normalizeMemorySchemas, saveMemory } from "../dist/store-api.js";
 
 const repoRoot = process.cwd();
 const cliPath = path.join(repoRoot, "dist", "cli.js");

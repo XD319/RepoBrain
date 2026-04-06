@@ -181,9 +181,15 @@ await runTest("includeSessionProfile false skips session routing signals", async
       includeSessionProfile: false,
     });
 
-    assert.ok(withSession.resolved_skills.some((s) => s.skill === "jest" && s.sources.some((x) => x.relation === "session_avoid")));
     assert.ok(
-      withoutSession.resolved_skills.some((s) => s.skill === "jest" && s.sources.every((x) => x.relation !== "session_avoid")),
+      withSession.resolved_skills.some(
+        (s) => s.skill === "jest" && s.sources.some((x) => x.relation === "session_avoid"),
+      ),
+    );
+    assert.ok(
+      withoutSession.resolved_skills.some(
+        (s) => s.skill === "jest" && s.sources.every((x) => x.relation !== "session_avoid"),
+      ),
     );
     assert.ok(withoutSession.invocation_plan.prefer_first.includes("jest"));
   });

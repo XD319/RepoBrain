@@ -21,22 +21,10 @@ export {
 } from "./store.js";
 export { buildMemoryEvolutionChain } from "./timeline-explain.js";
 export { isMemoryCurrentlyValid } from "./temporal.js";
-export {
-  extractPreferenceFromNaturalLanguage,
-} from "./extract-preference.js";
-export {
-  computeInjectPriority,
-} from "./memory-priority.js";
-export {
-  deriveLegacyExtractMode,
-  loadConfig,
-  migrateExtractModeToNewFields,
-  renderConfigWarnings,
-} from "./config.js";
-export {
-  buildMemoryAudit,
-  renderMemoryAuditResult,
-} from "./audit-memory.js";
+export { extractPreferenceFromNaturalLanguage } from "./extract-preference.js";
+export { computeInjectPriority } from "./memory-priority.js";
+export { deriveLegacyExtractMode, loadConfig, migrateExtractModeToNewFields, renderConfigWarnings } from "./config.js";
+export { buildMemoryAudit, renderMemoryAuditResult } from "./audit-memory.js";
 export {
   buildMemorySchemaReport,
   normalizeMemorySchemas,
@@ -49,10 +37,7 @@ export {
   renderExtractSuggestionJson,
   renderExtractSuggestionMarkdown,
 } from "./extract-suggestion.js";
-export {
-  buildFailureDetectionPrompt,
-  detectFailures,
-} from "./failure-detector.js";
+export { buildFailureDetectionPrompt, detectFailures } from "./failure-detector.js";
 export {
   buildSkillShortlist,
   collectGitDiffPaths,
@@ -70,19 +55,10 @@ export {
   summarizeRoutingEscalation,
   TASK_ROUTING_BUNDLE_CONTRACT_VERSION,
 } from "./task-routing.js";
-export {
-  reinforceMemories,
-} from "./reinforce.js";
-export {
-  setupRepoBrain,
-} from "./setup.js";
-export {
-  buildSharePlan,
-} from "./share.js";
-export {
-  getSteeringRulesStatus,
-  writeSteeringRules,
-} from "./steering-rules.js";
+export { reinforceMemories } from "./reinforce.js";
+export { setupRepoBrain } from "./setup.js";
+export { buildSharePlan } from "./share.js";
+export { getSteeringRulesStatus, writeSteeringRules } from "./steering-rules.js";
 export {
   buildMemoryReviewContext,
   createDeterministicMemoryReviewer,
@@ -131,11 +107,7 @@ export type {
   SuggestSkillsOptions,
   SuggestSkillsOutputFormat,
 } from "./suggest-skills.js";
-export type {
-  BuildTaskRoutingBundleOptions,
-  TaskRoutingBundle,
-  TaskRoutingDisplayMode,
-} from "./task-routing.js";
+export type { BuildTaskRoutingBundleOptions, TaskRoutingBundle, TaskRoutingDisplayMode } from "./task-routing.js";
 export type {
   ExtractSuggestionEvidence,
   ExtractSuggestionInput,
@@ -144,12 +116,8 @@ export type {
   ExtractSuggestionSuppression,
   PhaseCompletionSignal,
 } from "./extract-suggestion.js";
-export type {
-  FailureEvent,
-} from "./failure-detector.js";
-export type {
-  ReinforceResult,
-} from "./reinforce.js";
+export type { FailureEvent } from "./failure-detector.js";
+export type { ReinforceResult } from "./reinforce.js";
 export {
   ROUTING_FEEDBACK_EVENT_TYPES,
   applyRoutingFeedback,
@@ -165,6 +133,4 @@ export type {
   RoutingFeedbackEvent,
   RoutingFeedbackEventType,
 } from "./routing-feedback.js";
-export type {
-  StoredPreferenceRecord,
-} from "./types.js";
+export type { StoredPreferenceRecord } from "./types.js";

@@ -23,13 +23,9 @@ await runTest("brain extract-commit feeds richer commit context into the extract
     await runCommand("git", ["add", "feature.txt"], projectRoot);
     await runCommand("git", ["commit", "-m", "feat: add commit extraction input"], projectRoot);
 
-    const result = await runCliProcess(
-      ["extract-commit", "--candidate"],
-      projectRoot,
-      {
-        BRAIN_EXTRACTOR_COMMAND: fixtureCommand,
-      },
-    );
+    const result = await runCliProcess(["extract-commit", "--candidate"], projectRoot, {
+      BRAIN_EXTRACTOR_COMMAND: fixtureCommand,
+    });
 
     assert.equal(result.code, 0);
     assert.match(result.stdout, /Reviewed 1 extracted memory\./);

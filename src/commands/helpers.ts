@@ -11,10 +11,26 @@ import { loadPendingReinforcementState } from "../reinforce-pending.js";
 import { isSafeForAutoApproval, looksTemporary, reviewCandidateMemories, reviewCandidateMemory } from "../reviewer.js";
 import type { ExtractSuggestionResult } from "../extract-suggestion.js";
 import { collectGitDiffPaths } from "../suggest-skills.js";
-import { applySweepAuto, archiveGoalMemory, deleteExpiredWorking, downgradeStaleMemory, previewMemoryLines, scanSweepCandidates, toDisplayPath } from "../sweep.js";
+import {
+  applySweepAuto,
+  archiveGoalMemory,
+  deleteExpiredWorking,
+  downgradeStaleMemory,
+  previewMemoryLines,
+  scanSweepCandidates,
+  toDisplayPath,
+} from "../sweep.js";
 import { getMemoryStatus, loadStoredMemoryRecords, saveMemory, updateIndex } from "../store.js";
 import type { FailureEvent } from "../failure-detector.js";
-import type { BrainConfig, CandidateMemoryReviewResult, Memory, MemoryActivityEntry, StoredMemoryRecord, MemoryType, WorkflowMode } from "../types.js";
+import type {
+  BrainConfig,
+  CandidateMemoryReviewResult,
+  Memory,
+  MemoryActivityEntry,
+  StoredMemoryRecord,
+  MemoryType,
+  WorkflowMode,
+} from "../types.js";
 import { MEMORY_TYPES } from "../types.js";
 
 export async function runExtractionWorkflow(
@@ -27,8 +43,9 @@ export async function runExtractionWorkflow(
     candidate?: boolean;
   },
 ): Promise<string[]> {
-  const memories = (await extractMemories(rawInput, config, projectRoot))
-    .map((memory) => applyExtractedMemoryDefaults(memory, options.type));
+  const memories = (await extractMemories(rawInput, config, projectRoot)).map((memory) =>
+    applyExtractedMemoryDefaults(memory, options.type),
+  );
   const existingRecords = await loadStoredMemoryRecords(projectRoot);
   const reviewedCandidates = reviewCandidateMemories(memories, existingRecords);
   const savedPaths: string[] = [];
@@ -47,8 +64,7 @@ export async function runExtractionWorkflow(
       continue;
     }
 
-    const resolvedStatus =
-      options.candidate || review.decision !== "accept" ? ("candidate" as const) : undefined;
+    const resolvedStatus = options.candidate || review.decision !== "accept" ? ("candidate" as const) : undefined;
     const savedPath = await saveMemory(
       resolvedStatus
         ? {
@@ -66,7 +82,9 @@ export async function runExtractionWorkflow(
   }
 
   await updateIndex(projectRoot);
-  output.write(`Reviewed ${reviewedCandidates.length} extracted memor${reviewedCandidates.length === 1 ? "y" : "ies"}.\n`);
+  output.write(
+    `Reviewed ${reviewedCandidates.length} extracted memor${reviewedCandidates.length === 1 ? "y" : "ies"}.\n`,
+  );
   for (const entry of reviewedCandidates) {
     output.write(
       `- ${entry.review.decision} | targets=${entry.review.target_memory_ids.join(", ") || "-"} | reason=${entry.review.reason} | ${entry.memory.title}\n`,
@@ -182,9 +200,7 @@ export async function runSweepInteractive(projectRoot: string, config: BrainConf
         output.write(`    ${line}\n`);
       }
 
-      const answer = (
-        await rl.question("操作: (1) 保留两者  (2) 删除 [1]  (3) 删除 [2]  (4) 跳过 ")
-      )
+      const answer = (await rl.question("操作: (1) 保留两者  (2) 删除 [1]  (3) 删除 [2]  (4) 跳过 "))
         .trim()
         .toLowerCase();
 
@@ -306,13 +322,19 @@ export function resolveSteeringRulesChoice(
 
   const normalized = value.trim().toLowerCase();
   if (
-    normalized === "claude" || normalized === "codex" || normalized === "cursor" ||
-    normalized === "all" || normalized === "both" || normalized === "skip"
+    normalized === "claude" ||
+    normalized === "codex" ||
+    normalized === "cursor" ||
+    normalized === "all" ||
+    normalized === "both" ||
+    normalized === "skip"
   ) {
     return normalized;
   }
 
-  throw new Error('Use "--steering-rules claude", "--steering-rules codex", "--steering-rules cursor", "--steering-rules all", or "--skip-steering-rules".');
+  throw new Error(
+    'Use "--steering-rules claude", "--steering-rules codex", "--steering-rules cursor", "--steering-rules all", or "--skip-steering-rules".',
+  );
 }
 
 export function renderWorkflowSummaryLines(workflowMode: WorkflowMode): string[] {
@@ -502,10 +524,7 @@ export function collectValues(value: string, previous: string[]): string[] {
   ];
 }
 
-export function resolveSuggestSkillsOutputFormat(options: {
-  json?: boolean;
-  format?: string;
-}): "markdown" | "json" {
+export function resolveSuggestSkillsOutputFormat(options: { json?: boolean; format?: string }): "markdown" | "json" {
   const format = options.format?.trim().toLowerCase() || "markdown";
   if (format !== "markdown" && format !== "json") {
     throw new Error('Use "--format markdown" or "--format json".');
@@ -620,8 +639,7 @@ export function formatMemoryList(memories: Array<Memory | MemoryActivityEntry>):
 
   return memories
     .map((memory) => {
-      const status =
-        "status" in memory && typeof memory.status === "string" ? ` | ${memory.status}` : "";
+      const status = "status" in memory && typeof memory.status === "string" ? ` | ${memory.status}` : "";
       return `- ${memory.type} | ${memory.importance}${status} | ${memory.title} (${memory.date})`;
     })
     .join("\n");
@@ -649,9 +667,7 @@ export function resolveStoredMemoryByFile(records: StoredMemoryRecord[], rawQuer
     );
   }
 
-  throw new Error(
-    `Memory file "${rawQuery}" was not found. Run "brain list" to inspect available memories.`,
-  );
+  throw new Error(`Memory file "${rawQuery}" was not found. Run "brain list" to inspect available memories.`);
 }
 
 export function matchesStoredMemoryFile(entry: StoredMemoryRecord, rawQuery: string): boolean {
@@ -661,12 +677,7 @@ export function matchesStoredMemoryFile(entry: StoredMemoryRecord, rawQuery: str
   const fileName = normalizeMemoryPathQuery(path.basename(entry.relativePath));
   const fileStem = normalizeMemoryPathQuery(path.basename(entry.relativePath, path.extname(entry.relativePath)));
 
-  return (
-    brainRelativePath === query ||
-    undatedRelativePath === query ||
-    fileName === query ||
-    fileStem === query
-  );
+  return brainRelativePath === query || undatedRelativePath === query || fileName === query || fileStem === query;
 }
 
 export function normalizeMemoryPathQuery(value: string): string {
@@ -686,9 +697,7 @@ export function toUndatedBrainRelativePath(relativePath: string): string {
   const normalized = toBrainRelativePath(relativePath);
   const directory = path.posix.dirname(normalized);
   const fileName = path.posix.basename(normalized);
-  const undecorated = fileName
-    .replace(/^\d{4}-\d{2}-\d{2}-/, "")
-    .replace(/-\d{9}(?:-\d+)?\.md$/, ".md");
+  const undecorated = fileName.replace(/^\d{4}-\d{2}-\d{2}-/, "").replace(/-\d{9}(?:-\d+)?\.md$/, ".md");
 
   return directory === "." ? undecorated : `${directory}/${undecorated}`;
 }
@@ -804,9 +813,7 @@ export function filterLineageRootsByQuery(
   return roots.filter((rootPath) => lineageContains(rootPath, matchedPath, supersedesByNodeFromRecords(lineageNodes)));
 }
 
-export function supersedesByNodeFromRecords(
-  lineageNodes: Map<string, StoredMemoryRecord>,
-): Map<string, string | null> {
+export function supersedesByNodeFromRecords(lineageNodes: Map<string, StoredMemoryRecord>): Map<string, string | null> {
   const result = new Map<string, string | null>();
   for (const [pathKey, record] of lineageNodes.entries()) {
     result.set(pathKey, record.memory.supersedes ?? null);
@@ -1008,8 +1015,9 @@ export function resolveSafeCandidateRecords(
 
   return {
     matches: [selected.record],
-    skipped: evaluations
-      .filter((entry) => entry.record.filePath !== selected.record.filePath && !isSafeCandidateReview(entry.review)),
+    skipped: evaluations.filter(
+      (entry) => entry.record.filePath !== selected.record.filePath && !isSafeCandidateReview(entry.review),
+    ),
   };
 }
 
@@ -1036,11 +1044,12 @@ export function evaluateAutoApprovalCandidates(records: StoredMemoryRecord[]): P
     if (isSafeForAutoApproval(record.memory, review)) {
       promoted.push({ record, review });
     } else {
-      const reason = record.memory.type === "working"
-        ? "working memory excluded from auto-approval"
-        : looksTemporary(record.memory)
-          ? "temporary content excluded from auto-approval"
-          : `review: ${review.decision} / ${review.reason}`;
+      const reason =
+        record.memory.type === "working"
+          ? "working memory excluded from auto-approval"
+          : looksTemporary(record.memory)
+            ? "temporary content excluded from auto-approval"
+            : `review: ${review.decision} / ${review.reason}`;
       kept.push({ record, review, reason });
     }
   }
@@ -1055,12 +1064,7 @@ export function matchesStoredMemory(entry: StoredMemoryRecord, rawQuery: string)
   const candidateId = normalizeIdentifier(getStoredMemoryId(entry));
   const title = normalizeIdentifier(entry.memory.title);
 
-  return (
-    relativePath.includes(query) ||
-    fileName === query ||
-    candidateId === query ||
-    title.includes(query)
-  );
+  return relativePath.includes(query) || fileName === query || candidateId === query || title.includes(query);
 }
 
 export function getStoredMemoryId(entry: StoredMemoryRecord): string {
@@ -1088,10 +1092,7 @@ export interface ScoreCandidateJson {
 }
 
 export function renderFailureEventLine(index: number, event: FailureEvent): string {
-  const details = [
-    `${index}. [${event.kind}] ${event.description}`,
-    `action=${event.suggestedAction}`,
-  ];
+  const details = [`${index}. [${event.kind}] ${event.description}`, `action=${event.suggestedAction}`];
 
   if (event.relatedMemoryFile) {
     details.push(`file=${event.relatedMemoryFile}`);
@@ -1100,10 +1101,7 @@ export function renderFailureEventLine(index: number, event: FailureEvent): stri
   return `- ${details.join(" | ")}`;
 }
 
-export function buildScoreCandidates(
-  records: StoredMemoryRecord[],
-  now: Date = new Date(),
-): ScoreCandidate[] {
+export function buildScoreCandidates(records: StoredMemoryRecord[], now: Date = new Date()): ScoreCandidate[] {
   return records
     .map((record) => ({
       record,
@@ -1149,15 +1147,15 @@ export function renderScoreTable(candidates: ScoreCandidate[]): string {
     candidate.triggers.join(", "),
   ]);
   const widths = headers.map((header, index) =>
-    Math.max(
-      header.length,
-      ...rows.map((row) => truncateTableValue(row[index] ?? "").length),
-    ),
+    Math.max(header.length, ...rows.map((row) => truncateTableValue(row[index] ?? "").length)),
   );
 
   return [
     formatTableRow(headers, widths),
-    formatTableRow(widths.map((width) => "-".repeat(width)), widths),
+    formatTableRow(
+      widths.map((width) => "-".repeat(width)),
+      widths,
+    ),
     ...rows.map((row) => formatTableRow(row, widths)),
   ].join("\n");
 }
@@ -1210,9 +1208,7 @@ export function getScoreSeverity(candidate: ScoreCandidate): number {
 }
 
 export function formatTableRow(values: string[], widths: number[]): string {
-  return values
-    .map((value, index) => truncateTableValue(value).padEnd(widths[index] ?? value.length))
-    .join(" | ");
+  return values.map((value, index) => truncateTableValue(value).padEnd(widths[index] ?? value.length)).join(" | ");
 }
 
 export function truncateTableValue(value: string, maxLength: number = 40): string {
@@ -1309,7 +1305,9 @@ export async function confirmReinforcement(): Promise<boolean> {
 export async function confirmSupersedeOverwrite(): Promise<boolean> {
   const terminal = await createPromptTerminal();
   if (!terminal) {
-    throw new Error('Existing supersede links require confirmation. Re-run with "--yes" to overwrite without prompting.');
+    throw new Error(
+      'Existing supersede links require confirmation. Re-run with "--yes" to overwrite without prompting.',
+    );
   }
 
   const rl = createInterface({
@@ -1362,7 +1360,12 @@ export async function createPromptTerminal(): Promise<{
 
 export function resolveChangedFiles(projectRoot: string, explicitPaths: string[]): string[] {
   const normalizedExplicit = explicitPaths
-    .flatMap((p) => p.split(",").map((s) => s.trim()).filter(Boolean))
+    .flatMap((p) =>
+      p
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean),
+    )
     .map((p) => p.replace(/\\/g, "/"));
 
   if (normalizedExplicit.length > 0) {
@@ -1380,10 +1383,7 @@ export async function safeLoadCommitContext(
     const raw = await buildCommitExtractionInput(projectRoot, revision);
     const commitMessageMatch = raw.match(/Subject:\s*(.+)/);
     const bodyMatch = raw.match(/Body:\n([\s\S]*?)(?=\n## |$)/);
-    const commitMessage = [
-      commitMessageMatch?.[1]?.trim() ?? "",
-      bodyMatch?.[1]?.trim() ?? "",
-    ]
+    const commitMessage = [commitMessageMatch?.[1]?.trim() ?? "", bodyMatch?.[1]?.trim() ?? ""]
       .filter(Boolean)
       .join("\n");
     const diffStatMatch = raw.match(/## Diff stat\n([\s\S]*?)$/);

@@ -158,10 +158,7 @@ function getOrCreateAggregate(suggestions: Map<string, SkillAggregate>, skill: s
   );
 }
 
-function applyPreferenceSignals(
-  aggregates: Map<string, SkillAggregate>,
-  applicable: ApplicablePreference[],
-): void {
+function applyPreferenceSignals(aggregates: Map<string, SkillAggregate>, applicable: ApplicablePreference[]): void {
   /** Multiple preferences for the same target: merge by weighted sum (confidence-scaled). */
   const byTarget = new Map<string, ApplicablePreference[]>();
   for (const entry of applicable) {
@@ -185,9 +182,7 @@ function addPreferenceToAggregate(aggregates: Map<string, SkillAggregate>, entry
   const aggregate = getOrCreateAggregate(aggregates, skill);
   const w = 10 * (pref.confidence ?? 0.5);
   const hintNote =
-    entry.match_reasons.length > 0
-      ? entry.match_reasons.join("; ")
-      : "global preference (no task/path hints)";
+    entry.match_reasons.length > 0 ? entry.match_reasons.join("; ") : "global preference (no task/path hints)";
 
   switch (pref.preference) {
     case "prefer":
@@ -234,10 +229,7 @@ function addPreferenceToAggregate(aggregates: Map<string, SkillAggregate>, entry
   aggregates.set(skill, aggregate);
 }
 
-function applySessionSignals(
-  aggregates: Map<string, SkillAggregate>,
-  applicable: ApplicablePreference[],
-): void {
+function applySessionSignals(aggregates: Map<string, SkillAggregate>, applicable: ApplicablePreference[]): void {
   const byTarget = new Map<string, ApplicablePreference[]>();
   for (const entry of applicable) {
     const key = entry.preference.target.trim();
@@ -254,18 +246,13 @@ function applySessionSignals(
   }
 }
 
-function addSessionSignalToAggregate(
-  aggregates: Map<string, SkillAggregate>,
-  entry: ApplicablePreference,
-): void {
+function addSessionSignalToAggregate(aggregates: Map<string, SkillAggregate>, entry: ApplicablePreference): void {
   const pref = entry.preference;
   const skill = pref.target.trim();
   const aggregate = getOrCreateAggregate(aggregates, skill);
   const w = SESSION_SIGNAL_WEIGHT * (pref.confidence ?? 0.5);
   const hintNote =
-    entry.match_reasons.length > 0
-      ? entry.match_reasons.join("; ")
-      : "session skill routing (global for this session)";
+    entry.match_reasons.length > 0 ? entry.match_reasons.join("; ") : "session skill routing (global for this session)";
 
   switch (pref.preference) {
     case "prefer":
@@ -335,12 +322,7 @@ function resolveSkillAggregate(aggregate: SkillAggregate, conflicts: SkillConfli
       skill: aggregate.skill,
       disposition: "conflicted",
       score: aggregate.required_score + aggregate.recommended_score + aggregate.suppressed_score,
-      plan_slot:
-        strategy === "choose-required"
-          ? "required"
-          : strategy === "block"
-            ? "blocked"
-            : "human_review",
+      plan_slot: strategy === "choose-required" ? "required" : strategy === "block" ? "blocked" : "human_review",
       sources: sortSources(aggregate.sources),
     };
   }
@@ -404,9 +386,7 @@ function applyPreferenceReviewOverride(skill: ResolvedSkill): ResolvedSkill {
   if (hasRequired) {
     return skill;
   }
-  const wantsReview = skill.sources.some(
-    (s) => s.relation === "preference_review" || s.relation === "session_review",
-  );
+  const wantsReview = skill.sources.some((s) => s.relation === "preference_review" || s.relation === "session_review");
   if (!wantsReview) {
     return skill;
   }
@@ -433,10 +413,7 @@ function resolveRequiredSuppressionStrategy(aggregate: SkillAggregate): Required
   return "human-review";
 }
 
-function describeRequiredSuppressionReason(
-  aggregate: SkillAggregate,
-  strategy: RequiredSuppressionStrategy,
-): string {
+function describeRequiredSuppressionReason(aggregate: SkillAggregate, strategy: RequiredSuppressionStrategy): string {
   const suppressedSources = aggregate.sources.filter((source) => source.relation === "suppressed");
   const hasHighRiskSuppression = suppressedSources.some((source) => source.risk_level === "high");
   const hasPrefAvoid =
@@ -451,9 +428,7 @@ function describeRequiredSuppressionReason(
   }
 
   if (strategy === "choose-required") {
-    const prefNote = hasPrefAvoid
-      ? " Static required skill outranks preference.avoid per routing policy order."
-      : "";
+    const prefNote = hasPrefAvoid ? " Static required skill outranks preference.avoid per routing policy order." : "";
     return [
       `Required score ${aggregate.required_score} exceeds suppressed score ${aggregate.suppressed_score} by at least 5.`,
       `No suppressing memory is marked high risk, so the local rule keeps the required skill.${prefNote}`,
@@ -489,9 +464,7 @@ function describeRecommendedSuppressionReason(aggregate: SkillAggregate): string
   ].join(" ");
 }
 
-function resolveRecommendedPlanSlot(
-  sources: SkillSuggestionSource[],
-): "prefer_first" | "optional_fallback" {
+function resolveRecommendedPlanSlot(sources: SkillSuggestionSource[]): "prefer_first" | "optional_fallback" {
   const recommendedSources = sources.filter(
     (source) =>
       source.relation === "recommended" ||
@@ -575,9 +548,7 @@ function buildRoutingExplanation(
   conflicts: SkillConflict[],
 ): RoutingExplanation {
   const skill_evidence: Record<string, string[]> = {};
-  const notes: string[] = [
-    `Policy layers (highest precedence first): ${ROUTING_PRIORITY_LAYERS.join(" → ")}`,
-  ];
+  const notes: string[] = [`Policy layers (highest precedence first): ${ROUTING_PRIORITY_LAYERS.join(" → ")}`];
 
   if (sessionInput && sessionInput.applicable.length > 0) {
     notes.push(

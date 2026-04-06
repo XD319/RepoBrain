@@ -17,7 +17,8 @@ await runTest("brain next recommends review and safe approval for pending candid
         type: "pattern",
         title: "Use focused fixtures for CLI smoke tests",
         summary: "CLI smoke tests stay easier to debug with focused fixtures instead of the full demo repo.",
-        detail: "## PATTERN\n\nCLI smoke tests stay easier to debug with focused fixtures instead of the full demo repo.",
+        detail:
+          "## PATTERN\n\nCLI smoke tests stay easier to debug with focused fixtures instead of the full demo repo.",
         tags: ["cli", "tests"],
         importance: "medium",
         date: "2026-04-01T09:00:00.000Z",

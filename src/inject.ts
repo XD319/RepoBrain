@@ -70,7 +70,9 @@ export async function buildInjection(
   emitLineageWarnings(activeRecords);
   const options = normalizeSelectionOptions(rawOptions);
   const taskAware = hasSelectionContext(options);
-  const gitContext = rawOptions.noContext ? { changedFiles: [], branchName: "" } : (rawOptions.gitContext ?? getGitContext(projectRoot));
+  const gitContext = rawOptions.noContext
+    ? { changedFiles: [], branchName: "" }
+    : (rawOptions.gitContext ?? getGitContext(projectRoot));
   const ranked = rankMemories(activeRecords, options, {
     gitContext,
     gitContextEnabled: !rawOptions.noContext && shouldUseGitContext(activeRecords, gitContext),
@@ -93,8 +95,7 @@ export async function buildInjection(
 
   const lastUpdated = allMemories[0]?.date ?? "N/A";
 
-  const sessionProfile =
-    rawOptions.includeSessionProfile === false ? null : await loadSessionProfile(projectRoot);
+  const sessionProfile = rawOptions.includeSessionProfile === false ? null : await loadSessionProfile(projectRoot);
   const sessionVisible = Boolean(sessionProfile && sessionProfileHasVisibleContent(sessionProfile));
 
   return [
@@ -102,11 +103,16 @@ export async function buildInjection(
     "",
     "Before starting the current task, review the project knowledge below. It captures repo decisions, limits, and conventions that should be followed unless you have a clear reason to deviate.",
     ...(hasSelectionContext(options) || ranked.some((entry) => entry.report.contextScore > 0)
-      ? ["", renderSelectionSummary(options, gitContext, ranked.some((entry) => hasGitContextComponent(entry)))]
+      ? [
+          "",
+          renderSelectionSummary(
+            options,
+            gitContext,
+            ranked.some((entry) => hasGitContextComponent(entry)),
+          ),
+        ]
       : []),
-    ...(sessionVisible && sessionProfile
-      ? ["", renderSessionProfileInjectSection(sessionProfile), ""]
-      : []),
+    ...(sessionVisible && sessionProfile ? ["", renderSessionProfileInjectSection(sessionProfile), ""] : []),
     "## Injected Memories (Priority Order)",
     renderGroup(selected, taskAware),
     "",
@@ -119,14 +125,18 @@ export async function buildInjection(
       : []),
     `[RepoBrain] injected ${selected.length}/${selection.eligibleCount} eligible memories.`,
     ...(candidateCount > 0
-      ? [`Pending review: ${candidateCount} candidate memor${candidateCount === 1 ? "y" : "ies"}. Run "brain review" to inspect them.`]
+      ? [
+          `Pending review: ${candidateCount} candidate memor${candidateCount === 1 ? "y" : "ies"}. Run "brain review" to inspect them.`,
+        ]
       : []),
     "Requirements:",
     "- Understand these memories before choosing an implementation plan",
     "- If you need to conflict with a high-priority memory, explain why first",
     "- Do not suggest approaches that have already been ruled out",
     ...(selection.staleCount > 0
-      ? [`Note: ${selection.staleCount} stale memor${selection.staleCount === 1 ? "y is" : "ies are"} currently excluded. Run "brain score" to review them.`]
+      ? [
+          `Note: ${selection.staleCount} stale memor${selection.staleCount === 1 ? "y is" : "ies are"} currently excluded. Run "brain score" to review them.`,
+        ]
       : []),
     ...(shouldRenderExplain(rawOptions.explain)
       ? [renderExplainComment(selected, config.injectExplainMaxItems ?? 4)]
@@ -215,7 +225,9 @@ function selectWithinTokenBudget(
 
   const remaining = [...optionalMemories];
   while (remaining.length > 0) {
-    const fitCandidates = remaining.filter((entry) => !(selected.length > 0 && usedTokens + entry.tokenCost > config.maxInjectTokens));
+    const fitCandidates = remaining.filter(
+      (entry) => !(selected.length > 0 && usedTokens + entry.tokenCost > config.maxInjectTokens),
+    );
     if (fitCandidates.length === 0) {
       break;
     }
@@ -223,7 +235,9 @@ function selectWithinTokenBudget(
     const chosen = fitCandidates
       .map((entry) => ({
         entry,
-        decision: config.injectDiversity ? explainSelectionDecision(entry, selected) : createPlainSelectionDecision(entry),
+        decision: config.injectDiversity
+          ? explainSelectionDecision(entry, selected)
+          : createPlainSelectionDecision(entry),
       }))
       .sort((left, right) => {
         const utilityDiff = right.decision.utilityScore - left.decision.utilityScore;
@@ -402,7 +416,10 @@ function getGitContext(projectRoot: string): GitContext {
 }
 
 function normalizeGitPath(value: string): string {
-  return value.trim().replace(/\\/g, "/").replace(/^\.\/+/, "");
+  return value
+    .trim()
+    .replace(/\\/g, "/")
+    .replace(/^\.\/+/, "");
 }
 
 function isAlwaysIncludedGoal(memory: Memory): boolean {

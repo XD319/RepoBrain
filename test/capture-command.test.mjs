@@ -23,11 +23,9 @@ await runTest("brain capture skips extraction when suggest-extract returns shoul
     await runCommand("git", ["add", "typo.txt"], projectRoot);
     await runCommand("git", ["commit", "-m", "fix typo"], projectRoot);
 
-    const result = await runCliProcess(
-      ["capture", "--task", "fix typo", "--path", "typo.txt"],
-      projectRoot,
-      { BRAIN_EXTRACTOR_COMMAND: fixtureCommand },
-    );
+    const result = await runCliProcess(["capture", "--task", "fix typo", "--path", "typo.txt"], projectRoot, {
+      BRAIN_EXTRACTOR_COMMAND: fixtureCommand,
+    });
 
     assert.equal(result.code, 0);
     assert.match(result.stdout, /Not recommended for extraction/);
@@ -48,16 +46,23 @@ await runTest("brain capture saves candidate when suggest-extract returns should
     const featurePath = path.join(projectRoot, "feature.txt");
     await writeFile(featurePath, "feature content\n", "utf8");
     await runCommand("git", ["add", "feature.txt"], projectRoot);
-    await runCommand("git", [
-      "commit", "-m",
-      "feat: decided to adopt a new payment gateway because the old one has race condition issues and data loss risk",
-    ], projectRoot);
+    await runCommand(
+      "git",
+      [
+        "commit",
+        "-m",
+        "feat: decided to adopt a new payment gateway because the old one has race condition issues and data loss risk",
+      ],
+      projectRoot,
+    );
 
     const result = await runCliProcess(
       [
         "capture",
-        "--task", "decided to adopt new payment gateway because of race condition risk to avoid data loss",
-        "--path", "src/payments/handler.ts,src/billing/processor.ts,src/api/routes.ts",
+        "--task",
+        "decided to adopt new payment gateway because of race condition risk to avoid data loss",
+        "--path",
+        "src/payments/handler.ts,src/billing/processor.ts,src/api/routes.ts",
       ],
       projectRoot,
       { BRAIN_EXTRACTOR_COMMAND: fixtureCommand },
@@ -107,16 +112,25 @@ await runTest("brain capture --format json outputs structured JSON when saved", 
 
     await writeFile(path.join(projectRoot, "feat.txt"), "content\n", "utf8");
     await runCommand("git", ["add", "feat.txt"], projectRoot);
-    await runCommand("git", [
-      "commit", "-m",
-      "decided to adopt new cache layer because of race condition pitfall and must not use the old one",
-    ], projectRoot);
+    await runCommand(
+      "git",
+      [
+        "commit",
+        "-m",
+        "decided to adopt new cache layer because of race condition pitfall and must not use the old one",
+      ],
+      projectRoot,
+    );
 
     const result = await runCliProcess(
       [
-        "capture", "--format", "json",
-        "--task", "decided to adopt new cache because race condition pitfall must not use old one to avoid data loss",
-        "--path", "src/cache/layer.ts,src/db/pool.ts,src/api/handler.ts",
+        "capture",
+        "--format",
+        "json",
+        "--task",
+        "decided to adopt new cache because race condition pitfall must not use old one to avoid data loss",
+        "--path",
+        "src/cache/layer.ts,src/db/pool.ts,src/api/handler.ts",
       ],
       projectRoot,
       { BRAIN_EXTRACTOR_COMMAND: fixtureCommand },
@@ -145,11 +159,7 @@ await runTest("brain capture --force-candidate saves even with ambiguous signals
     await runCommand("git", ["commit", "-m", "update file handling approach"], projectRoot);
 
     const result = await runCliProcess(
-      [
-        "capture", "--force-candidate",
-        "--task", "updated file handling with a pattern helper",
-        "--path", "file.txt",
-      ],
+      ["capture", "--force-candidate", "--task", "updated file handling with a pattern helper", "--path", "file.txt"],
       projectRoot,
       { BRAIN_EXTRACTOR_COMMAND: fixtureCommand },
     );
@@ -172,16 +182,23 @@ await runTest("brain capture uses suggested_type from detection", async () => {
 
     await writeFile(path.join(projectRoot, "handler.ts"), "export function handle() {}\n", "utf8");
     await runCommand("git", ["add", "handler.ts"], projectRoot);
-    await runCommand("git", [
-      "commit", "-m",
-      "gotcha: beware of race condition in payment handler - never call refund without lock because data loss",
-    ], projectRoot);
+    await runCommand(
+      "git",
+      [
+        "commit",
+        "-m",
+        "gotcha: beware of race condition in payment handler - never call refund without lock because data loss",
+      ],
+      projectRoot,
+    );
 
     const result = await runCliProcess(
       [
         "capture",
-        "--task", "beware of race condition pitfall in payment handler - must not call refund without lock to avoid data loss",
-        "--path", "src/payments/handler.ts,src/billing/refund.ts,src/locks/manager.ts",
+        "--task",
+        "beware of race condition pitfall in payment handler - must not call refund without lock to avoid data loss",
+        "--path",
+        "src/payments/handler.ts,src/billing/refund.ts,src/locks/manager.ts",
       ],
       projectRoot,
       { BRAIN_EXTRACTOR_COMMAND: fixtureCommand },

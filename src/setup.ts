@@ -43,10 +43,7 @@ export interface SetupResult {
   };
 }
 
-export async function setupRepoBrain(
-  projectRoot: string,
-  options: SetupOptions = {},
-): Promise<SetupResult> {
+export async function setupRepoBrain(projectRoot: string, options: SetupOptions = {}): Promise<SetupResult> {
   await initBrain(projectRoot);
 
   const result: SetupResult = {

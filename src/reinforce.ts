@@ -35,10 +35,7 @@ const REINFORCEMENT_INCREMENT = 15;
 const NEW_FAILURE_SCORE = 70;
 const BOOST_NOTE_PREFIX = "> ⚡ score 因 session 失败而提升，日期：";
 
-export async function reinforceMemories(
-  events: FailureEvent[],
-  memoriesDir: string,
-): Promise<ReinforceResult> {
+export async function reinforceMemories(events: FailureEvent[], memoriesDir: string): Promise<ReinforceResult> {
   const result: ReinforceResult = {
     boosted: [],
     rewritten: [],
@@ -106,10 +103,7 @@ async function boostMemoryScore(fileName: string, memoriesDir: string): Promise<
   }
 }
 
-async function rewriteMemoryFromFailure(
-  event: ViolatedRewriteEvent,
-  memoriesDir: string,
-): Promise<string | null> {
+async function rewriteMemoryFromFailure(event: ViolatedRewriteEvent, memoriesDir: string): Promise<string | null> {
   const filePath = await findMemoryFile(memoriesDir, event.relatedMemoryFile);
   if (!filePath) {
     return null;
@@ -136,10 +130,7 @@ async function rewriteMemoryFromFailure(
   }
 }
 
-async function extractNewFailureMemory(
-  event: NewFailureExtractEvent,
-  memoriesDir: string,
-): Promise<string | null> {
+async function extractNewFailureMemory(event: NewFailureExtractEvent, memoriesDir: string): Promise<string | null> {
   const projectRoot = path.dirname(memoriesDir);
 
   try {
@@ -232,7 +223,10 @@ async function runStructuredMemoryCompletion(prompt: string): Promise<Memory | n
       summary,
       detail: normalizeFailureDetail(detail),
       tags: Array.isArray(parsed.tags)
-        ? parsed.tags.map((entry) => String(entry).trim()).filter(Boolean).slice(0, 5)
+        ? parsed.tags
+            .map((entry) => String(entry).trim())
+            .filter(Boolean)
+            .slice(0, 5)
         : deriveTagsFromText(`${title}\n${summary}\n${detail}`),
       importance,
       date: new Date().toISOString(),
@@ -401,8 +395,17 @@ function buildFallbackFailureMemory(event: NewFailureExtractEvent): Memory {
 }
 
 function deriveTitleFromDraft(draft: string): string {
-  const firstLine = draft.split(/\r?\n/).map((line) => line.trim()).find(Boolean) ?? "Failure reinforcement";
-  return firstLine.replace(/^gotcha:\s*/i, "").trim().slice(0, 80) || "Failure reinforcement";
+  const firstLine =
+    draft
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .find(Boolean) ?? "Failure reinforcement";
+  return (
+    firstLine
+      .replace(/^gotcha:\s*/i, "")
+      .trim()
+      .slice(0, 80) || "Failure reinforcement"
+  );
 }
 
 function deriveTagsFromText(text: string): string[] {
@@ -439,7 +442,11 @@ function getTargetFileName(event: FailureEvent): string {
 function isViolatedFailureEvent(
   event: FailureEvent,
 ): event is FailureEvent & { kind: "violated_memory"; relatedMemoryFile: string } {
-  return event.kind === "violated_memory" && typeof event.relatedMemoryFile === "string" && Boolean(event.relatedMemoryFile.trim());
+  return (
+    event.kind === "violated_memory" &&
+    typeof event.relatedMemoryFile === "string" &&
+    Boolean(event.relatedMemoryFile.trim())
+  );
 }
 
 function isViolatedBoostEvent(event: FailureEvent): event is ViolatedBoostEvent {

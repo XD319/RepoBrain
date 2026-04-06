@@ -13,15 +13,10 @@ const fixtureCommand = `"${process.execPath}" "${fixturePath}"`;
 
 await runTest("brain reinforce prints the no-op message when no failure event is detected", async () => {
   await withTempRepo(async (projectRoot) => {
-    const result = await runCliProcess(
-      ["reinforce", "--yes"],
-      projectRoot,
-      "The session completed cleanly.",
-      {
-        BRAIN_EXTRACTOR_COMMAND: fixtureCommand,
-        DETECT_MODE: "empty",
-      },
-    );
+    const result = await runCliProcess(["reinforce", "--yes"], projectRoot, "The session completed cleanly.", {
+      BRAIN_EXTRACTOR_COMMAND: fixtureCommand,
+      DETECT_MODE: "empty",
+    });
 
     assert.equal(result.code, 0);
     assert.match(result.stdout, /\[brain\] 本次 session 未发现需要强化的记忆 ✓/);

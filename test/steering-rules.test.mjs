@@ -24,29 +24,13 @@ const SHARED_CONTRACT_PHRASES = [
   ".brain/",
 ];
 
-const DEV_FALLBACK_PHRASES_ZH = [
-  "npx brain",
-  "node dist/cli.js",
-  "brain --version",
-];
+const DEV_FALLBACK_PHRASES_ZH = ["npx brain", "node dist/cli.js", "brain --version"];
 
-const DEV_FALLBACK_PHRASES_EN = [
-  "npx brain",
-  "node dist/cli.js",
-  "brain --version",
-];
+const DEV_FALLBACK_PHRASES_EN = ["npx brain", "node dist/cli.js", "brain --version"];
 
-const DETECTION_TRIGGER_PHRASES = [
-  "修复了重复",
-  "完成了一个子模块",
-  "测试从失败变为成功",
-];
+const DETECTION_TRIGGER_PHRASES = ["修复了重复", "完成了一个子模块", "测试从失败变为成功"];
 
-const PHASE_COMPLETION_PHRASES = [
-  "强信号",
-  "不应触发检测的弱信号",
-  "confidence booster",
-];
+const PHASE_COMPLETION_PHRASES = ["强信号", "不应触发检测的弱信号", "confidence booster"];
 
 const ANTI_REPETITION_PHRASE = "不要重复提出相同的 capture 建议";
 
@@ -72,10 +56,7 @@ await runTest("all generated rules share the same core contract phrases", async 
     for (const relativePath of paths) {
       const content = await readFile(path.join(tmpDir, relativePath), "utf8");
       for (const phrase of SHARED_CONTRACT_PHRASES) {
-        assert.ok(
-          content.includes(phrase),
-          `${relativePath} is missing shared contract phrase: ${phrase}`,
-        );
+        assert.ok(content.includes(phrase), `${relativePath} is missing shared contract phrase: ${phrase}`);
       }
     }
   } finally {
@@ -90,10 +71,7 @@ await runTest("all generated rules include detection trigger conditions", async 
     for (const relativePath of paths) {
       const content = await readFile(path.join(tmpDir, relativePath), "utf8");
       for (const phrase of DETECTION_TRIGGER_PHRASES) {
-        assert.ok(
-          content.includes(phrase),
-          `${relativePath} is missing detection trigger: ${phrase}`,
-        );
+        assert.ok(content.includes(phrase), `${relativePath} is missing detection trigger: ${phrase}`);
       }
     }
   } finally {
@@ -107,10 +85,7 @@ await runTest("all generated rules include anti-repetition guidance", async () =
     const paths = await writeSteeringRules(tmpDir, "all");
     for (const relativePath of paths) {
       const content = await readFile(path.join(tmpDir, relativePath), "utf8");
-      assert.ok(
-        content.includes(ANTI_REPETITION_PHRASE),
-        `${relativePath} is missing anti-repetition guidance`,
-      );
+      assert.ok(content.includes(ANTI_REPETITION_PHRASE), `${relativePath} is missing anti-repetition guidance`);
     }
   } finally {
     await rm(tmpDir, { recursive: true, force: true });
@@ -123,10 +98,7 @@ await runTest("all generated rules default to candidate-first", async () => {
     const paths = await writeSteeringRules(tmpDir, "all");
     for (const relativePath of paths) {
       const content = await readFile(path.join(tmpDir, relativePath), "utf8");
-      assert.ok(
-        content.includes(CANDIDATE_FIRST_PHRASE),
-        `${relativePath} is missing candidate-first wording`,
-      );
+      assert.ok(content.includes(CANDIDATE_FIRST_PHRASE), `${relativePath} is missing candidate-first wording`);
     }
   } finally {
     await rm(tmpDir, { recursive: true, force: true });
@@ -139,10 +111,7 @@ await runTest("all generated rules include failure path via brain reinforce", as
     const paths = await writeSteeringRules(tmpDir, "all");
     for (const relativePath of paths) {
       const content = await readFile(path.join(tmpDir, relativePath), "utf8");
-      assert.ok(
-        content.includes("brain reinforce"),
-        `${relativePath} is missing failure path (brain reinforce)`,
-      );
+      assert.ok(content.includes("brain reinforce"), `${relativePath} is missing failure path (brain reinforce)`);
     }
   } finally {
     await rm(tmpDir, { recursive: true, force: true });
@@ -169,10 +138,7 @@ await runTest("all generated rules include phase-completion signal guidance with
     for (const relativePath of paths) {
       const content = await readFile(path.join(tmpDir, relativePath), "utf8");
       for (const phrase of PHASE_COMPLETION_PHRASES) {
-        assert.ok(
-          content.includes(phrase),
-          `${relativePath} is missing phase-completion phrase: ${phrase}`,
-        );
+        assert.ok(content.includes(phrase), `${relativePath} is missing phase-completion phrase: ${phrase}`);
       }
     }
   } finally {
@@ -190,10 +156,7 @@ await runTest("no generated rule references old subjective extract-proposal patt
         !content.includes("主动提议提取记忆"),
         `${relativePath} still contains old subjective extract-proposal pattern`,
       );
-      assert.ok(
-        !content.includes("提议示例"),
-        `${relativePath} still contains old example-proposal pattern`,
-      );
+      assert.ok(!content.includes("提议示例"), `${relativePath} still contains old example-proposal pattern`);
     }
   } finally {
     await rm(tmpDir, { recursive: true, force: true });
@@ -207,10 +170,7 @@ await runTest("all generated rules include dev-fallback command resolution", asy
     for (const relativePath of paths) {
       const content = await readFile(path.join(tmpDir, relativePath), "utf8");
       for (const phrase of DEV_FALLBACK_PHRASES_ZH) {
-        assert.ok(
-          content.includes(phrase),
-          `${relativePath} is missing dev-fallback phrase: ${phrase}`,
-        );
+        assert.ok(content.includes(phrase), `${relativePath} is missing dev-fallback phrase: ${phrase}`);
       }
     }
   } finally {
@@ -231,10 +191,7 @@ await runTest("integration template files include dev-fallback command resolutio
   for (const templatePath of templateFiles) {
     const content = await readFile(path.join(projectRoot, templatePath), "utf8");
     for (const phrase of DEV_FALLBACK_PHRASES_EN) {
-      assert.ok(
-        content.includes(phrase),
-        `${templatePath} is missing dev-fallback phrase: ${phrase}`,
-      );
+      assert.ok(content.includes(phrase), `${templatePath} is missing dev-fallback phrase: ${phrase}`);
     }
   }
 });
@@ -251,22 +208,10 @@ await runTest("integration template files align with generated steering rules on
 
   for (const templatePath of templateFiles) {
     const content = await readFile(path.join(projectRoot, templatePath), "utf8");
-    assert.ok(
-      content.includes("brain capture"),
-      `${templatePath} is missing brain capture`,
-    );
-    assert.ok(
-      content.includes("candidate"),
-      `${templatePath} is missing candidate-first wording`,
-    );
-    assert.ok(
-      content.includes("brain reinforce"),
-      `${templatePath} is missing failure path`,
-    );
-    assert.ok(
-      content.includes(".brain/"),
-      `${templatePath} is missing .brain/ reference`,
-    );
+    assert.ok(content.includes("brain capture"), `${templatePath} is missing brain capture`);
+    assert.ok(content.includes("candidate"), `${templatePath} is missing candidate-first wording`);
+    assert.ok(content.includes("brain reinforce"), `${templatePath} is missing failure path`);
+    assert.ok(content.includes(".brain/"), `${templatePath} is missing .brain/ reference`);
   }
 });
 

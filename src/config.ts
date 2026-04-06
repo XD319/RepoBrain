@@ -52,7 +52,8 @@ export const WORKFLOW_PRESETS: Record<WorkflowMode, WorkflowPreset> = {
     mode: "automation-first",
     label: "Automation-first",
     audience: "Teams already comfortable with RepoBrain and willing to auto-accept clear low-risk writes.",
-    automationLevel: "Hooks auto-detect extraction; candidate-first with safe auto-approve; ambiguous items stay in review.",
+    automationLevel:
+      "Hooks auto-detect extraction; candidate-first with safe auto-approve; ambiguous items stay in review.",
     risk: "Higher automation; keep an eye on status and pending reminders.",
     triggerMode: "detect",
     captureMode: "candidate",
@@ -77,9 +78,11 @@ export const DEFAULT_BRAIN_CONFIG: BrainConfig = {
   autoApproveSafeCandidates: WORKFLOW_PRESETS["recommended-semi-auto"].autoApproveSafeCandidates,
 };
 
-export function migrateExtractModeToNewFields(
-  extractMode: ExtractMode,
-): { triggerMode: TriggerMode; captureMode: CaptureMode; autoApproveSafeCandidates: boolean } {
+export function migrateExtractModeToNewFields(extractMode: ExtractMode): {
+  triggerMode: TriggerMode;
+  captureMode: CaptureMode;
+  autoApproveSafeCandidates: boolean;
+} {
   switch (extractMode) {
     case "manual":
       return { triggerMode: "manual", captureMode: "direct", autoApproveSafeCandidates: false };
@@ -157,18 +160,14 @@ export async function loadConfig(projectRoot: string): Promise<BrainConfig> {
     let extractMode: ExtractMode;
 
     if (hasNewTrigger || hasNewCapture) {
-      triggerMode = hasNewTrigger
-        ? (parsed.triggerMode ?? preset.triggerMode)
-        : preset.triggerMode;
-      captureMode = hasNewCapture
-        ? (parsed.captureMode ?? preset.captureMode)
-        : preset.captureMode;
+      triggerMode = hasNewTrigger ? (parsed.triggerMode ?? preset.triggerMode) : preset.triggerMode;
+      captureMode = hasNewCapture ? (parsed.captureMode ?? preset.captureMode) : preset.captureMode;
       extractMode = deriveLegacyExtractMode(triggerMode, captureMode);
 
       if (hasLegacyExtract) {
         warnings.push(
           'Both "extractMode" (deprecated) and "triggerMode"/"captureMode" are set. ' +
-          'The new fields take precedence. Remove "extractMode" from .brain/config.yaml to silence this warning.',
+            'The new fields take precedence. Remove "extractMode" from .brain/config.yaml to silence this warning.',
         );
       }
     } else if (hasLegacyExtract) {
@@ -179,8 +178,8 @@ export async function loadConfig(projectRoot: string): Promise<BrainConfig> {
       extractMode = legacyMode;
       warnings.push(
         `"extractMode: ${legacyMode}" is deprecated. ` +
-        `Migrated to triggerMode: ${triggerMode}, captureMode: ${captureMode}. ` +
-        'Update .brain/config.yaml to use triggerMode + captureMode instead.',
+          `Migrated to triggerMode: ${triggerMode}, captureMode: ${captureMode}. ` +
+          "Update .brain/config.yaml to use triggerMode + captureMode instead.",
       );
     } else {
       triggerMode = preset.triggerMode;
@@ -230,9 +229,7 @@ export function parseWorkflowMode(value: string): WorkflowMode {
     return normalized;
   }
 
-  throw new Error(
-    `Unsupported workflow mode "${value}". Expected one of: ${WORKFLOW_MODES.join(", ")}.`,
-  );
+  throw new Error(`Unsupported workflow mode "${value}". Expected one of: ${WORKFLOW_MODES.join(", ")}.`);
 }
 
 function parseSimpleYaml(raw: string): Partial<BrainConfig> & {
@@ -430,7 +427,9 @@ function parseSimpleYaml(raw: string): Partial<BrainConfig> & {
 
   if (deprecatedKeys.size > 0) {
     warnings.push(
-      `Ignoring deprecated remote review config fields: ${Array.from(deprecatedKeys).sort((left, right) => left.localeCompare(right)).join(", ")}. RepoBrain Core only uses the local deterministic review pipeline.`,
+      `Ignoring deprecated remote review config fields: ${Array.from(deprecatedKeys)
+        .sort((left, right) => left.localeCompare(right))
+        .join(", ")}. RepoBrain Core only uses the local deterministic review pipeline.`,
     );
   }
 

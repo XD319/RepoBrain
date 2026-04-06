@@ -1,10 +1,7 @@
 import assert from "node:assert/strict";
 import path from "node:path";
 
-import {
-  buildFailureDetectionPrompt,
-  detectFailures,
-} from "../dist/failure-detector.js";
+import { buildFailureDetectionPrompt, detectFailures } from "../dist/failure-detector.js";
 
 const repoRoot = process.cwd();
 const fixturePath = path.join(repoRoot, "test", "fixtures", "failure-detector-fixture.mjs");
@@ -107,7 +104,9 @@ await runTest("detectFailures keeps valid events and drops malformed ones", asyn
 
 await runTest("buildFailureDetectionPrompt keeps the request inside the single-call token budget", async () => {
   const prompt = buildFailureDetectionPrompt(
-    Array.from({ length: 500 }, (_, index) => `Step ${index}: repeated failure details for the session log.`).join("\n"),
+    Array.from({ length: 500 }, (_, index) => `Step ${index}: repeated failure details for the session log.`).join(
+      "\n",
+    ),
     Array.from({ length: 100 }, (_, index) =>
       createMemory({
         title: `Memory ${index} with a long descriptive title for prompt trimming`,

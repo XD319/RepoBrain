@@ -3,12 +3,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-import {
-  buildSkillShortlist,
-  initBrain,
-  saveMemory,
-  savePreference,
-} from "../dist/store-api.js";
+import { buildSkillShortlist, initBrain, saveMemory, savePreference } from "../dist/store-api.js";
 
 await runTest("routing with static memories only matches prior invocation_plan shape", async () => {
   await withTempRepo(async (projectRoot) => {
@@ -123,11 +118,7 @@ await runTest("superseded preference is skipped and does not affect routing", as
     });
 
     assert.equal(result.resolved_skills.filter((s) => s.skill === "legacy-tool").length, 0);
-    assert.ok(
-      result.routing_explanation?.notes.some((n) =>
-        n.includes("Skipped preference for legacy-tool"),
-      ),
-    );
+    assert.ok(result.routing_explanation?.notes.some((n) => n.includes("Skipped preference for legacy-tool")));
   });
 });
 

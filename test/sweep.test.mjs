@@ -221,21 +221,32 @@ await runTest("sweep auto deletes, downgrades, archives, and keeps duplicate war
     assert.match(result.lines.join("\n"), /\[ARCHIVE\].*已归档/);
 
     const records = await loadStoredMemoryRecords(projectRoot);
-    assert.equal(records.some((entry) => entry.memory.title === "Expired API checklist"), false);
+    assert.equal(
+      records.some((entry) => entry.memory.title === "Expired API checklist"),
+      false,
+    );
 
     const downgraded = records.find((entry) => entry.memory.title === "Keep auth writes transactional");
     assert.ok(downgraded);
     assert.equal(downgraded.memory.importance, "medium");
-    assert.match(downgraded.memory.detail, /<!-- brain-sweep: \d{4}-\d{2}-\d{2} 超过 90 天未更新，importance 已降权 -->/);
+    assert.match(
+      downgraded.memory.detail,
+      /<!-- brain-sweep: \d{4}-\d{2}-\d{2} 超过 90 天未更新，importance 已降权 -->/,
+    );
 
-    const duplicates = records.filter((entry) => /stateless auth/i.test(entry.memory.title) || /jwt/i.test(entry.memory.title));
+    const duplicates = records.filter(
+      (entry) => /stateless auth/i.test(entry.memory.title) || /jwt/i.test(entry.memory.title),
+    );
     assert.equal(duplicates.length, 2);
 
     await access(path.join(projectRoot, ".brain", "archive"));
     const archiveFiles = await readdir(path.join(projectRoot, ".brain", "archive"));
     assert.equal(archiveFiles.length, 1);
     const archivedContent = await readFile(path.join(projectRoot, ".brain", "archive", archiveFiles[0]), "utf8");
-    assert.equal(records.some((entry) => entry.memory.title === "Archive finished rollout"), false);
+    assert.equal(
+      records.some((entry) => entry.memory.title === "Archive finished rollout"),
+      false,
+    );
     assert.match(archivedContent, /Archive finished rollout/);
   });
 });

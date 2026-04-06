@@ -2,11 +2,7 @@ import path from "node:path";
 
 import { loadActivityState, getMemoryStatus } from "./store.js";
 import { loadSchemaValidatedMemoryRecords, renderSchemaHealthSummary } from "./memory-schema.js";
-import {
-  normalizeTextForComparison,
-  scopesOverlap,
-  slugifyMemoryTitle,
-} from "./memory-identity.js";
+import { normalizeTextForComparison, scopesOverlap, slugifyMemoryTitle } from "./memory-identity.js";
 import type {
   Memory,
   MemoryActivityEntry,
@@ -20,12 +16,7 @@ export interface MemoryAuditOptions {
   now?: string;
 }
 
-const ISSUE_TYPE_ORDER: MemoryAuditIssueType[] = [
-  "stale",
-  "conflict",
-  "low_signal",
-  "overscoped",
-];
+const ISSUE_TYPE_ORDER: MemoryAuditIssueType[] = ["stale", "conflict", "low_signal", "overscoped"];
 
 const STALE_SIGNAL_PATTERN =
   /\b(?:temporary|temp|deprecated|obsolete|legacy fallback|old workaround|until release|one-off|one off)\b|临时|过时|弃用|旧方案/u;
@@ -146,7 +137,12 @@ function findStaleIssues(
         ? "its content still reads like a temporary or deprecated workaround"
         : "its age and status now make it a review candidate";
 
-      return buildIssue(record, "stale", `${staleByAge}; ${staleByContent}.`, status === "candidate" ? "archive" : "review");
+      return buildIssue(
+        record,
+        "stale",
+        `${staleByAge}; ${staleByContent}.`,
+        status === "candidate" ? "archive" : "review",
+      );
     });
 }
 
@@ -243,11 +239,7 @@ function getAuditableRecords(records: StoredMemoryRecord[]): StoredMemoryRecord[
   });
 }
 
-function shouldMarkStale(
-  record: StoredMemoryRecord,
-  recentLoadKeys: Set<string>,
-  generatedAt: string,
-): boolean {
+function shouldMarkStale(record: StoredMemoryRecord, recentLoadKeys: Set<string>, generatedAt: string): boolean {
   const status = getMemoryStatus(record.memory);
   const ageDays = getAgeInDays(record.memory.date, generatedAt);
   const recentlyLoaded = recentLoadKeys.has(getMemoryKey(record.memory));
@@ -484,8 +476,7 @@ function normalizeScopeEntry(value: string): string {
 }
 
 function compareAuditIssues(left: MemoryAuditIssue, right: MemoryAuditIssue): number {
-  const issueOrderDifference =
-    ISSUE_TYPE_ORDER.indexOf(left.issue_type) - ISSUE_TYPE_ORDER.indexOf(right.issue_type);
+  const issueOrderDifference = ISSUE_TYPE_ORDER.indexOf(left.issue_type) - ISSUE_TYPE_ORDER.indexOf(right.issue_type);
   if (issueOrderDifference !== 0) {
     return issueOrderDifference;
   }

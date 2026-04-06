@@ -61,11 +61,7 @@ function detectPreferenceValue(text: string): PrefDetect | null {
     return { value: "require_review", via: "explicit" };
   }
 
-  if (
-    /\b(prefer|倾向于)\b/i.test(lower) ||
-    /优先|推荐|倾向于/.test(text) ||
-    /\b(always)\b/.test(lower)
-  ) {
+  if (/\b(prefer|倾向于)\b/i.test(lower) || /优先|推荐|倾向于/.test(text) || /\b(always)\b/.test(lower)) {
     return { value: "prefer", via: "explicit" };
   }
 
@@ -73,10 +69,7 @@ function detectPreferenceValue(text: string): PrefDetect | null {
     return { value: "prefer", via: "explicit" };
   }
 
-  if (
-    /\b(avoid|不要|禁止|别用|不要走|绕过|避免)\b/i.test(lower) ||
-    /不要|禁止|别用|不要走|绕过|避免/.test(text)
-  ) {
+  if (/\b(avoid|不要|禁止|别用|不要走|绕过|避免)\b/i.test(lower) || /不要|禁止|别用|不要走|绕过|避免/.test(text)) {
     return { value: "avoid", via: "explicit" };
   }
 
