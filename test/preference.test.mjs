@@ -142,6 +142,51 @@ await runTest("CLI capture-preference (stdin) and lint-preferences", async () =>
   }
 });
 
+await runTest("CLI user errors stay concise without stack traces", async () => {
+  const tmpDir = await mkdtemp(path.join(os.tmpdir(), "repobrain-pref-user-error-"));
+  try {
+    await initBrain(tmpDir);
+    const cap = await runCli(["capture-preference"], tmpDir, "");
+    assert.equal(cap.code, 1);
+    assert.match(cap.stderr, /Provide natural language via --input or stdin/);
+    assert.doesNotMatch(cap.stderr, /BrainUserError:/);
+    assert.doesNotMatch(cap.stderr, /\s+at\s+/);
+  } finally {
+    await rm(tmpDir, { recursive: true, force: true });
+  }
+});
+
+await runTest("CLI debug mode prints stack traces for unexpected errors", async () => {
+  const tmpDir = await mkdtemp(path.join(os.tmpdir(), "repobrain-pref-debug-error-"));
+  try {
+    await initBrain(tmpDir);
+    const savedPath = await saveMemory(
+      {
+        type: "decision",
+        title: "Use deterministic fixtures",
+        summary: "Fixture data keeps tests stable",
+        detail: "## DECISION\n\nUse deterministic fixtures.",
+        tags: [],
+        importance: "medium",
+        date: new Date().toISOString(),
+        score: 70,
+        hit_count: 0,
+        last_used: null,
+        created_at: new Date().toISOString(),
+        stale: false,
+      },
+      tmpDir,
+    );
+    const sameFile = path.basename(savedPath);
+    const result = await runCli(["supersede", sameFile, sameFile], tmpDir, "", { REPOBRAIN_DEBUG: "1" });
+    assert.equal(result.code, 1);
+    assert.match(result.stderr, /Choose two different memory files for supersede\./);
+    assert.match(result.stderr, /\s+at\s+/);
+  } finally {
+    await rm(tmpDir, { recursive: true, force: true });
+  }
+});
+
 await runTest("CLI supersede-preference marks old file superseded", async () => {
   const tmpDir = await mkdtemp(path.join(os.tmpdir(), "repobrain-pref-super-"));
   try {
@@ -273,12 +318,12 @@ const assert = {
   },
 };
 
-function runCli(args, cwd, stdinText) {
+function runCli(args, cwd, stdinText, envOverrides = {}) {
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, [cliPath, ...args], {
       cwd,
       stdio: ["pipe", "pipe", "pipe"],
-      env: process.env,
+      env: { ...process.env, ...envOverrides },
     });
 
     let stdout = "";

@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { Command } from "commander";
+import { BrainInternalError, BrainUserError } from "./errors.js";
 
 import { register as registerInitSetup } from "./commands/init-setup.js";
 import { register as registerExtract } from "./commands/extract.js";
@@ -20,6 +21,8 @@ import { register as registerMcp } from "./commands/mcp.js";
 const program = new Command();
 
 program.name("brain").description("Repo-native project knowledge memory for coding agents.").version("0.1.0");
+program.option("--debug", "Print stack traces for CLI errors.");
+program.exitOverride();
 
 registerInitSetup(program);
 registerExtract(program);
@@ -37,7 +40,34 @@ registerShare(program);
 registerMcp(program);
 
 program.parseAsync(process.argv).catch((error: unknown) => {
+  const debugEnabled = program.opts<{ debug?: boolean }>().debug || process.env.REPOBRAIN_DEBUG === "1";
+  const commanderError = error as { code?: string; exitCode?: number; message?: string } | null;
+  if (commanderError?.code === "commander.helpDisplayed" || commanderError?.code === "commander.version") {
+    process.exitCode = 0;
+    return;
+  }
+
+  if (error instanceof BrainUserError) {
+    process.stderr.write(`${error.message}\n`);
+    process.exitCode = 1;
+    return;
+  }
+
+  if (typeof commanderError?.exitCode === "number" && commanderError.exitCode !== 0) {
+    process.stderr.write(`${commanderError.message ?? "CLI argument error."}\n`);
+    process.exitCode = 1;
+    return;
+  }
+
   const message = error instanceof Error ? error.message : String(error);
+  if (error instanceof BrainInternalError && !debugEnabled) {
+    process.stderr.write(`${error.message}\n`);
+    process.exitCode = 1;
+    return;
+  }
   process.stderr.write(`${message}\n`);
+  if (debugEnabled && error instanceof Error && error.stack) {
+    process.stderr.write(`${error.stack}\n`);
+  }
   process.exitCode = 1;
 });

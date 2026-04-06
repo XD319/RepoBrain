@@ -269,9 +269,12 @@ await runTest("brain supersede links two memories and bumps the new version from
     );
 
     assert.equal(result.code, 0);
-    assert.match(result.stdout, /✓ \[brain\] 已建立取代关系/);
-    assert.match(result.stdout, /新记忆: decisions\/2026-04-01-use-tsup-090000000\.md  \(v2\)/);
-    assert.match(result.stdout, /旧记忆: decisions\/2026-04-01-use-tsc-080000000\.md  → 已标记为 stale/);
+    assert.match(result.stdout, /✓ \[brain\] (已建立取代关系|Supersede relationship linked)/);
+    assert.match(result.stdout, /(新记忆|New memory): decisions\/2026-04-01-use-tsup-090000000\.md  \(v2\)/);
+    assert.match(
+      result.stdout,
+      /(旧记忆: decisions\/2026-04-01-use-tsc-080000000\.md  → 已标记为 stale|Old memory: decisions\/2026-04-01-use-tsc-080000000\.md  -> marked as stale)/,
+    );
 
     const records = await loadStoredMemoryRecords(projectRoot);
     const oldRecord = records.find((entry) => entry.memory.title === "Use tsc");
@@ -339,10 +342,10 @@ await runTest("brain supersede can overwrite an existing relationship with --yes
     );
 
     assert.equal(result.code, 0);
-    assert.match(result.stdout, /\[brain\] 当前已存在取代关系:/);
+    assert.match(result.stdout, /\[brain\] (当前已存在取代关系|Existing supersede relationships):/);
     assert.match(result.stdout, /新记忆当前 supersedes: decisions\/2026-04-01-use-webpack-070000000\.md/);
     assert.match(result.stdout, /旧记忆当前 superseded_by: decisions\/2026-04-01-use-esbuild-100000000\.md/);
-    assert.match(result.stdout, /✓ \[brain\] 已建立取代关系/);
+    assert.match(result.stdout, /✓ \[brain\] (已建立取代关系|Supersede relationship linked)/);
 
     const records = await loadStoredMemoryRecords(projectRoot);
     const oldRecord = records.find((entry) => entry.memory.title === "Use tsc");

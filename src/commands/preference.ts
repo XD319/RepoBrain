@@ -4,6 +4,7 @@ import { stdin as input, stdout as output } from "node:process";
 import { loadConfig } from "../config.js";
 import { extractPreferenceFromNaturalLanguage } from "../extract-preference.js";
 import { t } from "../i18n.js";
+import { BrainUserError } from "../errors.js";
 import {
   loadAllPreferences,
   loadStoredPreferenceRecords,
@@ -58,12 +59,10 @@ export function register(program: Command): void {
         if (nl) {
           preference = extractPreferenceFromNaturalLanguage(nl);
           if (!preference) {
-            process.stderr.write(`${t("preference.extract_failed", language)}\n`);
-            process.exit(1);
+            throw new BrainUserError(t("preference.extract_failed", language));
           }
         } else {
-          process.stderr.write(`${t("preference.input_required", language)}\n`);
-          process.exit(1);
+          throw new BrainUserError(t("preference.input_required", language));
         }
       }
 
@@ -133,10 +132,9 @@ export function register(program: Command): void {
     .option("--reason <reason>", "Reason for this new preference.")
     .action(async (oldTarget: string, options: { target?: string; type?: any; pref?: any; reason?: string }) => {
       if (!options.target?.trim() || !options.type || !options.pref || !options.reason?.trim()) {
-        process.stderr.write(
-          "supersede-preference requires --target, --type, --pref, and --reason for the new preference.\n",
+        throw new BrainUserError(
+          "supersede-preference requires --target, --type, --pref, and --reason for the new preference.",
         );
-        process.exit(1);
       }
 
       const projectRoot = await helpers.resolveProjectRoot();
@@ -205,7 +203,7 @@ export function register(program: Command): void {
         output.write("All preferences are valid.\n");
       } else {
         output.write(`Found ${errors} error(s) in preferences.\n`);
-        process.exit(1);
+        throw new BrainUserError(`Found ${errors} error(s) in preferences.`);
       }
     });
 

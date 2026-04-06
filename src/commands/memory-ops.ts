@@ -30,6 +30,7 @@ import {
 } from "../timeline-explain.js";
 import type { Memory, Preference } from "../types.js";
 import { t } from "../i18n.js";
+import { BrainUserError } from "../errors.js";
 import * as helpers from "./helpers.js";
 
 export function register(program: Command): void {
@@ -130,8 +131,7 @@ export function register(program: Command): void {
         output.write(`${renderPreferenceTimeline(preferences, pref)}\n`);
         return;
       }
-      process.stderr.write(`No memory or preference matched "${id}".\n`);
-      process.exit(1);
+      throw new BrainUserError(`No memory or preference matched "${id}".`);
     });
 
   program;
@@ -145,8 +145,7 @@ export function register(program: Command): void {
       const records = await loadStoredMemoryRecords(projectRoot);
       const record = resolveMemoryRecordById(projectRoot, id, records);
       if (!record) {
-        process.stderr.write(`No memory matched "${id}".\n`);
-        process.exit(1);
+        throw new BrainUserError(`No memory matched "${id}".`);
       }
       output.write(`${renderExplainMemory(record, new Date())}\n`);
     });
@@ -162,8 +161,7 @@ export function register(program: Command): void {
       const records = await loadStoredPreferenceRecords(projectRoot);
       const record = resolvePreferenceRecordById(projectRoot, id, records);
       if (!record) {
-        process.stderr.write(`No preference matched "${id}".\n`);
-        process.exit(1);
+        throw new BrainUserError(`No preference matched "${id}".`);
       }
       output.write(`${renderExplainPreference(record, new Date())}\n`);
     });

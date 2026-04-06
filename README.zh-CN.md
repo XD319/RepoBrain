@@ -1041,6 +1041,11 @@ brain share --all-active
 brain mcp
 ```
 
+全局 CLI 错误调试：
+
+- 默认情况下，面向用户的输入/用法错误只会向 `stderr` 输出简洁消息，并保持退出码 `1`。
+- 如需查看非用户错误（内部异常）的堆栈，可使用 `brain --debug ...` 或设置 `REPOBRAIN_DEBUG=1`。
+
 ### 命令说明
 
 - `brain extract --type working`：强制把本次提取结果保存成 `working` memory；如果没有显式给 `expires`，会自动写成“今天 + 7 天”

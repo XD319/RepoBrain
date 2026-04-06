@@ -1141,6 +1141,11 @@ brain share --all-active
 brain mcp
 ```
 
+Global CLI error debugging:
+
+- By default, user-facing input/usage errors print concise messages to `stderr` with exit code `1`.
+- Use `brain --debug ...` or set `REPOBRAIN_DEBUG=1` to include stack traces for non-user/internal exceptions.
+
 ### Commands
 
 - `brain init`: create the `.brain/` workspace in the current repo, apply a workflow preset, and generate steering rules by default
