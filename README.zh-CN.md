@@ -1100,7 +1100,7 @@ workflowMode: recommended-semi-auto
 maxInjectTokens: 1200
 triggerMode: detect
 captureMode: candidate
-language: zh-CN
+language: en
 staleDays: 90
 sweepOnInject: false
 injectDiversity: true
@@ -1119,7 +1119,8 @@ autoApproveSafeCandidates: false
   - `direct`：accept 的 memory 直接写成 active
   - `candidate`：所有新 memory 先存为 candidate，等待 review（默认）
   - `reviewable`：类似 `candidate`，但还会推迟 merge/supersede 决策
-- `language`：提取提示词偏好的输出语言
+- `language`：CLI 输出语言（`en` 或 `zh-CN`）；已有仓库若已写 `language: zh-CN` 会保持兼容
+- `brain init` / `brain setup`：会按系统 locale 自动设置 `language`，包含 `zh` 则写入 `zh-CN`，否则写入 `en`
 - `staleDays`：非 goal memory 距离 `updated` 超过多少天后，`brain sweep` 会把它判定为陈旧并尝试降权
 - `sweepOnInject`：为 `true` 时，每次 `brain inject` 前都会先执行一次 `brain sweep --auto`；清理日志写到 `stderr`，不会污染 inject 的 markdown 输出
 - `autoApproveSafeCandidates`：为 `true` 时，`brain promote-candidates` 和 session-end hook 会自动提升通过所有安全检查的 candidate（novel、非 working、非临时、无 merge/supersede）；默认 `false`，`automation-first` 工作流默认启用

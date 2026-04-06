@@ -11,6 +11,7 @@ import { loadPendingReinforcementState } from "../reinforce-pending.js";
 import { isSafeForAutoApproval, looksTemporary, reviewCandidateMemories, reviewCandidateMemory } from "../reviewer.js";
 import type { ExtractSuggestionResult } from "../extract-suggestion.js";
 import { collectGitDiffPaths } from "../suggest-skills.js";
+import { detectSystemLanguage } from "../i18n.js";
 import {
   applySweepAuto,
   archiveGoalMemory,
@@ -297,12 +298,14 @@ export interface WorkflowSnapshot {
 export async function applyWorkflowPresetConfig(projectRoot: string, workflowMode: WorkflowMode): Promise<void> {
   const currentConfig = await loadConfig(projectRoot);
   const preset = getWorkflowPreset(workflowMode);
+  const detectedLanguage = detectSystemLanguage();
   await writeConfig(projectRoot, {
     ...currentConfig,
     workflowMode,
     triggerMode: preset.triggerMode,
     captureMode: preset.captureMode,
     extractMode: preset.extractMode,
+    language: detectedLanguage,
     sweepOnInject: preset.sweepOnInject,
     autoApproveSafeCandidates: preset.autoApproveSafeCandidates,
   });

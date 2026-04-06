@@ -1,7 +1,9 @@
 import { Command } from "commander";
 import path from "node:path";
 import { stdout as output } from "node:process";
+import { loadConfig } from "../config.js";
 import { extractPreferenceFromNaturalLanguage } from "../extract-preference.js";
+import { t } from "../i18n.js";
 import {
   clearSessionProfile,
   combinedPromoteText,
@@ -45,6 +47,7 @@ export function register(program: Command): void {
       ) => {
         const projectRoot = await helpers.resolveProjectRoot();
         await initBrain(projectRoot);
+        const { language } = await loadConfig(projectRoot);
 
         const textLine = texts
           .map((t) => t.trim())
@@ -98,8 +101,8 @@ export function register(program: Command): void {
         }
 
         await saveSessionProfile(projectRoot, profile);
-        output.write(`Session profile updated: ${getSessionProfilePath(projectRoot)}\n`);
-        output.write("会话偏好已写入本地 runtime（非 durable knowledge）。\n");
+        output.write(`${t("session.profile_updated", language, { path: getSessionProfilePath(projectRoot) })}\n`);
+        output.write(`${t("session.profile_saved_local_runtime", language)}\n`);
       },
     );
 
@@ -111,10 +114,10 @@ export function register(program: Command): void {
     .option("--json", "Print JSON only")
     .action(async (options: { json?: boolean }) => {
       const projectRoot = await helpers.resolveProjectRoot();
+      const { language } = await loadConfig(projectRoot);
       const profile = await loadSessionProfile(projectRoot);
       if (!profile) {
-        output.write("No session profile file yet. Use `brain session-set` to create one.\n");
-        output.write("尚无 session profile，可使用 `brain session-set` 创建。\n");
+        output.write(`${t("session.no_profile", language)}\n`);
         return;
       }
       if (options.json) {
@@ -133,9 +136,9 @@ export function register(program: Command): void {
     .action(async () => {
       const projectRoot = await helpers.resolveProjectRoot();
       await initBrain(projectRoot);
+      const { language } = await loadConfig(projectRoot);
       await clearSessionProfile(projectRoot);
-      output.write("Session profile cleared.\n");
-      output.write("已清除会话 profile。\n");
+      output.write(`${t("session.profile_cleared", language)}\n`);
     });
 
   program;
@@ -152,6 +155,7 @@ export function register(program: Command): void {
     .action(async (options: { to: string; title?: string; type?: string; text?: string }) => {
       const projectRoot = await helpers.resolveProjectRoot();
       await initBrain(projectRoot);
+      const { language } = await loadConfig(projectRoot);
       const profile = await loadSessionProfile(projectRoot);
       if (!profile) {
         throw new Error("No session profile to promote. Use `brain session-set` first.");
@@ -176,8 +180,7 @@ export function register(program: Command): void {
           );
         }
         const savedPath = await savePreference(preference, projectRoot);
-        output.write(`Preference saved to: ${savedPath}\n`);
-        output.write(`已保存偏好至: ${savedPath}\n`);
+        output.write(`${t("session.preference_saved", language, { path: savedPath })}\n`);
         return;
       }
 
@@ -210,8 +213,7 @@ export function register(program: Command): void {
       };
 
       const savedPath = await saveMemory(memory, projectRoot);
-      output.write(`Memory saved to: ${savedPath}\n`);
-      output.write(`已保存记忆至: ${savedPath}\n`);
+      output.write(`${t("session.memory_saved", language, { path: savedPath })}\n`);
     });
 
   program;

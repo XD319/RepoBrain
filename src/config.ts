@@ -70,7 +70,7 @@ export const DEFAULT_BRAIN_CONFIG: BrainConfig = {
   triggerMode: WORKFLOW_PRESETS["recommended-semi-auto"].triggerMode,
   captureMode: WORKFLOW_PRESETS["recommended-semi-auto"].captureMode,
   extractMode: WORKFLOW_PRESETS["recommended-semi-auto"].extractMode,
-  language: "zh-CN",
+  language: "en",
   staleDays: 90,
   sweepOnInject: WORKFLOW_PRESETS["recommended-semi-auto"].sweepOnInject,
   injectDiversity: true,

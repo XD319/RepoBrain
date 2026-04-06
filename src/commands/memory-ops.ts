@@ -1,7 +1,7 @@
 import { Command } from "commander";
 import path from "node:path";
 import { stdout as output } from "node:process";
-import { getBrainDir } from "../config.js";
+import { getBrainDir, loadConfig } from "../config.js";
 import { buildMemoryAudit, renderMemoryAuditResult } from "../audit-memory.js";
 import {
   buildMemorySchemaReport,
@@ -29,6 +29,7 @@ import {
   resolvePreferenceRecordById,
 } from "../timeline-explain.js";
 import type { Memory, Preference } from "../types.js";
+import { t } from "../i18n.js";
 import * as helpers from "./helpers.js";
 
 export function register(program: Command): void {
@@ -38,6 +39,7 @@ export function register(program: Command): void {
     .option("--yes", "Overwrite an existing supersede relationship without prompting.")
     .action(async (newMemoryFile: string, oldMemoryFile: string, options: { yes?: boolean }) => {
       const projectRoot = await helpers.resolveProjectRoot();
+      const { language } = await loadConfig(projectRoot);
       const records = await loadStoredMemoryRecords(projectRoot);
       const newRecord = helpers.resolveStoredMemoryByFile(records, newMemoryFile);
       const oldRecord = helpers.resolveStoredMemoryByFile(records, oldMemoryFile);
@@ -53,13 +55,17 @@ export function register(program: Command): void {
 
       if (relationshipState.alreadyLinked) {
         output.write(
-          `[brain] 该取代关系已存在\n  新记忆: ${newRelativePath} (v${newRecord.memory.version ?? nextVersion})\n  旧记忆: ${oldRelativePath} → 已标记为 stale\n`,
+          `${t("memory.supersede_already_exists", language, {
+            newPath: newRelativePath,
+            oldPath: oldRelativePath,
+            version: String(newRecord.memory.version ?? nextVersion),
+          })}\n`,
         );
         return;
       }
 
       if (relationshipState.hasExistingRelationship) {
-        output.write(`[brain] 当前已存在取代关系:\n`);
+        output.write(`${t("memory.supersede_existing_relationship", language)}\n`);
         for (const line of relationshipState.details) {
           output.write(`  ${line}\n`);
         }
@@ -76,7 +82,11 @@ export function register(program: Command): void {
       const result = await supersedeMemoryPair(newRecord, oldRecord);
       await updateIndex(projectRoot);
       output.write(
-        `✓ [brain] 已建立取代关系\n  新记忆: ${newRelativePath}  (v${result.newVersion})\n  旧记忆: ${oldRelativePath}  → 已标记为 stale\n`,
+        `${t("memory.supersede_linked", language, {
+          newPath: newRelativePath,
+          oldPath: oldRelativePath,
+          version: String(result.newVersion),
+        })}\n`,
       );
     });
 
@@ -208,6 +218,7 @@ export function register(program: Command): void {
     .action(async (options: { source: "session" | "git-commit"; pending?: boolean; yes?: boolean }) => {
       const projectRoot = await helpers.resolveProjectRoot();
       await initBrain(projectRoot);
+      const { language } = await loadConfig(projectRoot);
 
       const records = await loadStoredMemoryRecords(projectRoot);
       const pendingState = await loadPendingReinforcementState(projectRoot);
@@ -249,7 +260,7 @@ export function register(program: Command): void {
       }
 
       if (events.length === 0) {
-        output.write("[brain] 本次 session 未发现需要强化的记忆 ✓\n");
+        output.write(`${t("memory.reinforce_none_found", language)}\n`);
         return;
       }
 

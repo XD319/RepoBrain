@@ -1195,7 +1195,7 @@ workflowMode: recommended-semi-auto
 maxInjectTokens: 1200
 triggerMode: detect
 captureMode: candidate
-language: zh-CN
+language: en
 staleDays: 90
 sweepOnInject: false
 injectDiversity: true
@@ -1214,7 +1214,8 @@ autoApproveSafeCandidates: false
   - `direct`: accepted memories are written as active immediately
   - `candidate`: all new memories start as candidates for review (default)
   - `reviewable`: like `candidate` but also defers merge/supersede decisions
-- `language`: preferred output language for extraction prompts
+- `language`: preferred CLI output language (`en` or `zh-CN`); existing repositories with `language: zh-CN` remain fully compatible
+- `brain init` / `brain setup`: auto-detect system locale and set `language` to `zh-CN` when locale includes `zh`, otherwise `en`
 - `staleDays`: number of days before a non-goal memory becomes eligible for sweep downgrading
 - `sweepOnInject`: when `true`, `brain inject` runs `brain sweep --auto` first and prints sweep logs to `stderr` so the injected markdown stays clean
 - `injectDiversity`: when `true`, `brain inject` uses diversity-aware selection so one cluster of similar memories does not consume the entire token budget

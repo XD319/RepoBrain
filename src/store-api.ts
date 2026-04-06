@@ -58,6 +58,7 @@ export {
 export { reinforceMemories } from "./reinforce.js";
 export { setupRepoBrain } from "./setup.js";
 export { buildSharePlan } from "./share.js";
+export { detectSystemLanguage, normalizeLanguage, t } from "./i18n.js";
 export { getSteeringRulesStatus, writeSteeringRules } from "./steering-rules.js";
 export {
   buildMemoryReviewContext,

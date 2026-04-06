@@ -13,7 +13,7 @@ await runTest("brain setup initializes .brain and installs the post-commit hook"
 
     const result = await runCliProcess(["setup"], projectRoot);
     assert.equal(result.code, 0);
-    assert.match(result.stdout, /Initialized RepoBrain in/);
+    assert.ok(/Initialized RepoBrain in|已在 .* 初始化 RepoBrain/.test(result.stdout));
     assert.match(result.stdout, /Installed the post-commit hook at/);
     assert.match(result.stdout, /Workflow: Recommended semi-auto/);
     assert.match(result.stdout, /Trigger: auto-detect/);
@@ -28,6 +28,7 @@ await runTest("brain setup initializes .brain and installs the post-commit hook"
     assert.match(configRaw, /workflowMode: recommended-semi-auto/);
     assert.match(configRaw, /triggerMode: detect/);
     assert.match(configRaw, /captureMode: candidate/);
+    assert.match(configRaw, /language: (en|zh-CN)/);
 
     const hookContent = await readFile(path.join(projectRoot, ".git", "hooks", "post-commit"), "utf8");
     assert.match(hookContent, /project-brain post-commit hook/);
@@ -70,6 +71,21 @@ await runTest("brain setup respects the ultra-safe manual workflow preset", asyn
   });
 });
 
+await runTest("brain setup auto-detects zh language from locale", async () => {
+  await withTempRepo(async (projectRoot) => {
+    await runCommand("git", ["init"], projectRoot);
+
+    const result = await runCliProcess(["setup", "--skip-steering-rules"], projectRoot, {
+      LANG: "zh_CN.UTF-8",
+      LC_ALL: "zh_CN.UTF-8",
+    });
+    assert.equal(result.code, 0);
+
+    const configRaw = await readFile(path.join(projectRoot, ".brain", "config.yaml"), "utf8");
+    assert.match(configRaw, /language: zh-CN/);
+  });
+});
+
 console.log("All setup command tests passed.");
 
 async function withTempRepo(callback) {
@@ -82,12 +98,12 @@ async function withTempRepo(callback) {
   }
 }
 
-async function runCliProcess(args, cwd) {
+async function runCliProcess(args, cwd, envOverrides = {}) {
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, [cliPath, ...args], {
       cwd,
       stdio: ["ignore", "pipe", "pipe"],
-      env: process.env,
+      env: { ...process.env, ...envOverrides },
     });
 
     let stdout = "";

@@ -1,7 +1,9 @@
 import { Command } from "commander";
 import path from "node:path";
 import { stdin as input, stdout as output } from "node:process";
+import { loadConfig } from "../config.js";
 import { extractPreferenceFromNaturalLanguage } from "../extract-preference.js";
+import { t } from "../i18n.js";
 import {
   loadAllPreferences,
   loadStoredPreferenceRecords,
@@ -25,6 +27,7 @@ export function register(program: Command): void {
     .option("--input <text>", "Natural language input to extract preference from.")
     .action(async (options: { target?: string; type?: any; pref?: any; reason?: string; input?: string }) => {
       const projectRoot = await helpers.resolveProjectRoot();
+      const { language } = await loadConfig(projectRoot);
       let preference: Preference | null = null;
 
       const explicitManual =
@@ -55,28 +58,17 @@ export function register(program: Command): void {
         if (nl) {
           preference = extractPreferenceFromNaturalLanguage(nl);
           if (!preference) {
-            process.stderr.write(
-              "Could not extract a preference from this text (weak or ambiguous signal). Try explicit flags or a clearer sentence.\n",
-            );
-            process.stderr.write(
-              "无法从该文本提取偏好（信号偏弱或含糊）。请写得更具体，或使用 --target / --type / --pref / --reason。\n",
-            );
+            process.stderr.write(`${t("preference.extract_failed", language)}\n`);
             process.exit(1);
           }
         } else {
-          process.stderr.write(
-            "Provide natural language via --input or stdin, or pass all of (--target, --type, --pref, --reason).\n",
-          );
-          process.stderr.write(
-            "请使用 --input 或管道 stdin 输入自然语言，或提供 (--target, --type, --pref, --reason)。\n",
-          );
+          process.stderr.write(`${t("preference.input_required", language)}\n`);
           process.exit(1);
         }
       }
 
       const savedPath = await savePreference(preference!, projectRoot);
-      output.write(`Preference saved to: ${savedPath}\n`);
-      output.write(`已保存偏好至: ${savedPath}\n`);
+      output.write(`${t("preference.saved", language, { path: savedPath })}\n`);
     });
 
   program;

@@ -19,7 +19,7 @@ await runTest("brain reinforce prints the no-op message when no failure event is
     });
 
     assert.equal(result.code, 0);
-    assert.match(result.stdout, /\[brain\] 本次 session 未发现需要强化的记忆 ✓/);
+    assert.match(result.stdout, /\[brain\] (本次 session 未发现需要强化的记忆|No memories to reinforce in this session) ✓/);
   });
 });
 

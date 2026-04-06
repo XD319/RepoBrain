@@ -5,6 +5,7 @@ import { setupRepoBrain } from "../setup.js";
 import { writeSteeringRules } from "../steering-rules.js";
 import { initBrain } from "../store.js";
 import type { WorkflowMode } from "../types.js";
+import { detectSystemLanguage, t } from "../i18n.js";
 import * as helpers from "./helpers.js";
 
 export function register(program: Command): void {
@@ -20,19 +21,19 @@ export function register(program: Command): void {
     .option("--skip-steering-rules", "Do not generate steering rules during initialization.")
     .action(async (options: { workflow?: WorkflowMode; steeringRules?: string; skipSteeringRules?: boolean }) => {
       const projectRoot = process.cwd();
+      const language = detectSystemLanguage();
       await initBrain(projectRoot);
       const workflowMode = options.workflow ?? "recommended-semi-auto";
       await helpers.applyWorkflowPresetConfig(projectRoot, workflowMode);
-      output.write("Initialized .brain workspace.\n");
-      output.write("已初始化 .brain/ 目录。\n");
+      output.write(`${t("init.workspace_initialized", language)}\n`);
       const steeringChoice = helpers.resolveSteeringRulesChoice(options.steeringRules, options.skipSteeringRules);
       const writtenPaths = await writeSteeringRules(projectRoot, steeringChoice);
       if (writtenPaths.length > 0) {
-        output.write(`已生成 steering rules: ${writtenPaths.join(", ")}\n`);
+        output.write(`${t("init.steering_rules_generated", language, { paths: writtenPaths.join(", ") })}\n`);
       }
       helpers.renderWorkflowSummaryLines(workflowMode).forEach((line) => output.write(`${line}\n`));
       helpers.renderSetupNextSteps(workflowMode).forEach((line) => output.write(`${line}\n`));
-      output.write(`Initialized Project Brain in ${projectRoot}\n`);
+      output.write(`${t("init.project_brain_initialized", language, { projectRoot })}\n`);
     });
 
   program;
@@ -56,6 +57,7 @@ export function register(program: Command): void {
         gitHook?: boolean;
       }) => {
         const projectRoot = process.cwd();
+        const language = detectSystemLanguage();
         const workflowMode = options.workflow ?? "recommended-semi-auto";
         const preset = getWorkflowPreset(workflowMode);
         const gitHook = options.gitHook === false ? false : preset.gitHookDefault;
@@ -64,7 +66,7 @@ export function register(program: Command): void {
         const steeringChoice = helpers.resolveSteeringRulesChoice(options.steeringRules, options.skipSteeringRules);
         const writtenPaths = await writeSteeringRules(projectRoot, steeringChoice);
 
-        output.write(`Initialized RepoBrain in ${projectRoot}\n`);
+        output.write(`${t("setup.repobrain_initialized", language, { projectRoot })}\n`);
         output.write(`- Brain directory: ${result.brainDir}\n`);
         helpers.renderWorkflowSummaryLines(workflowMode).forEach((line) => output.write(`- ${line}\n`));
         output.write(`- ${result.gitHook.message}\n`);
