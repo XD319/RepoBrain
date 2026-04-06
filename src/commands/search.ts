@@ -32,12 +32,19 @@ export function register(program: Command): void {
         const projectRoot = await helpers.resolveProjectRoot();
         const records = await loadStoredMemoryRecords(projectRoot);
 
-        const filters: SearchFilters = {
-          type: options.type,
-          tag: options.tag,
-          status: options.status,
-          all: options.all,
-        };
+        const filters: SearchFilters = {};
+        if (options.type !== undefined) {
+          filters.type = options.type;
+        }
+        if (options.tag !== undefined) {
+          filters.tag = options.tag;
+        }
+        if (options.status !== undefined) {
+          filters.status = options.status;
+        }
+        if (options.all !== undefined) {
+          filters.all = options.all;
+        }
 
         const results = searchMemories(records, query, filters);
 
