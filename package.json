@@ -49,6 +49,9 @@
     "build": "tsup",
     "dev": "tsup --watch",
     "test": "npm run build && node scripts/run-tests.mjs",
+    "lint": "eslint src/ test/",
+    "format": "prettier --write src/ test/",
+    "format:check": "prettier --check src/ test/",
     "smoke:package": "node scripts/smoke-package.mjs",
     "demo:proof": "node scripts/generate-demo-proof.mjs",
     "proof:bundles": "node scripts/generate-proof-bundles.mjs",
@@ -75,8 +78,13 @@
     "yaml": "^2.8.3"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@types/node": "^24.6.0",
+    "eslint": "^10.2.0",
+    "eslint-config-prettier": "^10.1.8",
+    "prettier": "^3.8.1",
     "tsup": "^8.5.0",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.58.0"
   }
 }
