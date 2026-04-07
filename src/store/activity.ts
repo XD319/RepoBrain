@@ -7,7 +7,7 @@ import { IMPORTANCE_LEVELS, MEMORY_TYPES } from "../types.js";
 import { commitAtomicWriteOperations, createAtomicWriteOperation, type AtomicWriteOperation } from "./atomic-write.js";
 import { loadStoredMemoryRecords } from "./memory-store.js";
 import { serializeMemory } from "./serialize.js";
-import { normalizeMemory, validateMemory } from "./validate.js";
+import { looksLikeCorruptedPlaceholderText, normalizeMemory, validateMemory } from "./validate.js";
 
 export async function recordInjectedMemories(projectRoot: string, memories: Memory[]): Promise<void> {
   const brainDir = getBrainDir(projectRoot);
@@ -91,6 +91,7 @@ function parseActivityEntry(value: unknown): MemoryActivityEntry | null {
     !title ||
     !importance ||
     !date ||
+    looksLikeCorruptedPlaceholderText(title) ||
     !MEMORY_TYPES.includes(type as MemoryType) ||
     !IMPORTANCE_LEVELS.includes(importance as Memory["importance"])
   ) {

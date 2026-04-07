@@ -681,6 +681,30 @@ await runTest("invalid risk_level is rejected during save with a clear validatio
   });
 });
 
+await runTest("corrupted placeholder title/summary are rejected during save", async () => {
+  await withTempRepo(async (projectRoot) => {
+    const invalidMemory = {
+      type: "gotcha",
+      title: "??????????",
+      summary: "？？？？？？",
+      detail: "## GOTCHA\n\nThis should fail because title/summary were corrupted before write.",
+      tags: ["encoding"],
+      importance: "medium",
+      date: "2026-04-07T03:02:33.223Z",
+    };
+
+    await assert.rejects(
+      async () => saveMemory(invalidMemory, projectRoot),
+      (error) => {
+        assert.ok(error instanceof Error);
+        assert.match(error.message, /corrupted placeholder text/);
+        assert.match(error.message, /UTF-8/);
+        return true;
+      },
+    );
+  });
+});
+
 await runTest("invalid score in stored memory fails with a clear parse error", async () => {
   await withTempRepo(async (projectRoot) => {
     const invalidPath = path.join(projectRoot, ".brain", "decisions", "2026-04-01-invalid-score.md");

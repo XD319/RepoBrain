@@ -42,6 +42,23 @@ export function isNonEmptyIsoDateString(value: string): boolean {
   return Boolean(value.trim()) && !Number.isNaN(Date.parse(value));
 }
 
+export function looksLikeCorruptedPlaceholderText(value: string): boolean {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return false;
+  }
+
+  const questionMarks = (trimmed.match(/[?？]/g) ?? []).length;
+  if (questionMarks < 4) {
+    return false;
+  }
+
+  const meaningful = (trimmed.match(/[\p{L}\p{N}\u4e00-\u9fff]/gu) ?? []).length;
+  const ratio = questionMarks / trimmed.length;
+
+  return meaningful === 0 && ratio >= 0.45;
+}
+
 export function isIsoDateOnly(value: string): boolean {
   return /^\d{4}-\d{2}-\d{2}$/.test(value);
 }
@@ -323,6 +340,12 @@ export function validateMemory(memory: Memory, context = "Memory"): void {
   }
   if (!memory.title.trim() || !memory.summary.trim() || !memory.detail.trim()) {
     throw new Error(`${context} requires non-empty title, summary, and detail.`);
+  }
+  if (looksLikeCorruptedPlaceholderText(memory.title) || looksLikeCorruptedPlaceholderText(memory.summary)) {
+    throw new Error(
+      `${context} appears to contain corrupted placeholder text (for example "????"). ` +
+        "Check shell encoding/pipeline input and retry capture with UTF-8 text.",
+    );
   }
   if (!Number.isFinite(memory.score) || memory.score < 0 || memory.score > 100) {
     throw new Error(`${context} has invalid score "${memory.score}". Expected a number between 0 and 100.`);

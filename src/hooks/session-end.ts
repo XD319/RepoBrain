@@ -3,6 +3,7 @@
 import { stdin as input, stderr } from "node:process";
 
 import { findProjectRoot, loadConfig, renderConfigWarnings } from "../config.js";
+import { decodeStdinBuffer } from "../stdin-decode.js";
 import { extractMemories } from "../extract.js";
 import { detectFailures } from "../failure-detector.js";
 import { savePendingReinforcementEvents } from "../reinforce-pending.js";
@@ -110,7 +111,7 @@ async function readStdin(): Promise<string> {
     chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
   }
 
-  return Buffer.concat(chunks).toString("utf8");
+  return decodeStdinBuffer(Buffer.concat(chunks));
 }
 
 function debugLog(message: string): void {

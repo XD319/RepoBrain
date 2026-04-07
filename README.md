@@ -17,6 +17,8 @@ The point is much simpler: stop re-explaining the same repo context every time a
 - Store durable memory in `.brain/` as Markdown plus frontmatter
 - Keep everything local-first, markdown-first, and Git-friendly
 - Work with Claude Code, Codex, Cursor, and Copilot through thin adapters
+- Decode Windows hook stdin with GB18030 fallback to keep Chinese capture text intact
+- Reject corrupted placeholder memory text (e.g. `????`) with a clear UTF-8 retry error
 
 ## What It Already Solves
 

@@ -82,3 +82,9 @@ await runTest("decodeStdinBuffer re-decodes GB18030 when UTF-8 has replacement c
 await runTest("decodeStdinBuffer handles empty buffer", () => {
   assert.equal(decodeStdinBuffer(Buffer.alloc(0)), "");
 });
+
+await runTest("decodeStdinBuffer decodes UTF-16LE stdin payloads", () => {
+  const utf16le = Buffer.from("gotcha: 修复审批重试", "utf16le");
+  const decoded = decodeStdinBuffer(utf16le);
+  assert.equal(decoded, "gotcha: 修复审批重试");
+});

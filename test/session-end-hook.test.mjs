@@ -9,7 +9,9 @@ import { initBrain, loadStoredMemoryRecords, saveMemory } from "../dist/store-ap
 const repoRoot = process.cwd();
 const hookPath = path.join(repoRoot, "dist", "hooks", "session-end.js");
 const fixturePath = path.join(repoRoot, "test", "fixtures", "reinforce-llm-fixture.mjs");
+const zhFixturePath = path.join(repoRoot, "test", "fixtures", "extractor-echo-zh-fixture.mjs");
 const fixtureCommand = `"${process.execPath}" "${fixturePath}"`;
+const zhFixtureCommand = `"${process.execPath}" "${zhFixturePath}"`;
 
 await runTest("session-end hook queues reinforcement suggestions instead of applying them immediately", async () => {
   await withTempRepo(async (projectRoot) => {
@@ -65,6 +67,26 @@ await runTest("session-end hook queues reinforcement suggestions instead of appl
   });
 });
 
+await runTest("session-end hook decodes Windows GB18030 stdin before extraction", async () => {
+  await withTempRepo(async (projectRoot) => {
+    const result = await runNodeProcessBuffer(
+      [hookPath],
+      projectRoot,
+      Buffer.concat([
+        Buffer.from("gotcha: ", "utf8"),
+        Buffer.from([0xd6, 0xd0]),
+      ]),
+      {
+        BRAIN_EXTRACTOR_COMMAND: zhFixtureCommand,
+      },
+    );
+    assert.equal(result.code, 0);
+
+    const records = await loadStoredMemoryRecords(projectRoot);
+    assert.ok(records.some((entry) => entry.memory.title.includes("中文上下文")), "expected extracted zh memory");
+  });
+});
+
 console.log("All session-end hook tests passed.");
 
 async function withTempRepo(callback) {
@@ -110,6 +132,41 @@ async function runNodeProcess(args, cwd, stdinText = "", extraEnv = {}) {
     });
 
     child.stdin.end(stdinText);
+  });
+}
+
+async function runNodeProcessBuffer(args, cwd, stdinBuffer, extraEnv = {}) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, args, {
+      cwd,
+      stdio: ["pipe", "pipe", "pipe"],
+      env: {
+        ...process.env,
+        ...extraEnv,
+      },
+    });
+
+    let stdout = "";
+    let stderr = "";
+
+    child.stdout.on("data", (chunk) => {
+      stdout += chunk.toString("utf8");
+    });
+
+    child.stderr.on("data", (chunk) => {
+      stderr += chunk.toString("utf8");
+    });
+
+    child.on("error", reject);
+    child.on("close", (code) => {
+      resolve({
+        code,
+        stdout,
+        stderr,
+      });
+    });
+
+    child.stdin.end(stdinBuffer);
   });
 }
 
