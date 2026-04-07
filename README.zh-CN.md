@@ -440,6 +440,8 @@ npm link
 
 如果你不想全局 link，下面所有 `brain` 命令都可以替换成 `node dist/cli.js`。
 
+`brain tui` 只是现有 CLI/Core 之上的可选交互层（复用同一套 store/review/routing 逻辑），RepoBrain 仍然是 CLI-first。
+
 ### Step 1: Initialize
 
 先在当前仓库里初始化 RepoBrain 工作区：

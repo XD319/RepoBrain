@@ -17,6 +17,7 @@ import { register as registerMemoryOps } from "./commands/memory-ops.js";
 import { register as registerSearch } from "./commands/search.js";
 import { register as registerShare } from "./commands/share.js";
 import { register as registerMcp } from "./commands/mcp.js";
+import { register as registerTui } from "./commands/tui.js";
 
 const program = new Command();
 
@@ -38,6 +39,7 @@ registerMemoryOps(program);
 registerSearch(program);
 registerShare(program);
 registerMcp(program);
+registerTui(program);
 
 program.parseAsync(process.argv).catch((error: unknown) => {
   const debugEnabled = program.opts<{ debug?: boolean }>().debug || process.env.REPOBRAIN_DEBUG === "1";

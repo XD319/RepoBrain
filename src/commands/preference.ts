@@ -15,6 +15,7 @@ import {
 } from "../store.js";
 import type { Preference } from "../types.js";
 import { PREFERENCE_TARGET_TYPES, PREFERENCE_VALUES } from "../types.js";
+import { buildActivePreferenceListViewModel } from "../tui/adapters/preferences.js";
 import * as helpers from "./helpers.js";
 
 export function register(program: Command): void {
@@ -77,17 +78,16 @@ export function register(program: Command): void {
     .description("List all active workflow and skill preferences.")
     .action(async () => {
       const projectRoot = await helpers.resolveProjectRoot();
-      const preferences = await loadAllPreferences(projectRoot);
-      const active = preferences.filter((p) => p.status === "active");
+      const viewModel = await buildActivePreferenceListViewModel(projectRoot);
 
-      if (active.length === 0) {
+      if (viewModel.active.length === 0) {
         output.write("No active preferences found.\n");
         return;
       }
 
       output.write("Active Preferences:\n");
-      active.forEach((p) => {
-        output.write(`- [${p.preference}] ${p.target_type}:${p.target} (Reason: ${p.reason})\n`);
+      viewModel.active.forEach((p) => {
+        output.write(`- [${p.preference}] ${p.targetType}:${p.target} (Reason: ${p.reason})\n`);
       });
     });
 

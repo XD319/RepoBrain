@@ -460,6 +460,8 @@ npm link
 
 If you prefer not to link globally, replace `brain` in the commands below with `node dist/cli.js`.
 
+`brain tui` is an optional interactive layer over the existing CLI/Core logic (same store, review, and routing domain behavior). RepoBrain remains CLI-first.
+
 ### Step 1: Initialize
 
 Create the local RepoBrain workspace in the current repository:

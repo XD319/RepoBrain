@@ -91,11 +91,14 @@
   },
   "dependencies": {
     "commander": "^14.0.0",
+    "ink": "^6.8.0",
+    "react": "^19.2.4",
     "yaml": "^2.8.3"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@types/node": "^24.6.0",
+    "@types/react": "^19.2.14",
     "eslint": "^10.2.0",
     "eslint-config-prettier": "^10.1.8",
     "prettier": "^3.8.1",

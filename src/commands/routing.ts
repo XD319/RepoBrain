@@ -14,7 +14,7 @@ import {
   resolveSuggestedSkillPaths,
 } from "../suggest-skills.js";
 import type { PathSource } from "../suggest-skills.js";
-import { buildTaskRoutingBundle, renderTaskRoutingBundle, renderTaskRoutingBundleJson } from "../task-routing.js";
+import { renderTaskRoutingBundle, renderTaskRoutingBundleJson } from "../task-routing.js";
 import {
   applyRoutingFeedback,
   explainRoutingFeedbackForSkill,
@@ -22,6 +22,7 @@ import {
   renderExplainRoutingFeedbackText,
 } from "../routing-feedback.js";
 import { initBrain, updateIndex } from "../store.js";
+import { buildRoutingInspectorViewModel } from "../tui/adapters/routing.js";
 import * as helpers from "./helpers.js";
 
 export function register(program: Command): void {
@@ -163,7 +164,7 @@ export function register(program: Command): void {
         }
 
         const resolvedPaths = resolveSuggestedSkillPaths(projectRoot, options.path);
-        const bundle = await buildTaskRoutingBundle(projectRoot, config, {
+        const routingInspector = await buildRoutingInspectorViewModel(projectRoot, config, {
           task,
           paths: resolvedPaths.paths,
           path_source: resolvedPaths.path_source,
@@ -174,7 +175,9 @@ export function register(program: Command): void {
 
         const format = helpers.resolveSuggestSkillsOutputFormat(options);
         output.write(
-          format === "json" ? `${renderTaskRoutingBundleJson(bundle)}\n` : `${renderTaskRoutingBundle(bundle)}\n`,
+          format === "json"
+            ? `${renderTaskRoutingBundleJson(routingInspector.bundle)}\n`
+            : `${renderTaskRoutingBundle(routingInspector.bundle)}\n`,
         );
       },
     );

@@ -1,8 +1,8 @@
 import { Command } from "commander";
 import { stdout as output } from "node:process";
 import { loadConfig } from "../config.js";
-import { reviewCandidateMemory } from "../reviewer.js";
-import { approveCandidateMemory, loadStoredMemoryRecords, updateIndex, updateStoredMemoryStatus } from "../store.js";
+import { approveCandidateMemory, loadStoredMemoryRecords, updateIndex } from "../store.js";
+import { approveCandidateAction, buildCandidateListViewModel, dismissCandidateAction } from "../tui/adapters/review.js";
 import * as helpers from "./helpers.js";
 
 export function register(program: Command): void {
@@ -11,30 +11,19 @@ export function register(program: Command): void {
     .description("Inspect candidate memories before approval; pairs naturally with brain approve --safe.")
     .action(async () => {
       const projectRoot = await helpers.resolveProjectRoot();
-      const records = await loadStoredMemoryRecords(projectRoot);
-      const candidates = helpers.getCandidateRecords(records);
+      const viewModel = await buildCandidateListViewModel(projectRoot);
 
-      if (candidates.length === 0) {
+      if (viewModel.totalCandidates === 0) {
         output.write("No candidate memories waiting for review.\n");
         return;
       }
 
-      output.write(`Candidate memories: ${candidates.length}\n`);
-      const safeCandidates = candidates.filter((entry) =>
-        helpers.isSafeCandidateReview(
-          reviewCandidateMemory(
-            entry.memory,
-            records.filter((record) => record.filePath !== entry.filePath),
-          ),
-        ),
-      );
-      for (const entry of candidates) {
-        output.write(
-          `- ${helpers.getStoredMemoryId(entry)} | ${entry.memory.type} | ${entry.memory.importance} | ${entry.memory.title}\n`,
-        );
+      output.write(`Candidate memories: ${viewModel.totalCandidates}\n`);
+      for (const entry of viewModel.candidates) {
+        output.write(`- ${entry.id} | ${entry.type} | ${entry.importance} | ${entry.title}\n`);
       }
       output.write(
-        `Next: run "brain approve --safe" for ${safeCandidates.length} low-risk candidate memor${safeCandidates.length === 1 ? "y" : "ies"}, then "brain approve <id>" for anything that still needs manual judgment.\n`,
+        `Next: run "brain approve --safe" for ${viewModel.safeCandidates} low-risk candidate memor${viewModel.safeCandidates === 1 ? "y" : "ies"}, then "brain approve <id>" for anything that still needs manual judgment.\n`,
       );
     });
 
@@ -47,36 +36,25 @@ export function register(program: Command): void {
     .option("--safe", "Approve only candidates that still review as low-risk novel memories.")
     .action(async (memoryId: string | undefined, options: { all?: boolean; safe?: boolean }) => {
       const projectRoot = await helpers.resolveProjectRoot();
-      const records = await loadStoredMemoryRecords(projectRoot);
-      const resolution = options.safe
-        ? helpers.resolveSafeCandidateRecords(records, memoryId, options.all)
-        : {
-            matches: helpers.resolveCandidateRecords(records, memoryId, options.all),
-            skipped: [] as helpers.SafeCandidateRecord[],
-          };
-      const matches = resolution.matches;
+      const result = await approveCandidateAction(projectRoot, memoryId, options);
 
-      if (options.safe && matches.length === 0) {
+      if (options.safe && result.affectedCount === 0) {
+        const skipped = result.skippedManualReviewCount ?? 0;
         const suffix =
-          resolution.skipped.length > 0
-            ? ` ${resolution.skipped.length} candidate memor${resolution.skipped.length === 1 ? "y still requires" : "ies still require"} manual review.`
+          skipped > 0
+            ? ` ${skipped} candidate memor${skipped === 1 ? "y still requires" : "ies still require"} manual review.`
             : "";
         output.write(`No safe candidate memories found.${suffix}\n`);
         return;
       }
-
-      for (const entry of matches) {
-        await approveCandidateMemory(entry, projectRoot);
-      }
-
-      await updateIndex(projectRoot);
       output.write(
-        `Approved ${matches.length} ${options.safe ? "safe " : ""}candidate memor${matches.length === 1 ? "y" : "ies"}.\n`,
+        `Approved ${result.affectedCount} ${options.safe ? "safe " : ""}candidate memor${result.affectedCount === 1 ? "y" : "ies"}.\n`,
       );
 
-      if (options.safe && resolution.skipped.length > 0) {
+      if (options.safe && (result.skippedManualReviewCount ?? 0) > 0) {
+        const skipped = result.skippedManualReviewCount ?? 0;
         output.write(
-          `${resolution.skipped.length} candidate memor${resolution.skipped.length === 1 ? "y still requires" : "ies still require"} manual review.\n`,
+          `${skipped} candidate memor${skipped === 1 ? "y still requires" : "ies still require"} manual review.\n`,
         );
       }
     });
@@ -89,15 +67,8 @@ export function register(program: Command): void {
     .option("--all", "Dismiss all candidate memories.")
     .action(async (memoryId: string | undefined, options: { all?: boolean }) => {
       const projectRoot = await helpers.resolveProjectRoot();
-      const records = await loadStoredMemoryRecords(projectRoot);
-      const matches = helpers.resolveCandidateRecords(records, memoryId, options.all);
-
-      for (const entry of matches) {
-        await updateStoredMemoryStatus(entry, "stale");
-      }
-
-      await updateIndex(projectRoot);
-      output.write(`Dismissed ${matches.length} candidate memor${matches.length === 1 ? "y" : "ies"}.\n`);
+      const result = await dismissCandidateAction(projectRoot, memoryId, options);
+      output.write(`Dismissed ${result.affectedCount} candidate memor${result.affectedCount === 1 ? "y" : "ies"}.\n`);
     });
 
   program;
