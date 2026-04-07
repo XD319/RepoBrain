@@ -48,14 +48,23 @@ export function looksLikeCorruptedPlaceholderText(value: string): boolean {
     return false;
   }
 
+  // A long run of placeholder question marks usually means encoding already degraded.
+  if (/[?？]{6,}/u.test(trimmed)) {
+    return true;
+  }
+
   const questionMarks = (trimmed.match(/[?？]/g) ?? []).length;
   if (questionMarks < 4) {
     return false;
+  }
+  if (questionMarks >= 8) {
+    return true;
   }
 
   const meaningful = (trimmed.match(/[\p{L}\p{N}\u4e00-\u9fff]/gu) ?? []).length;
   const ratio = questionMarks / trimmed.length;
 
+  // Keep existing strict rule for all-placeholder strings, plus a mixed-text fallback.
   return meaningful === 0 && ratio >= 0.45;
 }
 

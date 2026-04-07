@@ -705,6 +705,29 @@ await runTest("corrupted placeholder title/summary are rejected during save", as
   });
 });
 
+await runTest("mixed text with long placeholder question mark runs is rejected during save", async () => {
+  await withTempRepo(async (projectRoot) => {
+    const invalidMemory = {
+      type: "gotcha",
+      title: "success/error/finally ????????????????。",
+      summary: "Node stream decode fallback ?????????",
+      detail: "## GOTCHA\n\nThis should fail because mixed text still shows corrupted placeholders.",
+      tags: ["encoding"],
+      importance: "medium",
+      date: "2026-04-07T08:39:07.224Z",
+    };
+
+    await assert.rejects(
+      async () => saveMemory(invalidMemory, projectRoot),
+      (error) => {
+        assert.ok(error instanceof Error);
+        assert.match(error.message, /corrupted placeholder text/);
+        return true;
+      },
+    );
+  });
+});
+
 await runTest("invalid score in stored memory fails with a clear parse error", async () => {
   await withTempRepo(async (projectRoot) => {
     const invalidPath = path.join(projectRoot, ".brain", "decisions", "2026-04-01-invalid-score.md");
