@@ -357,10 +357,11 @@ export async function extractMemories(
 }
 
 export function buildExtractionPrompt(conversationText: string, config: BrainConfig): string {
+  const detectedLanguage = detectMemoryLanguage(conversationText, config.language);
   return [
     EXTRACTION_PROMPT,
     "",
-    `Preferred output language: ${config.language}`,
+    `Preferred output language: ${detectedLanguage}`,
     "",
     "Content to analyze:",
     conversationText,
@@ -505,7 +506,8 @@ function runLocalExtractionPipeline(conversationText: string, config: BrainConfi
   const drafts = fragments
     .map((fragment) => identifyCandidate(fragment))
     .filter((candidate): candidate is LocalCandidateDraft => candidate !== null);
-  const completed = drafts.map((candidate) => completeCandidate(candidate, config.language, preprocessed.source));
+  const preferredLanguage = detectMemoryLanguage(conversationText, config.language);
+  const completed = drafts.map((candidate) => completeCandidate(candidate, preferredLanguage, preprocessed.source));
   const deduped = dedupeCandidates(completed);
   const reviewed = reviewCandidatesBeforeWrite(deduped);
 
@@ -936,7 +938,7 @@ function completeCandidate(
 ): ScoredLocalCandidate {
   const now = new Date().toISOString();
   const files = deriveFiles(candidate.fragment);
-  const title = deriveTitle(candidate.fragment.text, candidate.fragment.contextText, candidate.chosenType);
+  const title = deriveTitle(candidate.fragment.text, candidate.fragment.contextText, candidate.chosenType, language);
   const summary = deriveSummary(candidate.fragment.contextText, candidate.fragment.text, language);
   const area = deriveArea(candidate.fragment.contextText, files);
   const tags = deriveTags(candidate.fragment.contextText, files, candidate.chosenType, area);
@@ -946,7 +948,7 @@ function completeCandidate(
     type: candidate.chosenType,
     title,
     summary,
-    detail: buildDetail(candidate.chosenType, candidate.fragment.contextText, files),
+    detail: buildDetail(candidate.chosenType, candidate.fragment.contextText, files, language),
     tags,
     importance,
     date: now,
@@ -1060,7 +1062,7 @@ function derivePathScope(files: string[]): string[] {
   return Array.from(new Set(scopes)).slice(0, 5);
 }
 
-function deriveTitle(text: string, contextText: string, type: MemoryType): string {
+function deriveTitle(text: string, contextText: string, type: MemoryType, language: string): string {
   const explicit = text.match(/^(?:[-*]\s*)?(decision|gotcha|convention|pattern|working|goal)\s*[:\-]\s*(.+)$/iu)?.[2];
   const base = explicit || pickBestSentence(contextText) || pickBestSentence(text) || text;
   const withoutLabels = base
@@ -1096,7 +1098,7 @@ function deriveTitle(text: string, contextText: string, type: MemoryType): strin
   }
 
   if (!title) {
-    title = defaultTitleForType(type);
+    title = defaultTitleForType(type, language);
   }
 
   return title;
@@ -1169,11 +1171,12 @@ function rankSentence(value: string): number {
   return score;
 }
 
-function buildDetail(type: MemoryType, contextText: string, files: string[]): string {
-  const lines = [`## ${type.toUpperCase()}`, "", contextText.trim()];
+function buildDetail(type: MemoryType, contextText: string, files: string[], language: string): string {
+  const heading = language.startsWith("zh") ? `## ${typeToChineseHeading(type)}` : `## ${type.toUpperCase()}`;
+  const lines = [heading, "", contextText.trim()];
 
   if (files.length > 0 && !files.every((file) => contextText.includes(file))) {
-    lines.push("", `Scope files: ${files.join(", ")}`);
+    lines.push("", `${language.startsWith("zh") ? "作用范围文件" : "Scope files"}: ${files.join(", ")}`);
   }
 
   return lines.join("\n");
@@ -1499,7 +1502,24 @@ function getInitialExtractedMemoryScore(type: MemoryType, importance: Memory["im
   return 50;
 }
 
-function defaultTitleForType(type: MemoryType): string {
+function defaultTitleForType(type: MemoryType, language: string = "en"): string {
+  if (language.startsWith("zh")) {
+    switch (type) {
+      case "decision":
+        return "记录一条实现决策";
+      case "gotcha":
+        return "记录一条关键陷阱";
+      case "convention":
+        return "记录一条项目约定";
+      case "pattern":
+        return "记录一条可复用模式";
+      case "working":
+        return "跟踪当前工作上下文";
+      case "goal":
+        return "跟踪一个长期目标";
+    }
+  }
+
   switch (type) {
     case "decision":
       return "Capture an implementation decision";
@@ -1518,6 +1538,39 @@ function defaultTitleForType(type: MemoryType): string {
 
 function toIsoDateOnly(value: string): string {
   return value.slice(0, 10);
+}
+
+function typeToChineseHeading(type: MemoryType): string {
+  switch (type) {
+    case "decision":
+      return "决策";
+    case "gotcha":
+      return "陷阱";
+    case "convention":
+      return "约定";
+    case "pattern":
+      return "模式";
+    case "working":
+      return "工作上下文";
+    case "goal":
+      return "目标";
+  }
+}
+
+function detectMemoryLanguage(value: string, fallback: string = "en"): string {
+  const cjkMatches = value.match(/[\u4e00-\u9fff]/gu) ?? [];
+  const latinMatches = value.match(/[A-Za-z]/g) ?? [];
+  if (cjkMatches.length === 0 && latinMatches.length === 0) {
+    return fallback;
+  }
+
+  // Bias toward Chinese when the input clearly contains meaningful Chinese text,
+  // even if there are many ASCII chars from file paths or code identifiers.
+  if (cjkMatches.length >= 4 && cjkMatches.length * 20 >= latinMatches.length) {
+    return "zh-CN";
+  }
+
+  return "en";
 }
 
 function asNonEmptyString(value: unknown): string | null {

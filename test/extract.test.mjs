@@ -1,6 +1,6 @@
 import { expect, it } from "vitest";
 
-import { extractMemories } from "../dist/extract.js";
+import { buildExtractionPrompt, extractMemories } from "../dist/extract.js";
 
 const config = {
   maxInjectTokens: 1200,
@@ -41,6 +41,18 @@ try {
     assert.equal(memories[0]?.type, "gotcha");
     assert.equal(memories[0]?.importance, "high");
     assert.ok(memories[0]?.files?.includes("src/api/payments/ledger.ts"));
+    assert.match(memories[0]?.detail ?? "", /^##\s*陷阱/m);
+  });
+
+  await runTest("buildExtractionPrompt auto-detects Chinese and English input language", async () => {
+    const zhPrompt = buildExtractionPrompt("不要直接写 ledger，否则会半写入。", config);
+    assert.match(zhPrompt, /Preferred output language:\s+zh-CN/);
+
+    const enPrompt = buildExtractionPrompt(
+      "Do not write to ledger directly because partial writes can leak after rollback.",
+      { ...config, language: "zh-CN" },
+    );
+    assert.match(enPrompt, /Preferred output language:\s+en/);
   });
 
   await runTest("local extractor handles mixed-language convention summaries", async () => {

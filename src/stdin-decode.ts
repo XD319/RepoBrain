@@ -32,15 +32,26 @@ export function decodeStdinBuffer(buffer: Buffer): string {
     return utf8;
   }
 
+  let legacyCandidate: string | null = null;
   try {
     const legacy = new TextDecoder("gb18030").decode(buffer);
-    if (legacy.includes("\uFFFD") || hasTooManyControlChars(legacy)) {
-      return utf8;
+    if (!legacy.includes("\uFFFD") && !hasTooManyControlChars(legacy) && isLikelyNaturalText(legacy)) {
+      legacyCandidate = legacy;
     }
-    return legacy;
   } catch {
-    return utf8;
+    // noop; try UTF-16 fallback below
   }
+
+  if (legacyCandidate) {
+    return legacyCandidate;
+  }
+
+  const utf16Fallback = decodeUtf16Fallback(buffer);
+  if (utf16Fallback) {
+    return utf16Fallback;
+  }
+
+  return utf8;
 }
 
 function decodeLikelyUtf16Le(buffer: Buffer): string | null {
@@ -87,4 +98,39 @@ function hasTooManyControlChars(text: string): boolean {
     }
   }
   return controlChars / text.length > 0.2;
+}
+
+function decodeUtf16Fallback(buffer: Buffer): string | null {
+  if (buffer.length < 4 || buffer.length % 2 !== 0) {
+    return null;
+  }
+
+  const utf16le = buffer.toString("utf16le").replace(/^\uFEFF/, "");
+  if (isLikelyNaturalText(utf16le)) {
+    return utf16le;
+  }
+
+  const utf16be = swap16AndDecode(buffer);
+  if (isLikelyNaturalText(utf16be)) {
+    return utf16be;
+  }
+
+  return null;
+}
+
+function isLikelyNaturalText(text: string): boolean {
+  if (!text || hasTooManyControlChars(text)) {
+    return false;
+  }
+
+  const replacementCount = (text.match(/\uFFFD/g) ?? []).length;
+  if (replacementCount > 0) {
+    return false;
+  }
+
+  const printableCount = (text.match(/[A-Za-z0-9\u4e00-\u9fff]/gu) ?? []).length;
+  const punctuationCount = (text.match(/[，。！？、；：,.!?;:()[\]{}<>"'`~@#$%^&*_+=\-\/\\|]/gu) ?? []).length;
+  const whitespaceCount = (text.match(/\s/g) ?? []).length;
+  const usefulChars = printableCount + punctuationCount + whitespaceCount;
+  return usefulChars / text.length >= 0.65;
 }

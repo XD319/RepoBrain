@@ -88,3 +88,9 @@ await runTest("decodeStdinBuffer decodes UTF-16LE stdin payloads", () => {
   const decoded = decodeStdinBuffer(utf16le);
   assert.equal(decoded, "gotcha: 修复审批重试");
 });
+
+await runTest("decodeStdinBuffer decodes UTF-16LE payloads dominated by Chinese characters", () => {
+  const utf16le = Buffer.from("城市名必须 encodeURIComponent，否则会失败", "utf16le");
+  const decoded = decodeStdinBuffer(utf16le);
+  assert.equal(decoded, "城市名必须 encodeURIComponent，否则会失败");
+});
