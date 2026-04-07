@@ -1,4 +1,5 @@
 import { Command } from "commander";
+import { readFile } from "node:fs/promises";
 import { stdout as output } from "node:process";
 import { loadConfig, renderConfigWarnings } from "../config.js";
 import { buildCommitExtractionInput } from "../git-commit.js";
@@ -64,6 +65,8 @@ export function register(program: Command): void {
     )
     .option("--rev <revision>", "Git revision for commit context.", "HEAD")
     .option("--test-summary <text>", "Optional test result summary text.")
+    .option("--input <text>", "Inline session summary text (higher priority than --input-file or stdin).")
+    .option("--input-file <path>", "Read session summary text from a UTF-8 file (used when --input is omitted).")
     .option("--source <source>", "Memory source label.", "session")
     .option(
       "--type <type>",
@@ -79,6 +82,8 @@ export function register(program: Command): void {
         path: string[];
         rev?: string;
         testSummary?: string;
+        input?: string;
+        inputFile?: string;
         source: Memory["source"];
         type?: MemoryType;
         forceCandidate?: boolean;
@@ -89,7 +94,23 @@ export function register(program: Command): void {
         await initBrain(projectRoot);
 
         const task = options.task?.trim() || undefined;
-        const sessionSummary = (await helpers.readOptionalStdin())?.trim() || undefined;
+        const inlineInput = options.input?.trim();
+        let sessionSummary: string | undefined;
+        if (inlineInput) {
+          sessionSummary = inlineInput;
+        } else if (options.inputFile?.trim()) {
+          const inputFilePath = options.inputFile.trim();
+          try {
+            const fileContent = await readFile(inputFilePath, "utf8");
+            const trimmed = fileContent.trim();
+            sessionSummary = trimmed || undefined;
+          } catch (error: unknown) {
+            const reason = error instanceof Error && error.message ? error.message : String(error);
+            throw new Error(`Failed to read --input-file "${inputFilePath}": ${reason}`);
+          }
+        } else {
+          sessionSummary = (await helpers.readOptionalStdin())?.trim() || undefined;
+        }
         const changedFiles = helpers.resolveChangedFiles(projectRoot, options.path);
         const commitContext = await helpers.safeLoadCommitContext(projectRoot, options.rev ?? "HEAD");
 

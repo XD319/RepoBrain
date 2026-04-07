@@ -1139,7 +1139,9 @@ brain suggest-skills --task "debug flaky browser tests" --path tests/e2e/login.s
 brain suggest-skills --format json --task "debug flaky browser tests" --path tests/e2e/login.spec.ts
 brain suggest-extract --task "fix refund bug" --path src/payments/handler.ts
 brain suggest-extract --json --rev HEAD
-echo "gotcha: refund handler silently swallows partial failures because the retry loop exits early" | brain capture --task "fix refund bug" --path src/payments/handler.ts
+brain capture --task "fix refund bug" --path src/payments/handler.ts --input "gotcha: refund handler silently swallows partial failures because the retry loop exits early"
+brain capture --task "fix refund bug" --path src/payments/handler.ts --input-file ./session-summary.txt
+echo "decision: keep retry jitter bounded to avoid hot loops" | brain capture --task "fix refund bug" --path src/payments/handler.ts
 brain capture --force-candidate --task "refactor auth module"
 brain share <memory-id>
 brain share --all-active
@@ -1184,7 +1186,7 @@ Global CLI error debugging:
 - `brain routing-feedback`: pipe structured routing events (`integrations/contracts/routing-feedback.event.json`) on `stdin` as a JSON array or NDJSON; `--json` prints the apply result; `--explain <skill>` summarizes preference files plus `.brain/routing-feedback-log.json` for that skill; `--ack-reminders` clears queued routing reminders in `reinforce-pending.json`
 - `brain suggest-skills`: build a deterministic skill routing plan from task text, changed paths, and matched active memories
 - `brain suggest-extract`: evaluate whether the current session or change is worth extracting as durable memory using local deterministic rules; supports `--task`, `--path`, `--rev`, `--test-summary`, and `--json`
-- `brain capture`: combine `suggest-extract` detection with the `extract` pipeline in a single step; reads an optional session summary from `stdin` (recommended: pipe structured lines with type prefixes like `decision: ...` / `gotcha: ...`); when `should_extract` is true, the extracted memories are saved as **candidates** by default; when false, only the explanation is printed. Use `--force-candidate` to save as candidate even when signals are ambiguous. Supports `--task`, `--path`, `--rev`, `--test-summary`, `--type`, `--source`, and `--json`
+- `brain capture`: combine `suggest-extract` detection with the `extract` pipeline in a single step; session summary input priority is `--input` > `--input-file` (UTF-8) > `stdin` (recommended structured prefixes like `decision: ...` / `gotcha: ...`); when `should_extract` is true, the extracted memories are saved as **candidates** by default; when false, only the explanation is printed. Use `--force-candidate` to save as candidate even when signals are ambiguous. Supports `--task`, `--path`, `--rev`, `--test-summary`, `--input`, `--input-file`, `--type`, `--source`, and `--json`
 - `brain share`: suggest the next `git add` and `git commit` commands for one memory or all active memories
 - `brain mcp`: run RepoBrain as a minimal MCP stdio server
 

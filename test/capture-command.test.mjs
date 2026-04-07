@@ -10,6 +10,8 @@ const repoRoot = process.cwd();
 const cliPath = path.join(repoRoot, "dist", "cli.js");
 const fixturePath = path.join(repoRoot, "test", "fixtures", "capture-fixture.mjs");
 const fixtureCommand = `"${process.execPath}" "${fixturePath}"`;
+const zhFixturePath = path.join(repoRoot, "test", "fixtures", "extractor-echo-zh-fixture.mjs");
+const zhFixtureCommand = `"${process.execPath}" "${zhFixturePath}"`;
 
 await runTest("brain capture skips extraction when suggest-extract returns should_extract=false", async () => {
   await withTempRepo(async (projectRoot) => {
@@ -210,6 +212,92 @@ await runTest("brain capture uses suggested_type from detection", async () => {
     const records = await loadStoredMemoryRecords(projectRoot);
     assert.equal(records.length, 1);
     assert.equal(records[0]?.memory.status, "candidate");
+  });
+});
+
+await runTest("brain capture --input-file reads UTF-8 session summary text", async () => {
+  await withTempRepo(async (projectRoot) => {
+    await initBrain(projectRoot);
+    await runCommand("git", ["init"], projectRoot);
+    await runCommand("git", ["config", "user.name", "RepoBrain Test"], projectRoot);
+    await runCommand("git", ["config", "user.email", "repobrain@example.com"], projectRoot);
+
+    await writeFile(path.join(projectRoot, "notes.txt"), "notes\n", "utf8");
+    await runCommand("git", ["add", "notes.txt"], projectRoot);
+    await runCommand("git", ["commit", "-m", "chore: add notes"], projectRoot);
+
+    const inputFile = path.join(projectRoot, "summary.txt");
+    await writeFile(inputFile, "gotcha: 城市名必须 encodeURIComponent，因为包含中文和空格会导致请求失败", "utf8");
+
+    const result = await runCliProcess(
+      ["capture", "--force-candidate", "--path", "notes.txt", "--input-file", inputFile],
+      projectRoot,
+      { BRAIN_EXTRACTOR_COMMAND: zhFixtureCommand },
+    );
+
+    assert.equal(result.code, 0);
+    assert.match(result.stdout, /Saved 1 memor/);
+  });
+});
+
+await runTest("brain capture prioritizes --input over --input-file and stdin", async () => {
+  await withTempRepo(async (projectRoot) => {
+    await initBrain(projectRoot);
+    await runCommand("git", ["init"], projectRoot);
+    await runCommand("git", ["config", "user.name", "RepoBrain Test"], projectRoot);
+    await runCommand("git", ["config", "user.email", "repobrain@example.com"], projectRoot);
+
+    await writeFile(path.join(projectRoot, "app.ts"), "export {};\n", "utf8");
+    await runCommand("git", ["add", "app.ts"], projectRoot);
+    await runCommand("git", ["commit", "-m", "chore: add app file"], projectRoot);
+
+    const inputFile = path.join(projectRoot, "plain.txt");
+    await writeFile(inputFile, "plain text only", "utf8");
+
+    const result = await runCliProcess(
+      [
+        "capture",
+        "--force-candidate",
+        "--path",
+        "app.ts",
+        "--input",
+        "gotcha: 中文必须保留",
+        "--input-file",
+        inputFile,
+      ],
+      projectRoot,
+      { BRAIN_EXTRACTOR_COMMAND: zhFixtureCommand },
+      "stdin fallback should be ignored",
+    );
+
+    assert.equal(result.code, 0);
+    assert.match(result.stdout, /Saved 1 memor/);
+  });
+});
+
+await runTest("brain capture prioritizes --input-file over stdin", async () => {
+  await withTempRepo(async (projectRoot) => {
+    await initBrain(projectRoot);
+    await runCommand("git", ["init"], projectRoot);
+    await runCommand("git", ["config", "user.name", "RepoBrain Test"], projectRoot);
+    await runCommand("git", ["config", "user.email", "repobrain@example.com"], projectRoot);
+
+    await writeFile(path.join(projectRoot, "index.ts"), "export const ok = true;\n", "utf8");
+    await runCommand("git", ["add", "index.ts"], projectRoot);
+    await runCommand("git", ["commit", "-m", "chore: add index file"], projectRoot);
+
+    const inputFile = path.join(projectRoot, "summary-zh.txt");
+    await writeFile(inputFile, "gotcha: 中英文混排输入要按 UTF-8 读取", "utf8");
+
+    const result = await runCliProcess(
+      ["capture", "--force-candidate", "--path", "index.ts", "--input-file", inputFile],
+      projectRoot,
+      { BRAIN_EXTRACTOR_COMMAND: zhFixtureCommand },
+      "stdin fallback should be ignored",
+    );
+
+    assert.equal(result.code, 0);
+    assert.match(result.stdout, /Saved 1 memor/);
   });
 });
 

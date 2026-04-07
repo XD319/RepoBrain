@@ -1039,7 +1039,9 @@ brain suggest-skills --task "debug flaky browser tests" --path tests/e2e/login.s
 brain suggest-skills --format json --task "debug flaky browser tests" --path tests/e2e/login.spec.ts
 brain suggest-extract --task "fix refund bug" --path src/payments/handler.ts
 brain suggest-extract --json --rev HEAD
-echo "gotcha: refund handler silently swallows partial failures because the retry loop exits early" | brain capture --task "fix refund bug" --path src/payments/handler.ts
+brain capture --task "fix refund bug" --path src/payments/handler.ts --input "gotcha: 城市名必须 encodeURIComponent，因为包含中文和空格会导致请求失败"
+brain capture --task "fix refund bug" --path src/payments/handler.ts --input-file ./session-summary.txt
+echo "decision: keep retry jitter bounded to avoid hot loops" | brain capture --task "fix refund bug" --path src/payments/handler.ts
 brain capture --force-candidate --task "refactor auth module"
 brain share <memory-id>
 brain share --all-active
@@ -1089,7 +1091,7 @@ brain mcp
 - `brain routing-feedback`：从 `stdin` 读取结构化路由反馈事件（JSON 数组或 NDJSON，契约见 `integrations/contracts/routing-feedback.event.json`）；`--json` 输出处理结果；`--explain <skill>` 汇总该 skill 的 preference 文件与 `.brain/routing-feedback-log.json`；`--ack-reminders` 清空 `reinforce-pending.json` 中的 routing 提醒
 - `brain suggest-skills`：根据任务文本、变更路径和命中的 active memories 输出一份 deterministic skill routing plan
 - `brain suggest-extract`：用本地确定性规则评估当前 session 或变更是否值得提取为 durable memory；支持 `--task`、`--path`、`--rev`、`--test-summary` 和 `--json`
-- `brain capture`：将 `suggest-extract` 检测和 `extract` 流程合并为一步；从 `stdin` 读取可选的 session 摘要（推荐：管道传入带类型前缀的结构化内容，如 `decision: ...` / `gotcha: ...`）；当 `should_extract` 为 true 时，提取的记忆默认保存为 **candidate**；为 false 时只输出解释。使用 `--force-candidate` 可在信号模糊时仍保存为 candidate。支持 `--task`、`--path`、`--rev`、`--test-summary`、`--type`、`--source` 和 `--json`
+- `brain capture`：将 `suggest-extract` 检测和 `extract` 流程合并为一步；session 摘要输入优先级为 `--input` > `--input-file`（按 UTF-8 读取）> `stdin`（推荐通过管道传入带类型前缀的结构化内容，如 `decision: ...` / `gotcha: ...`）；当 `should_extract` 为 true 时，提取的记忆默认保存为 **candidate**；为 false 时只输出解释。使用 `--force-candidate` 可在信号模糊时仍保存为 candidate。支持 `--task`、`--path`、`--rev`、`--test-summary`、`--input`、`--input-file`、`--type`、`--source` 和 `--json`
 - `brain share`：为单条 memory 或全部 active memories 输出建议的 `git add` / `git commit` 命令
 - `brain mcp`：以最小 MCP stdio server 的形式运行 RepoBrain
 
