@@ -5,7 +5,6 @@
 [English](./README.md) | [中文](./README.zh-CN.md)
 
 <p align="center">
-  <a href="https://github.com/XD319/RepoBrain/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/XD319/RepoBrain/ci.yml?branch=main&label=ci" alt="CI status" /></a>
   <a href="https://www.npmjs.com/package/repobrain"><img src="https://img.shields.io/npm/v/repobrain?label=npm" alt="npm version" /></a>
   <a href="https://github.com/XD319/RepoBrain/blob/main/package.json"><img src="https://img.shields.io/badge/node-%3E%3D20-339933" alt="Node >=20" /></a>
   <a href="https://github.com/XD319/RepoBrain/blob/main/LICENSE"><img src="https://img.shields.io/github/license/XD319/RepoBrain" alt="License: MIT" /></a>
