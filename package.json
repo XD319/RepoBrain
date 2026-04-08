@@ -4,8 +4,8 @@
   "description": "Git-friendly repo memory for coding agents.",
   "type": "module",
   "bin": {
-    "brain": "./dist/cli.js",
-    "repobrain": "./dist/cli.js"
+    "brain": "dist/cli.js",
+    "repobrain": "dist/cli.js"
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
