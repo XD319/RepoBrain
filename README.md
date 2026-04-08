@@ -44,11 +44,19 @@ brain setup
 
 ### 60-second flow
 
+In the default `recommended-semi-auto` mode, RepoBrain handles the repetitive capture loop for you: `brain setup` can install the matching low-risk Git hook, extraction opportunities are auto-detected during normal Git work, and new memories land in the candidate queue for review instead of becoming active immediately.
+
 ```bash
-# Save a session takeaway as a reviewable candidate
+# One-time setup: initialize .brain/ and install the default low-risk hook
+brain setup
+
+# Work normally; the default mode auto-detects extraction opportunities
+git commit -m "refactor request validation"
+
+# You can still capture explicit takeaways when needed
 echo "decision: keep API validation at the controller boundary" | brain capture --task "stabilize request validation"
 
-# Review and promote safe candidates
+# Review the auto-detected + manually captured candidate queue
 brain review
 brain approve --safe
 
@@ -58,6 +66,8 @@ brain inject --task "continue request validation cleanup"
 # Build context plus routing hints for a task-aware agent session
 brain route --task "refactor request validation" --format json
 ```
+
+Default loop summary: auto-detect during regular work, queue candidates for review, then use `brain approve --safe` for the obvious wins and `brain approve <id>` for edge cases.
 
 Optional interactive UI:
 

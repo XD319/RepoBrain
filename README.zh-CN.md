@@ -44,11 +44,19 @@ brain setup
 
 ### 60 秒体验主流程
 
+在默认的 `recommended-semi-auto` 模式下，RepoBrain 会自动接管重复性的采集流程：`brain setup` 可安装匹配的低风险 Git hook，日常 Git 操作中会自动检测可提取机会，新记忆先进入可审阅的 candidate 队列，而不会立刻变成生效记忆。
+
 ```bash
-# 把本次会话收获写成可审阅的 candidate
+# 一次性初始化：创建 .brain/ 并安装默认低风险 hook
+brain setup
+
+# 正常开发；默认模式会自动检测可提取机会
+git commit -m "refactor request validation"
+
+# 需要时仍可手动补充明确的会话结论
 echo "decision: keep API validation at the controller boundary" | brain capture --task "stabilize request validation"
 
-# 审阅并快速提升安全 candidate
+# 审阅“自动检测 + 手动补充”产生的 candidate 队列
 brain review
 brain approve --safe
 
@@ -58,6 +66,8 @@ brain inject --task "continue request validation cleanup"
 # 为任务型 Agent 会话生成上下文和路由提示
 brain route --task "refactor request validation" --format json
 ```
+
+默认闭环可以理解为：日常开发时自动检测，先进入 candidate 队列，随后用 `brain approve --safe` 快速处理明显安全的项，再用 `brain approve <id>` 处理边界情况。
 
 可选的交互式终端界面：
 
