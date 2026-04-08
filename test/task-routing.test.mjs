@@ -55,6 +55,67 @@ await runTest("task routing returns a combined bundle", async () => {
       ["refund-handler"],
     );
     assert.equal(parsed.display_mode, "silent-ok");
+    assert.deepEqual(parsed.expansion_plan.suggested_summary_ids, [
+      "decisions/2026-04-03-refund-fixes-must-use-the-refund-handler-090000000.md",
+    ]);
+    assert.deepEqual(parsed.expansion_plan.suggested_full_ids, []);
+  });
+});
+
+await runTest("task routing JSON exposes a stable expansion plan for progressive retrieval", async () => {
+  await withTempRepo(async (projectRoot) => {
+    await initBrain(projectRoot);
+    await saveMemory(
+      {
+        type: "gotcha",
+        title: "Refund bugfixes must preserve transaction boundaries",
+        summary: "High-risk refund fixes should expand to full memory first.",
+        detail: "## GOTCHA\n\nKeep refund writes and ledger sync in one transaction.",
+        tags: ["refund", "payments", "ledger"],
+        importance: "high",
+        date: "2026-04-03T09:00:00.000Z",
+        status: "active",
+        risk_level: "high",
+        skill_trigger_tasks: ["fix refund bug"],
+        skill_trigger_paths: ["src/payments/", "src/ledger/"],
+        path_scope: ["src/payments/**", "src/ledger/**"],
+      },
+      projectRoot,
+    );
+
+    await saveMemory(
+      {
+        type: "decision",
+        title: "Refund UI copy stays consistent with payment state",
+        summary: "Strong task match but lower-risk, so summary is enough first.",
+        detail: "## DECISION\n\nKeep refund UI copy aligned with payment state transitions.",
+        tags: ["refund", "ui"],
+        importance: "medium",
+        date: "2026-04-03T10:00:00.000Z",
+        status: "active",
+        risk_level: "low",
+        skill_trigger_tasks: ["fix refund bug"],
+      },
+      projectRoot,
+    );
+
+    const config = await loadConfig(projectRoot);
+    const bundle = await buildTaskRoutingBundle(projectRoot, config, {
+      task: "fix refund bug",
+      paths: ["src/payments/refund.ts", "src/ledger/sync.ts"],
+      path_source: "explicit",
+    });
+    const parsed = JSON.parse(renderTaskRoutingBundleJson(bundle));
+
+    assert.ok(parsed.expansion_plan);
+    assert.deepEqual(Object.keys(parsed.expansion_plan).sort(), ["suggested_full_ids", "suggested_summary_ids"]);
+    assert.ok(parsed.expansion_plan.suggested_summary_ids.length >= 1);
+    assert.equal(parsed.expansion_plan.suggested_full_ids.length, 1);
+    assert.match(
+      parsed.expansion_plan.suggested_full_ids[0],
+      /^gotchas\/2026-04-03-refund-bugfixes-must-preserve-transaction-bound.*-090000000\.md$/,
+    );
+    assert.match(renderTaskRoutingBundleJson(bundle), /"expansion_plan": \{/);
   });
 });
 

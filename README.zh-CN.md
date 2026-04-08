@@ -186,3 +186,23 @@ brain inject --layer full --ids "2026-04-01-refund-boundary-090000000"
 未提供 `--ids` 时，`index` 和 `summary` 仍走现有排序与预算选择逻辑；`full` 会要求显式提供 `--ids`，避免默认把完整 memory 正文一次性全部打出。
 
 如果 `--layer` 取值非法、id 不存在、id 重复，或 memory 当前不可用于 inject，CLI 都会返回清晰错误提示；如果某一层没有命中结果，也会保持当前 CLI 一致的空结果风格。
+
+## Route Expansion Plan
+
+`brain route` / `brain start` 现在会在 JSON bundle 里附带一个轻量的渐进式 retrieval 提示：
+
+```bash
+brain route --task "fix refund bug" --format json
+```
+
+bundle 中可能包含：
+
+- `expansion_plan.suggested_summary_ids`
+- `expansion_plan.suggested_full_ids`
+
+这些 id 直接基于当前 routing 已经使用的 matched memories 和信号推导，不会额外引入一套独立排序器。RepoBrain 会有意保持数量很小：
+
+- task/path 强匹配的 memory 更容易进入 `suggested_summary_ids`
+- 风险更高的 memory 更容易进入 `suggested_full_ids`
+
+Markdown 输出仍保持当前主结构兼容；只有在存在建议时，末尾会多一个简短的 `Expansion Plan` 小节。

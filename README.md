@@ -187,3 +187,23 @@ Layer semantics:
 Without `--ids`, `index` and `summary` still use the normal ranking and token-budget selection flow. `full` is intentionally stricter and requires `--ids` so the CLI does not dump every selected memory body by accident.
 
 Invalid layer values, unknown ids, duplicate ids, or non-injectable memories return clear CLI errors. When no memories are selected, supported layers keep the same CLI-friendly empty-state style.
+
+## Route Expansion Plan
+
+`brain route` / `brain start` now include a lightweight progressive-retrieval hint in the JSON bundle:
+
+```bash
+brain route --task "fix refund bug" --format json
+```
+
+The bundle may include:
+
+- `expansion_plan.suggested_summary_ids`
+- `expansion_plan.suggested_full_ids`
+
+These ids are derived from the same matched memories and routing signals already used for routing. RepoBrain keeps them intentionally small:
+
+- stronger task/path matches are favored for `suggested_summary_ids`
+- higher-risk matches are favored for `suggested_full_ids`
+
+Markdown output stays compatible with the current structure and only adds a short `Expansion Plan` section near the end when hints are available.

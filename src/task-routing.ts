@@ -25,6 +25,11 @@ export interface BuildTaskRoutingBundleOptions {
   includeSessionProfile?: boolean;
 }
 
+export interface TaskRoutingExpansionPlan {
+  suggested_summary_ids: string[];
+  suggested_full_ids: string[];
+}
+
 export interface TaskRoutingBundle {
   contract_version: typeof TASK_ROUTING_BUNDLE_CONTRACT_VERSION;
   task: string;
@@ -39,6 +44,8 @@ export interface TaskRoutingBundle {
   display_mode: TaskRoutingDisplayMode;
   /** Optional machine-readable routing trace (same as `brain suggest-skills` JSON when present). */
   routing_explanation?: RoutingExplanation;
+  /** Optional progressive retrieval hints for expanding matched memories. */
+  expansion_plan?: TaskRoutingExpansionPlan;
 }
 
 export function shouldEscalateRoutingPlan(plan: InvocationPlan, conflicts: SkillConflict[]): boolean {
@@ -103,6 +110,7 @@ export async function buildTaskRoutingBundle(
   const display_mode: TaskRoutingDisplayMode = shouldEscalateRoutingPlan(shortlist.invocation_plan, shortlist.conflicts)
     ? "needs-review"
     : "silent-ok";
+  const expansionPlan = buildTaskRoutingExpansionPlan(shortlist.matched_memories);
 
   return {
     contract_version: TASK_ROUTING_BUNDLE_CONTRACT_VERSION,
@@ -117,6 +125,7 @@ export async function buildTaskRoutingBundle(
     warnings,
     display_mode,
     ...(shortlist.routing_explanation ? { routing_explanation: shortlist.routing_explanation } : {}),
+    ...(expansionPlan ? { expansion_plan: expansionPlan } : {}),
   };
 }
 
@@ -160,6 +169,23 @@ export function renderTaskRoutingBundle(bundle: TaskRoutingBundle): string {
     }),
   );
 
+  if (bundle.expansion_plan) {
+    lines.push("");
+    lines.push("## Expansion Plan");
+    lines.push(
+      `- summary ids: ${
+        bundle.expansion_plan.suggested_summary_ids.length > 0
+          ? bundle.expansion_plan.suggested_summary_ids.join(", ")
+          : "None."
+      }`,
+    );
+    lines.push(
+      `- full ids: ${
+        bundle.expansion_plan.suggested_full_ids.length > 0 ? bundle.expansion_plan.suggested_full_ids.join(", ") : "None."
+      }`,
+    );
+  }
+
   return lines.join("\n");
 }
 
@@ -186,4 +212,103 @@ function describeConflictOutcome(conflict: SkillConflict): string {
     default:
       return conflict.strategy_result;
   }
+}
+
+function buildTaskRoutingExpansionPlan(matchedMemories: MatchedMemory[]): TaskRoutingExpansionPlan | undefined {
+  if (matchedMemories.length === 0) {
+    return undefined;
+  }
+
+  const summaryCandidates = matchedMemories
+    .slice()
+    .sort((left, right) => compareSummaryExpansionCandidates(left, right))
+    .slice(0, 3)
+    .map((entry) => toBrainRelativePath(entry.record.relativePath));
+
+  const fullCandidates = matchedMemories
+    .slice()
+    .sort((left, right) => compareFullExpansionCandidates(left, right))
+    .filter((entry) => isMeaningfulFullExpansion(entry))
+    .slice(0, 2)
+    .map((entry) => toBrainRelativePath(entry.record.relativePath));
+
+  return {
+    suggested_summary_ids: dedupeStrings(summaryCandidates),
+    suggested_full_ids: dedupeStrings(fullCandidates),
+  };
+}
+
+function compareSummaryExpansionCandidates(left: MatchedMemory, right: MatchedMemory): number {
+  const taskStrengthDiff = matchReasonStrength(right, "task") - matchReasonStrength(left, "task");
+  if (taskStrengthDiff !== 0) {
+    return taskStrengthDiff;
+  }
+
+  const pathStrengthDiff = matchReasonStrength(right, "path") - matchReasonStrength(left, "path");
+  if (pathStrengthDiff !== 0) {
+    return pathStrengthDiff;
+  }
+
+  const scoreDiff = right.score - left.score;
+  if (scoreDiff !== 0) {
+    return scoreDiff;
+  }
+
+  return right.record.memory.date.localeCompare(left.record.memory.date);
+}
+
+function compareFullExpansionCandidates(left: MatchedMemory, right: MatchedMemory): number {
+  const riskDiff = riskWeight(right.record.memory.risk_level) - riskWeight(left.record.memory.risk_level);
+  if (riskDiff !== 0) {
+    return riskDiff;
+  }
+
+  const taskStrengthDiff = matchReasonStrength(right, "task") - matchReasonStrength(left, "task");
+  if (taskStrengthDiff !== 0) {
+    return taskStrengthDiff;
+  }
+
+  const scoreDiff = right.score - left.score;
+  if (scoreDiff !== 0) {
+    return scoreDiff;
+  }
+
+  return right.record.memory.date.localeCompare(left.record.memory.date);
+}
+
+function matchReasonStrength(entry: MatchedMemory, prefix: "task" | "path"): number {
+  return entry.reasons.filter((reason) => reason.startsWith(`${prefix}:`)).length;
+}
+
+function riskWeight(risk: MatchedMemory["record"]["memory"]["risk_level"]): number {
+  switch (risk ?? "low") {
+    case "high":
+      return 3;
+    case "medium":
+      return 2;
+    case "low":
+    default:
+      return 1;
+  }
+}
+
+function isMeaningfulFullExpansion(entry: MatchedMemory): boolean {
+  const risk = entry.record.memory.risk_level ?? "low";
+  if (risk === "high") {
+    return true;
+  }
+
+  if (risk === "medium") {
+    return (matchReasonStrength(entry, "task") > 0 || matchReasonStrength(entry, "path") > 0) && entry.score >= 8;
+  }
+
+  return false;
+}
+
+function toBrainRelativePath(relativePath: string): string {
+  return relativePath.replace(/\\/g, "/").replace(/^\.brain\//, "");
+}
+
+function dedupeStrings(values: string[]): string[] {
+  return Array.from(new Set(values.filter(Boolean)));
 }
