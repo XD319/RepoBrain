@@ -5,215 +5,149 @@
 [English](./README.md) | [中文](./README.zh-CN.md)
 
 <p align="center">
-  <!-- <a href="https://github.com/XD319/RepoBrain/stargazers"><img src="https://img.shields.io/github/stars/XD319/RepoBrain?style=social" alt="GitHub stars" /></a>
-  <a href="https://github.com/XD319/RepoBrain/forks"><img src="https://img.shields.io/github/forks/XD319/RepoBrain?style=social" alt="GitHub forks" /></a>
-  <a href="https://github.com/XD319/RepoBrain/issues"><img src="https://img.shields.io/github/issues/XD319/RepoBrain" alt="GitHub issues" /></a> -->
+  <a href="https://github.com/XD319/RepoBrain/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/XD319/RepoBrain/ci.yml?branch=main&label=ci" alt="CI status" /></a>
+  <a href="https://www.npmjs.com/package/repobrain"><img src="https://img.shields.io/npm/v/repobrain?label=npm" alt="npm version" /></a>
+  <a href="https://github.com/XD319/RepoBrain/blob/main/package.json"><img src="https://img.shields.io/badge/node-%3E%3D20-339933" alt="Node >=20" /></a>
   <a href="https://github.com/XD319/RepoBrain/blob/main/LICENSE"><img src="https://img.shields.io/github/license/XD319/RepoBrain" alt="License: MIT" /></a>
-  <a href="https://www.npmjs.com/package/repobrain"><img src="https://img.shields.io/npm/v/repobrain?style=flat" alt="npm version" /></a>
 </p>
 
-RepoBrain is local, Git-friendly memory infrastructure for coding agents (Claude Code, Codex, Cursor, Copilot). It acts as a durable repository knowledge base, holding onto architecture decisions, gotchas, conventions, and reusable implementation patterns so they persist across sessions.
+RepoBrain is local, Git-friendly memory infrastructure for coding agents such as Claude Code, Codex, Cursor, and Copilot. It turns architecture decisions, gotchas, conventions, and reusable patterns into reviewable repo artifacts so your agent can carry project context across sessions instead of relearning it every time.
 
-**Core value:** Stop re-explaining the same repo context to your agent at the start of every new session!
+## Why RepoBrain
 
----
+- Keep durable repo knowledge in `.brain/` as plain Markdown plus frontmatter.
+- Review memory changes with normal Git workflows instead of hiding them in a hosted black box.
+- Re-inject the right context with `brain inject`, `brain suggest-skills`, and `brain route`.
 
-## 🚀 Quick Start
+## Quick Start
 
-**1. Install**
+### Prerequisites
+
+- Node.js `>=20`
+- A Git repository you want your agent to remember
+
+### Install
+
 ```bash
 npm install -g repobrain
+brain --version
 ```
 
-**2. Setup your repo**
+`brain` and `repobrain` point to the same CLI. If you prefer not to install globally, the generated steering rules also document `npx brain` and `node dist/cli.js` fallbacks.
+
+### Recommended setup
+
 ```bash
 brain setup
 ```
 
-**3. TUI Interface (Optional, but recommended for interactive management)**
+`brain setup` is the recommended onboarding path. It initializes `.brain/`, applies the default workflow preset, can install the matching low-risk Git hook, and can generate steering rules for supported agent tools. If you only want the workspace and steering rules without setup automation, use `brain init`.
+
+### 60-second flow
+
+```bash
+# Save a session takeaway as a reviewable candidate
+echo "decision: keep API validation at the controller boundary" | brain capture --task "stabilize request validation"
+
+# Review and promote safe candidates
+brain review
+brain approve --safe
+
+# Start the next task with repo context
+brain inject --task "continue request validation cleanup"
+
+# Build context plus routing hints for a task-aware agent session
+brain route --task "refactor request validation" --format json
+```
+
+Optional interactive UI:
+
 ```bash
 brain tui
 ```
 
-**4. Core Loop Examples (3 Workflow Modes)**
+## Choose A Workflow Preset
 
-`ultra-safe-manual` (strict manual control)
+RepoBrain ships with three workflow presets so teams can choose how much automation they want without changing the core CLI contract.
+
+| Preset | Best for | Capture style | Promotion style |
+| --- | --- | --- | --- |
+| `ultra-safe-manual` | Strict human-controlled repos | Manual extraction only | Manual approval only |
+| `recommended-semi-auto` | Most teams and solo repos | Detect opportunities, save as candidate | Manual review with fast safe approval |
+| `automation-first` | Mature repos with stable review discipline | Detect opportunities, save as candidate | Safe auto-promotion when checks pass |
+
+Examples:
+
 ```bash
-# Setup once
 brain setup --workflow ultra-safe-manual
-
-# MANUAL: capture via input text
-brain capture --task "define API validation boundary" --input "decision: keep API validation at controller boundary"
-
-# MANUAL: start next session with memory context
-brain inject
-```
-
-`recommended-semi-auto` (default, candidate-first)
-```bash
-# Setup once
 brain setup --workflow recommended-semi-auto
-
-# AUTO: hooks/detect mode can trigger candidate capture opportunities
-# MANUAL (optional): explicitly capture this session summary
-brain capture --task "fix payment timeout" --input "gotcha: retry loop exits too early when timeout is unset"
-
-# MANUAL: review + approve safe items, then inject
-brain review
-brain approve --safe
-brain inject --task "continue payment timeout fix"
-```
-
-`automation-first` (safe auto-promotion enabled)
-```bash
-# Setup once
 brain setup --workflow automation-first
-
-# AUTO: hooks/detect mode can trigger candidate capture opportunities
-# MANUAL (optional): explicitly capture this session summary
-brain capture --task "stabilize config loader" --input "pattern: normalize env booleans before config branching"
-
-# AUTO: safe candidates can be auto-promoted (when checks pass)
-# MANUAL: force an immediate promotion pass now
-brain promote-candidates
-
-# MANUAL: start next task with bundled routing context
-brain route --task "refactor config loading" --format json
 ```
 
----
+See [docs/workflow-modes.md](./docs/workflow-modes.md) for the full preset comparison and the recommended default loop.
 
-## 🧩 How It Works (Project Flow Diagram)
+## How It Fits In The Repo
 
-Here is a high-level overview of RepoBrain's workflow. It securely extracts, reviews, stores, and then injects repo knowledge back into your coding agents.
+RepoBrain keeps memory local to the repository:
 
-```mermaid
-flowchart TD
-    subgraph Capture & Extract
-        A[Git Hooks / Session Log / User Input] -->|stdin| B(brain capture / extract)
-    end
-    
-    subgraph Review & Store
-        B --> C{Deterministic Review}
-        C -- merge/supersede/reject --> D[Candidate Queue]
-        C -- accept --> E[Active Memory]
-        D -->|brain review / approve| E
-        E -->|Markdown + Frontmatter| F((.brain/))
-    end
-    
-    subgraph Inject & Route
-        F --> G(brain inject)
-        F --> H(brain suggest-skills)
-        F --> I(brain start / route)
-        G -.->|Context String| J[Claude Code / Cursor / Codex]
-        H -.->|Routing JSON| J
-        I -.->|Bundle| J
-    end
+```text
+.brain/
+  decisions/
+  gotchas/
+  conventions/
+  patterns/
+  preferences/
+  runtime/session-profile.json
+  index.md
 ```
 
----
+- Durable knowledge such as decisions, gotchas, conventions, and patterns is meant to stay in Git.
+- Preferences in `.brain/preferences/` steer routing choices such as preferred or avoided skills and workflows.
+- Runtime data in `.brain/runtime/` is session-scoped and can stay ephemeral.
 
-## 📂 Architecture & Memory Structure
+## Core Commands
 
-RepoBrain manages memories locally within the `.brain/` directory.
-
-```mermaid
-graph LR
-    subgraph RepoRoot[Project Directory]
-        direction TB
-        B1[(.brain/)]
-        subgraph Layers[Knowledge Layers]
-            L1[durable/] --> |decisions, gotchas, conventions, patterns| B1
-            L2[preferences/] --> |routing preference, skills| B1
-            L3[runtime/] --> |session profile| B1
-        end
-    end
-```
-
-### Knowledge Layers
-| Layer | Location | Purpose |
+| Goal | Command | What it gives you |
 | --- | --- | --- |
-| **Durable repo knowledge** | `.brain/{decisions,gotchas,...}/` | Long-term memory logic (decisions, rules) to keep in Git. |
-| **Routing preference** | `.brain/preferences/` | Team workflows and rules (prefer/avoid/require skills). |
-| **Session profile** | `.brain/runtime/session-profile.json` | Ephemeral hints for *this* session only. Ignored by git. |
+| Initialize a repo | `brain setup`, `brain init` | Create `.brain/`, apply a workflow preset, and optionally write steering rules |
+| Capture knowledge | `brain extract`, `brain extract-commit`, `brain capture` | Turn stdin, commit context, or session summaries into durable memory |
+| Review candidates | `brain review`, `brain approve`, `brain dismiss`, `brain promote-candidates` | Keep candidate-first workflows reviewable |
+| Start a task | `brain inject`, `brain suggest-skills`, `brain route`, `brain start` | Produce context blocks and deterministic routing plans |
+| Inspect memory | `brain list`, `brain search`, `brain timeline`, `brain explain-memory`, `brain explain-preference` | Explore what the repo already knows |
+| Keep things healthy | `brain status`, `brain next`, `brain audit-memory`, `brain lint-memory`, `brain normalize-memory`, `brain score`, `brain sweep` | Maintain memory quality over time |
+| Team and adapters | `brain share`, `brain mcp`, `brain reinforce`, `brain routing-feedback` | Share memory, integrate adapters, and close the feedback loop |
 
----
+The complete command reference lives in [docs/cli-reference.md](./docs/cli-reference.md).
 
-## 🛠️ Commands Matrix
+## Progressive Retrieval
 
-| Action | Command | Purpose |
-| ------ | ------- | ------- |
-| **Setup** | `brain setup` | Start a `.brain/` Workspace in repo. |
-| **Ingest** | `brain extract`, `brain capture` | Translate stdin or files into `.brain/` Candidate Markdown. |
-| **Review** | `brain review`, `brain approve` | View candidate memories and save to Active Store. |
-| **Inject** | `brain inject` | Generate the Memory Payload Context block for your agent prompt. |
-| **Query** | `brain search`, `brain list` | Find memories across titles, summaries, tags, and status. |
-| **Analyze** | `brain audit-memory`, `brain stats` | Lints and maintains schema & structural integrity over time. |
-
-> For extended integrations (MCP, Claude plugin, Cursor directives), please review `/docs` and the `/integrations` directories! Let your agents actually remember.
-
----
-
-## Layered Inject
-
-`brain inject` now supports optional layered output for progressive retrieval, while keeping the default behavior fully compatible.
+RepoBrain keeps the default `brain inject` behavior compatible, while adding optional layered retrieval for larger or more safety-sensitive repos.
 
 ```bash
-# Default behavior (same as before)
-brain inject
-
-# Minimal retrieval index for session start
 brain inject --layer index --task "fix refund flow"
-
-# Existing summary-oriented inject payload
 brain inject --layer summary --task "fix refund flow"
-
-# Expand specific memories by id into summary/full
-brain inject --layer summary --ids "decisions/2026-04-01-refund-boundary-090000000.md"
 brain inject --layer full --ids "2026-04-01-refund-boundary-090000000"
 ```
 
-Layer semantics:
+- `index` gives a compact retrieval list.
+- `summary` keeps the familiar session-start Markdown payload.
+- `full` expands explicitly selected memory bodies.
 
-- `index`: compact list with `id`, `title`, `tags`, `score`, `totalScore`, and `why_now` when task-aware reasons exist.
-- `summary`: default layer, equivalent to the existing inject markdown experience.
-- `full`: includes serialized memory markdown for each selected item, including complete frontmatter and detail.
+`brain route` and `brain start` can also emit lightweight expansion hints in JSON bundles, and RepoBrain can maintain a derived `.brain/memory-index.json` cache to speed up targeted lookups without changing the Markdown source of truth.
 
-`--ids` accepts repeated values or a comma-separated list. RepoBrain reuses the existing memory file identifiers, so each id can be either:
+## Docs And Integrations
 
-- the `.brain/` relative path, such as `decisions/2026-04-01-refund-boundary-090000000.md`
-- the file stem, such as `2026-04-01-refund-boundary-090000000`
+Use the top-level README as the onboarding path, then go deeper from here:
 
-Without `--ids`, `index` and `summary` still use the normal ranking and token-budget selection flow. `full` is intentionally stricter and requires `--ids` so the CLI does not dump every selected memory body by accident.
+| Need | Go to |
+| --- | --- |
+| Full CLI reference | [docs/cli-reference.md](./docs/cli-reference.md) |
+| Workflow presets | [docs/workflow-modes.md](./docs/workflow-modes.md) |
+| Architecture and storage model | [docs/architecture.md](./docs/architecture.md) |
+| Library/API usage | [docs/api.md](./docs/api.md) |
+| Team rollout and evaluation | [docs/team-workflow.md](./docs/team-workflow.md), [docs/evaluation.md](./docs/evaluation.md) |
+| Case studies and demo proof | [docs/case-studies](./docs/case-studies), [docs/demo-proof.md](./docs/demo-proof.md) |
+| Extended integrations overview | [integrations/README.md](./integrations/README.md) |
+| Agent-specific adapter setup | [integrations/claude/README.md](./integrations/claude/README.md), [integrations/codex/README.md](./integrations/codex/README.md), [integrations/cursor/README.md](./integrations/cursor/README.md), [integrations/copilot/README.md](./integrations/copilot/README.md) |
 
-Invalid layer values, unknown ids, duplicate ids, or non-injectable memories return clear CLI errors. When no memories are selected, supported layers keep the same CLI-friendly empty-state style.
-
-## Route Expansion Plan
-
-`brain route` / `brain start` now include a lightweight progressive-retrieval hint in the JSON bundle:
-
-```bash
-brain route --task "fix refund bug" --format json
-```
-
-The bundle may include:
-
-- `expansion_plan.suggested_summary_ids`
-- `expansion_plan.suggested_full_ids`
-
-These ids are derived from the same matched memories and routing signals already used for routing. RepoBrain keeps them intentionally small:
-
-- stronger task/path matches are favored for `suggested_summary_ids`
-- higher-risk matches are favored for `suggested_full_ids`
-
-Markdown output stays compatible with the current structure and only adds a short `Expansion Plan` section near the end when hints are available.
-
-## Derived Memory Index Cache
-
-RepoBrain can now maintain a lightweight derived cache at `.brain/memory-index.json` to speed up progressive retrieval paths such as `brain inject --ids ...`.
-
-- Markdown memory files in `.brain/*.md` remain the only source of truth.
-- `memory-index.json` is derived metadata only: ids, titles, summaries, tags, risk hints, scoped path/file hints, token estimates, and source mtime for invalidation.
-- The cache is regenerated alongside `brain` flows that already refresh `.brain/index.md`, so state sync stays simple.
-- If the cache is missing, stale, version-mismatched, or corrupted, RepoBrain automatically falls back to recomputing from `.brain/*.md`.
-- Cache problems never block core CLI behavior; correctness wins over cache usage every time.
+For extended integrations, adapter contracts, and agent-specific setup details, review the `/docs` and `/integrations` directories.

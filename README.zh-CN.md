@@ -1,218 +1,153 @@
 # RepoBrain
 
-**面向 Coding Agent 的 Git-Friendly 仓库记忆库**
+**面向 Coding Agent 的 Git-friendly 仓库记忆层。**
 
 [English](./README.md) | [中文](./README.zh-CN.md)
 
 <p align="center">
-  <a href="https://github.com/XD319/RepoBrain/stargazers"><img src="https://img.shields.io/github/stars/XD319/RepoBrain?style=social" alt="GitHub stars" /></a>
-  <a href="https://github.com/XD319/RepoBrain/forks"><img src="https://img.shields.io/github/forks/XD319/RepoBrain?style=social" alt="GitHub forks" /></a>
-  <a href="https://github.com/XD319/RepoBrain/issues"><img src="https://img.shields.io/github/issues/XD319/RepoBrain" alt="GitHub issues" /></a>
+  <a href="https://github.com/XD319/RepoBrain/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/XD319/RepoBrain/ci.yml?branch=main&label=ci" alt="CI status" /></a>
+  <a href="https://www.npmjs.com/package/repobrain"><img src="https://img.shields.io/npm/v/repobrain?label=npm" alt="npm version" /></a>
+  <a href="https://github.com/XD319/RepoBrain/blob/main/package.json"><img src="https://img.shields.io/badge/node-%3E%3D20-339933" alt="Node >=20" /></a>
   <a href="https://github.com/XD319/RepoBrain/blob/main/LICENSE"><img src="https://img.shields.io/github/license/XD319/RepoBrain" alt="License: MIT" /></a>
-  <a href="https://www.npmjs.com/package/repobrain"><img src="https://img.shields.io/npm/v/repobrain?style=flat" alt="npm version" /></a>
 </p>
 
-RepoBrain 提供了一种本地优先 (local-first)、Git 友好 (git-friendly) 的记忆基础设施，为 Claude Code、Codex、Cursor、Copilot 等 AI Assistant 提供专属化仓库语境。它可以将架构决策、避坑指南、代码规约及最佳实践固化，打破各个独立会话间的记忆孤岛。
+RepoBrain 是一套面向 Claude Code、Codex、Cursor、Copilot 等 Coding Agent 的本地优先、Git 友好的仓库记忆基础设施。它会把架构决策、踩坑记录、代码约定和可复用模式沉淀为仓库内可审阅的资产，让 Agent 在跨会话工作时延续项目上下文，而不是每次都重新学习一遍。
 
-**核心价值：**让 Agent 聪明起来，不再每次新会话都需要重新喂同样的上下文信息！
+## 为什么用 RepoBrain
 
----
+- 把持久化仓库知识保存在 `.brain/` 中，格式是普通 Markdown 加 frontmatter。
+- 通过正常的 Git review 流程审阅记忆变化，而不是把上下文锁在黑盒服务里。
+- 用 `brain inject`、`brain suggest-skills` 和 `brain route` 在新会话里取回合适的上下文。
 
-## 🚀 Quick Start (快速开始)
+## 快速开始
 
-**1. 全局安装**
+### 前置要求
+
+- Node.js `>=20`
+- 一个希望让 Agent 记住上下文的 Git 仓库
+
+### 安装
+
 ```bash
 npm install -g repobrain
+brain --version
 ```
 
-**2. 初始化项目结构**
+`brain` 和 `repobrain` 指向同一个 CLI。若你不想全局安装，生成的 steering rules 里也会说明 `npx brain` 和 `node dist/cli.js` 的备用用法。
+
+### 推荐初始化方式
+
 ```bash
 brain setup
 ```
 
-**3. TUI 可视化交互终端 (推荐)**
+`brain setup` 是推荐的上手入口。它会初始化 `.brain/`、应用默认 workflow preset、按需安装匹配的低风险 Git hook，并可为支持的 Agent 工具生成 steering rules。若你只想创建工作区和 steering rules，而不执行 setup 自动化，可以使用 `brain init`。
+
+### 60 秒体验主流程
+
+```bash
+# 把本次会话收获写成可审阅的 candidate
+echo "decision: keep API validation at the controller boundary" | brain capture --task "stabilize request validation"
+
+# 审阅并快速提升安全 candidate
+brain review
+brain approve --safe
+
+# 为下一次任务生成仓库上下文
+brain inject --task "continue request validation cleanup"
+
+# 为任务型 Agent 会话生成上下文和路由提示
+brain route --task "refactor request validation" --format json
+```
+
+可选的交互式终端界面：
+
 ```bash
 brain tui
 ```
 
-**4. 核心工作流示例（3 种 Workflow 模式）**
+## 选择 Workflow Preset
 
-`ultra-safe-manual`（严格人工控制）
+RepoBrain 内置了三种 workflow preset，让团队可以在不改变核心 CLI 契约的前提下，选择合适的自动化强度。
+
+| Preset | 适合场景 | 采集方式 | 提升方式 |
+| --- | --- | --- | --- |
+| `ultra-safe-manual` | 强人工控制仓库 | 仅手动提取 | 仅手动审批 |
+| `recommended-semi-auto` | 大多数团队和个人仓库 | 自动检测机会，先存成 candidate | 人工 review，支持快速安全审批 |
+| `automation-first` | 评审纪律稳定的成熟仓库 | 自动检测机会，先存成 candidate | 条件满足时自动提升安全 candidate |
+
+示例：
+
 ```bash
-# 一次性初始化
 brain setup --workflow ultra-safe-manual
-
-# 手动：通过输入文本触发 capture
-brain capture --task "确定 API 校验边界" --input "decision: API 参数校验统一放在 controller 边界层"
-
-# 手动：下次会话注入上下文
-brain inject
-```
-
-`recommended-semi-auto`（默认，候选优先）
-```bash
-# 一次性初始化
 brain setup --workflow recommended-semi-auto
-
-# 自动：detect 模式下可由 hooks/检测逻辑触发候选采集机会
-# 手动（可选）：显式提交本次会话摘要
-brain capture --task "修复支付超时问题" --input "gotcha: timeout 未设置时，重试循环会提前退出"
-
-# 手动：审核并快速通过安全项，再注入
-brain review
-brain approve --safe
-brain inject --task "继续修复支付超时问题"
-```
-
-`automation-first`（开启安全自动提升）
-```bash
-# 一次性初始化
 brain setup --workflow automation-first
-
-# 自动：detect 模式下可由 hooks/检测逻辑触发候选采集机会
-# 手动（可选）：显式提交本次会话摘要
-brain capture --task "稳定配置加载流程" --input "pattern: 进入配置分支前先标准化环境变量布尔值"
-
-# 自动：满足严格安全条件时可自动提升候选
-# 手动：立即执行一次提升流程
-brain promote-candidates
-
-# 手动：下个任务输出一体化路由结果
-brain route --task "重构配置加载逻辑" --format json
 ```
 
----
+完整对比请看 [docs/workflow-modes.zh-CN.md](./docs/workflow-modes.zh-CN.md)。
 
-## 🧩 How It Works (项目流程图)
+## 它如何落在仓库里
 
-以下是 RepoBrain 抽象的数据流闭环。提取总结内容、执行决定性归类审核系统、存储知识以及下次开发前实施智能上下文注入加载。
+RepoBrain 把记忆保存在当前仓库的本地目录中：
 
-```mermaid
-flowchart TD
-    subgraph 提取阶段 (Capture & Extract)
-        A[Git Hooks / Session 日志 / 管道输入] -->|stdin| B(brain capture / extract)
-    end
-    
-    subgraph 审核并入库 (Review & Store)
-        B --> C{逻辑判定系统 (Review)}
-        C -- 合并/丢弃/替换等 --> D[候选队列 CandidateQueue]
-        C -- 同意 accept --> E[激活状态 Active Memory]
-        D -->|人工介入/规则自动 approve| E
-        E -->|生成 Markdown + Frontmatter| F((存入 .brain/ 目录))
-    end
-    
-    subgraph 上下文路由输出 (Inject & Route)
-        F --> G(brain inject)
-        F --> H(brain suggest-skills)
-        F --> I(brain start / route)
-        G -.->|上下文纯文本| J[Claude Code / Cursor / Codex]
-        H -.->|JSON 路由参数| J
-        I -.->|一体化包裹| J
-    end
+```text
+.brain/
+  decisions/
+  gotchas/
+  conventions/
+  patterns/
+  preferences/
+  runtime/session-profile.json
+  index.md
 ```
 
----
+- `decisions`、`gotchas`、`conventions`、`patterns` 等持久化知识适合进入 Git。
+- `.brain/preferences/` 里的偏好用于路由时表达 prefer / avoid 的 skill 或 workflow 选择。
+- `.brain/runtime/` 中的数据更偏会话态，可以保持临时性。
 
-## 📂 Architecture & Memory Structure (项目架构与结构分布)
+## 核心命令
 
-所有的记忆文件都会完全透明地沉淀在你的本地 `.brain/` 目录，完全能以 Git 进行追溯与评审。
-
-```mermaid
-graph LR
-    subgraph 你的项目仓库
-        direction TB
-        B1[(.brain/ 实体配置文件夹)]
-        subgraph 各大生命周期知识图谱
-            L1[durable_知识库] --> |保留 decisions, gotchas, conventions, patterns 等记录| B1
-            L2[preferences_配置层] --> |路由规则要求、Agent技能依赖等| B1
-            L3[runtime_运行内存] --> |当次 Session 专属 Profile - 不入 Git| B1
-        end
-    end
-```
-
-### 知识分层策略
-| 模块层级 | 所属目录 | 核心定位 |
+| 目标 | 命令 | 作用 |
 | --- | --- | --- |
-| **可审计长期知识层** | `.brain/{decisions,gotchas,patterns,...}/` | 会进入 Git 管理，记录不可更改事实与架构决议。 |
-| **偏好指引层** | `.brain/preferences/` | 工具、工作流的偏好以及路由规则 (prefer / avoid)，同样进入 Git。 |
-| **会话状态层** | `.brain/runtime/session-profile.json` | 仅在当前会话窗口生效，临时设定，避免脏数据进入代码仓库。 |
+| 初始化仓库 | `brain setup`, `brain init` | 创建 `.brain/`、应用 workflow preset，并可写入 steering rules |
+| 采集知识 | `brain extract`, `brain extract-commit`, `brain capture` | 从 stdin、commit 上下文或会话总结中提取 durable memory |
+| 审阅 candidate | `brain review`, `brain approve`, `brain dismiss`, `brain promote-candidates` | 保持 candidate-first 流程可审阅 |
+| 启动任务 | `brain inject`, `brain suggest-skills`, `brain route`, `brain start` | 生成上下文块和确定性的路由计划 |
+| 检索记忆 | `brain list`, `brain search`, `brain timeline`, `brain explain-memory`, `brain explain-preference` | 查看仓库已经知道什么 |
+| 维护质量 | `brain status`, `brain next`, `brain audit-memory`, `brain lint-memory`, `brain normalize-memory`, `brain score`, `brain sweep` | 长期维护记忆质量 |
+| 团队与适配器 | `brain share`, `brain mcp`, `brain reinforce`, `brain routing-feedback` | 分享记忆、接入适配器、闭环反馈 |
 
----
+完整命令参考见 [docs/cli-reference.zh-CN.md](./docs/cli-reference.zh-CN.md)。
 
-## 🛠️ 常用 CLI 指令
+## 渐进式检索
 
-| 动作流 | 具体命令 | 功能说明 |
-| ------ | ------- | ------- |
-| **配置** | `brain setup` | 为当前仓库建立 `.brain/` 及 Git Hooks 配置依赖。 |
-| **提取** | `brain extract`, `brain capture` | 分析管道流日志及对话，以 Markdown 写入候选记忆库。 |
-| **审批** | `brain review`, `brain approve` | 手动/自动审查候选记忆状态并转移为 Active 激活状态。 |
-| **注入** | `brain inject` | 在新建代理会话时，导出最高高频重要指令及情景数据。 |
-| **查询** | `brain search`, `brain list` | 全局查询相关 Repo 概念细节知识。 |
-| **维稳** | `brain audit-memory`, `brain stats` | 定期检查、Schema 健康度清理、执行缓存状态扫描。 |
-
-> 对于包含 MCP, Claude Code 插件集成或者 Cursor 预设，请深度查阅代码库根源下的 `/docs` 以及 `/integrations`。
----
-
-## 分层 Inject
-
-`brain inject` 现在支持可选的分层输出，用来做渐进式 retrieval；默认行为仍与过去保持兼容。
+RepoBrain 在保持默认 `brain inject` 行为兼容的同时，也支持更适合大型仓库或高安全场景的分层检索。
 
 ```bash
-# 默认行为（与之前一致）
-brain inject
-
-# 适合 session start 的最小索引层
 brain inject --layer index --task "fix refund flow"
-
-# 现有的摘要型注入体验
 brain inject --layer summary --task "fix refund flow"
-
-# 按 id 展开指定 memories
-brain inject --layer summary --ids "decisions/2026-04-01-refund-boundary-090000000.md"
 brain inject --layer full --ids "2026-04-01-refund-boundary-090000000"
 ```
 
-各层语义：
+- `index` 返回紧凑的检索列表。
+- `summary` 保留熟悉的会话起始 Markdown 上下文。
+- `full` 用于按需展开指定 memory 正文。
 
-- `index`：紧凑输出 `id`、`title`、`tags`、`score`、`totalScore`，以及存在 task-aware 原因时的 `why_now`。
-- `summary`：默认层，等价于当前的 inject Markdown 体验。
-- `full`：为每条已选 memory 输出完整序列化 Markdown，包含完整 frontmatter 和 detail。
+`brain route` 和 `brain start` 也可以在 JSON bundle 里附带轻量的 expansion hints；同时 RepoBrain 还能维护派生缓存 `.brain/memory-index.json`，加速定向查询而不改变 Markdown 作为 source of truth 的事实。
 
-`--ids` 支持重复传入，也支持逗号分隔。RepoBrain 直接复用现有 memory 文件标识，因此 id 可以是：
+## 文档与 Integrations
 
-- `.brain/` 相对路径，例如 `decisions/2026-04-01-refund-boundary-090000000.md`
-- 文件 stem，例如 `2026-04-01-refund-boundary-090000000`
+顶层 README 适合快速上手，深入资料可以从这里继续：
 
-未提供 `--ids` 时，`index` 和 `summary` 仍走现有排序与预算选择逻辑；`full` 会要求显式提供 `--ids`，避免默认把完整 memory 正文一次性全部打出。
+| 需求 | 跳转 |
+| --- | --- |
+| 完整 CLI 参考 | [docs/cli-reference.zh-CN.md](./docs/cli-reference.zh-CN.md) |
+| Workflow preset 说明 | [docs/workflow-modes.zh-CN.md](./docs/workflow-modes.zh-CN.md) |
+| 架构与存储模型 | [docs/architecture.zh-CN.md](./docs/architecture.zh-CN.md) |
+| 库/API 用法 | [docs/api.md](./docs/api.md) |
+| 团队落地与评估 | [docs/team-workflow.zh-CN.md](./docs/team-workflow.zh-CN.md), [docs/evaluation.zh-CN.md](./docs/evaluation.zh-CN.md) |
+| 案例与演示证明 | [docs/case-studies](./docs/case-studies), [docs/demo-proof.zh-CN.md](./docs/demo-proof.zh-CN.md) |
+| Extended integrations 总览 | [integrations/README.md](./integrations/README.md) |
+| 各 Agent 适配说明 | [integrations/claude/README.md](./integrations/claude/README.md), [integrations/codex/README.md](./integrations/codex/README.md), [integrations/cursor/README.md](./integrations/cursor/README.md), [integrations/copilot/README.md](./integrations/copilot/README.md) |
 
-如果 `--layer` 取值非法、id 不存在、id 重复，或 memory 当前不可用于 inject，CLI 都会返回清晰错误提示；如果某一层没有命中结果，也会保持当前 CLI 一致的空结果风格。
-
-## Route Expansion Plan
-
-`brain route` / `brain start` 现在会在 JSON bundle 里附带一个轻量的渐进式 retrieval 提示：
-
-```bash
-brain route --task "fix refund bug" --format json
-```
-
-bundle 中可能包含：
-
-- `expansion_plan.suggested_summary_ids`
-- `expansion_plan.suggested_full_ids`
-
-这些 id 直接基于当前 routing 已经使用的 matched memories 和信号推导，不会额外引入一套独立排序器。RepoBrain 会有意保持数量很小：
-
-- task/path 强匹配的 memory 更容易进入 `suggested_summary_ids`
-- 风险更高的 memory 更容易进入 `suggested_full_ids`
-
-Markdown 输出仍保持当前主结构兼容；只有在存在建议时，末尾会多一个简短的 `Expansion Plan` 小节。
-
-## 派生 Memory 索引缓存
-
-RepoBrain 现在会维护一个轻量的派生缓存 `.brain/memory-index.json`，用来加速 `brain inject --ids ...` 这类渐进式 retrieval 路径。
-
-- `.brain/*.md` 里的 Markdown memory 仍然是唯一的 source of truth。
-- `memory-index.json` 只保存派生元数据：id、title、summary、tags、risk 提示、path/file 派生信息、token 粗略估算，以及用于失效判断的源文件 mtime。
-- 缓存会随着已有会刷新 `.brain/index.md` 的流程一起重建，避免额外引入复杂的状态同步。
-- 如果缓存缺失、过期、版本不匹配或损坏，RepoBrain 会自动回退到直接从 `.brain/*.md` 现算。
-- 任何缓存问题都不会阻塞核心 CLI；正确性始终优先于缓存命中。
+如需查看 extended integrations、adapter contract 和各 Agent 的接入细节，请继续阅读 `/docs` 与 `/integrations` 目录。
