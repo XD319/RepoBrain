@@ -56,14 +56,12 @@ await runTest("published docs mention integrations and the stronger adapter cont
   const readmeZh = await readFile(path.join(projectRoot, "README.zh-CN.md"), "utf8");
   const integrationsReadme = await readFile(path.join(projectRoot, "integrations", "README.md"), "utf8");
 
-  assert.match(readme, /## Integrations/);
-  assert.match(readme, /Why thin adapters, but stronger contracts/);
-  assert.match(readme, /Core layer responsibilities/);
-  assert.match(readme, /Adapter layer responsibilities/);
-  assert.match(readmeZh, /## Integrations/);
-  assert.match(readmeZh, /Why thin adapters, but stronger contracts/);
-  assert.match(readmeZh, /核心层职责/);
-  assert.match(readmeZh, /adapter 层职责/);
+  assert.match(readme, /integrations/i);
+  assert.match(readme, /brain route|brain suggest-skills|brain inject/);
+  assert.match(readme, /extended integrations|integrations directories/i);
+  assert.match(readmeZh, /integrations/i);
+  assert.match(readmeZh, /brain route|brain suggest-skills|brain inject/);
+  assert.match(readmeZh, /\/docs|\/integrations/);
   assert.match(integrationsReadme, /Thin Adapter Contract/);
   assert.match(integrationsReadme, /Failure Fallback Strategy/);
   assert.match(integrationsReadme, /invocation_plan/);

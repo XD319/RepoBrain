@@ -2,12 +2,12 @@ import { expect, it } from "vitest";
 
 import { computeInjectPriority } from "../dist/store-api.js";
 
-await runTest("computeInjectPriority applies the new explainable adjustment stack when last_used is null", async () => {
+await runTest("computeInjectPriority falls back to the freshest valid timestamp when last_used is null", async () => {
   const priority = computeInjectPriority({
     type: "decision",
     title: "Freshness fallback",
-    summary: "Missing last_used should use the neutral freshness score.",
-    detail: "## DECISION\n\nUse a neutral freshness score when last_used is missing.",
+    summary: "Missing last_used should use the freshest valid timestamp fallback.",
+    detail: "## DECISION\n\nUse the freshest valid timestamp when last_used is missing.",
     tags: ["priority"],
     importance: "medium",
     date: "2026-04-01T08:00:00.000Z",
@@ -18,7 +18,7 @@ await runTest("computeInjectPriority applies the new explainable adjustment stac
     stale: false,
   });
 
-  assert.ok(Math.abs(priority - 39.85) < 0.15, `expected ~39.85, got ${priority}`);
+  assert.ok(Math.abs(priority - 39.6) < 0.05, `expected ~39.6, got ${priority}`);
 });
 
 await runTest("computeInjectPriority discounts stale recency while preserving capped hit-count influence", async () => {
