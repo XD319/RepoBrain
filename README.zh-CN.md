@@ -1,5 +1,9 @@
 # RepoBrain
 
+<p align="center">
+  <img src="./docs/assets/repobrain-logo.png" alt="RepoBrain logo" width="720" />
+</p>
+
 **面向 Coding Agent 的 Git-friendly 仓库记忆层。**
 
 [English](./README.md) | [中文](./README.zh-CN.md)

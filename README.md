@@ -1,5 +1,9 @@
 # RepoBrain
 
+<p align="center">
+  <img src="./docs/assets/repobrain-logo.png" alt="RepoBrain logo" width="720" />
+</p>
+
 **Git-friendly repo memory for coding agents.**
 
 [English](./README.md) | [中文](./README.zh-CN.md)
