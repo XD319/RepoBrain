@@ -6,6 +6,7 @@
     "package.json",
     "docs/release-checklist.md"
   ],
+  "path_source": "explicit",
   "matched_memories": [
     {
       "record": {
@@ -17,30 +18,30 @@
           "summary": "First-release work should route through the release checklist and packaged install smoke validation before publish.",
           "detail": "## DECISION\n\nWhen package.json, release docs, or publish workflow files change, start with the release checklist.\nUse packaged install smoke validation before publish so the first npm release proves installability instead of assuming it.",
           "tags": [
-            "release",
             "npm",
+            "release",
             "smoke"
           ],
           "importance": "high",
           "date": "2026-04-03T09:00:00.000Z",
           "score": 60,
           "hit_count": 1,
-          "last_used": "2026-04-03",
+          "last_used": "2026-04-08",
           "created_at": "2026-04-03T09:00:00.000Z",
           "stale": false,
           "supersedes": null,
           "superseded_by": null,
           "version": 1,
           "files": [
-            "package.json",
             "docs/release-checklist.md",
-            "docs/release-guide.md"
+            "docs/release-guide.md",
+            "package.json"
           ],
           "related": [],
           "path_scope": [
-            "package.json",
             "docs/release-checklist.md",
-            "docs/release-guide.md"
+            "docs/release-guide.md",
+            "package.json"
           ],
           "recommended_skills": [
             "npm-install-smoke"
@@ -52,9 +53,9 @@
             "imagegen"
           ],
           "skill_trigger_paths": [
-            "package.json",
             "docs/release-checklist.md",
-            "docs/release-guide.md"
+            "docs/release-guide.md",
+            "package.json"
           ],
           "skill_trigger_tasks": [
             "prepare first npm release",
@@ -63,8 +64,13 @@
           ],
           "created": "2026-04-03",
           "updated": "2026-04-03",
+          "valid_from": "2026-04-03",
+          "observed_at": "2026-04-03T09:00:00.000Z",
           "invocation_mode": "prefer",
           "risk_level": "medium",
+          "supersession_reason": null,
+          "confidence": 1,
+          "review_state": "unset",
           "status": "active"
         }
       },
@@ -72,8 +78,8 @@
         "task: prepare first npm release",
         "task: publish npm release",
         "task: release smoke validation",
-        "path: package.json -> package.json",
-        "path: docs/release-checklist.md -> docs/release-checklist.md"
+        "path: docs/release-checklist.md -> docs/release-checklist.md",
+        "path: package.json -> package.json"
       ],
       "score": 27
     }
@@ -157,30 +163,30 @@
           "summary": "First-release work should route through the release checklist and packaged install smoke validation before publish.",
           "detail": "## DECISION\n\nWhen package.json, release docs, or publish workflow files change, start with the release checklist.\nUse packaged install smoke validation before publish so the first npm release proves installability instead of assuming it.",
           "tags": [
-            "release",
             "npm",
+            "release",
             "smoke"
           ],
           "importance": "high",
           "date": "2026-04-03T09:00:00.000Z",
           "score": 60,
           "hit_count": 1,
-          "last_used": "2026-04-03",
+          "last_used": "2026-04-08",
           "created_at": "2026-04-03T09:00:00.000Z",
           "stale": false,
           "supersedes": null,
           "superseded_by": null,
           "version": 1,
           "files": [
-            "package.json",
             "docs/release-checklist.md",
-            "docs/release-guide.md"
+            "docs/release-guide.md",
+            "package.json"
           ],
           "related": [],
           "path_scope": [
-            "package.json",
             "docs/release-checklist.md",
-            "docs/release-guide.md"
+            "docs/release-guide.md",
+            "package.json"
           ],
           "recommended_skills": [
             "npm-install-smoke"
@@ -192,9 +198,9 @@
             "imagegen"
           ],
           "skill_trigger_paths": [
-            "package.json",
             "docs/release-checklist.md",
-            "docs/release-guide.md"
+            "docs/release-guide.md",
+            "package.json"
           ],
           "skill_trigger_tasks": [
             "prepare first npm release",
@@ -203,8 +209,13 @@
           ],
           "created": "2026-04-03",
           "updated": "2026-04-03",
+          "valid_from": "2026-04-03",
+          "observed_at": "2026-04-03T09:00:00.000Z",
           "invocation_mode": "prefer",
           "risk_level": "medium",
+          "supersession_reason": null,
+          "confidence": 1,
+          "review_state": "unset",
           "status": "active"
         }
       },
@@ -212,8 +223,8 @@
         "task: prepare first npm release",
         "task: publish npm release",
         "task: release smoke validation",
-        "path: package.json -> package.json",
-        "path: docs/release-checklist.md -> docs/release-checklist.md"
+        "path: docs/release-checklist.md -> docs/release-checklist.md",
+        "path: package.json -> package.json"
       ],
       "score": 27
     }
@@ -270,5 +281,34 @@
         }
       ]
     }
-  ]
+  ],
+  "routing_explanation": {
+    "priority_order": [
+      "blocked_and_explicit_suppress (memory + policy)",
+      "required_skills (static memory)",
+      "session_profile_routing (beats stored preferences; does not beat memory suppress/block)",
+      "negative_preferences (avoid)",
+      "positive_preferences (prefer)",
+      "static_recommended_skills",
+      "optional_fallback_and_soft_signals"
+    ],
+    "skill_evidence": {
+      "release-checklist": [
+        "plan_slot=required, disposition=required, total_score=33",
+        "required: Release changes should start with checklist and install smoke validation [.brain/decisions/2026-04-03-release-changes-should-start-with-checklist-and--090000000.md] (invocation_mode=prefer, risk=medium, match_weight=27)"
+      ],
+      "npm-install-smoke": [
+        "plan_slot=prefer_first, disposition=recommended, total_score=30",
+        "recommended: Release changes should start with checklist and install smoke validation [.brain/decisions/2026-04-03-release-changes-should-start-with-checklist-and--090000000.md] (invocation_mode=prefer, risk=medium, match_weight=27)"
+      ],
+      "imagegen": [
+        "plan_slot=suppress, disposition=suppressed, total_score=28",
+        "suppressed: Release changes should start with checklist and install smoke validation [.brain/decisions/2026-04-03-release-changes-should-start-with-checklist-and--090000000.md] (invocation_mode=prefer, risk=medium, match_weight=27)"
+      ]
+    },
+    "notes": [
+      "Policy layers (highest precedence first): blocked_and_explicit_suppress (memory + policy) → required_skills (static memory) → session_profile_routing (beats stored preferences; does not beat memory suppress/block) → negative_preferences (avoid) → positive_preferences (prefer) → static_recommended_skills → optional_fallback_and_soft_signals",
+      "No applicable session profile routing entries for this task/path context."
+    ]
+  }
 }

@@ -3,6 +3,10 @@ name: Publish
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
+permissions:
+  contents: read
+  id-token: write
+
 on:
   push:
     tags:
@@ -32,10 +36,31 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Format check
+        run: npm run format:check
+
       - name: Test
         run: npm test
 
+      - name: Demo proof
+        run: npm run demo:proof
+
+      - name: Proof evals
+        run: npm run eval:proof
+
+      - name: Package smoke test
+        run: npm run smoke:package
+
+      - name: Dry-run pack
+        run: npm pack --dry-run
+
       - name: Publish package
-        run: npm publish
+        run: npm publish --provenance
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

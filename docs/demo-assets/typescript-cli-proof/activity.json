@@ -1,5 +1,5 @@
 {
-  "lastInjectedAt": "2026-04-03",
+  "lastInjectedAt": "2026-04-08",
   "recentLoadedMemories": [
     {
       "type": "decision",
@@ -11,7 +11,7 @@
       "type": "gotcha",
       "title": "Normalize CLI env booleans in src/config.ts before Commander validation",
       "importance": "medium",
-      "date": "2026-04-03T09:59:15.011Z"
+      "date": "2026-04-08T09:42:13.220Z"
     }
   ]
 }
