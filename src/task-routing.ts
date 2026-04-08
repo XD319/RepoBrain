@@ -181,7 +181,9 @@ export function renderTaskRoutingBundle(bundle: TaskRoutingBundle): string {
     );
     lines.push(
       `- full ids: ${
-        bundle.expansion_plan.suggested_full_ids.length > 0 ? bundle.expansion_plan.suggested_full_ids.join(", ") : "None."
+        bundle.expansion_plan.suggested_full_ids.length > 0
+          ? bundle.expansion_plan.suggested_full_ids.join(", ")
+          : "None."
       }`,
     );
   }

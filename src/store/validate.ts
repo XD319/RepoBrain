@@ -110,7 +110,11 @@ export function normalizeStringArray(values: string[]): string[] {
 }
 
 export function normalizeBrainRelativePath(value: string): string {
-  return value.replace(/\\/g, "/").trim().replace(/^\.brain\//, "").replace(/^\/+/, "");
+  return value
+    .replace(/\\/g, "/")
+    .trim()
+    .replace(/^\.brain\//, "")
+    .replace(/^\/+/, "");
 }
 
 export function normalizeNullableBrainRelativePath(value: string | null): string | null {
@@ -126,7 +130,9 @@ function normalizeTagArray(values: string[]): string[] {
 }
 
 function normalizeSkillArray(values: string[]): string[] {
-  return normalizeStringArray(values).sort((left, right) => left.localeCompare(right, undefined, { sensitivity: "base" }));
+  return normalizeStringArray(values).sort((left, right) =>
+    left.localeCompare(right, undefined, { sensitivity: "base" }),
+  );
 }
 
 function normalizeRelativePathArray(values: string[]): string[] {
@@ -327,22 +333,34 @@ export function validateMemory(memory: Memory, context = "Memory"): void {
     throw new Error(`${context} has unsupported type "${memory.type}". Expected one of: ${MEMORY_TYPES.join(", ")}.`);
   }
   if (!IMPORTANCE_LEVELS.includes(memory.importance)) {
-    throw new Error(`${context} has unsupported importance "${memory.importance}". Expected one of: ${IMPORTANCE_LEVELS.join(", ")}.`);
+    throw new Error(
+      `${context} has unsupported importance "${memory.importance}". Expected one of: ${IMPORTANCE_LEVELS.join(", ")}.`,
+    );
   }
   if (memory.source && !MEMORY_SOURCES.includes(memory.source)) {
-    throw new Error(`${context} has unsupported source "${memory.source}". Expected one of: ${MEMORY_SOURCES.join(", ")}.`);
+    throw new Error(
+      `${context} has unsupported source "${memory.source}". Expected one of: ${MEMORY_SOURCES.join(", ")}.`,
+    );
   }
   if (memory.status && !MEMORY_STATUSES.includes(memory.status)) {
-    throw new Error(`${context} has unsupported status "${memory.status}". Expected one of: ${MEMORY_STATUSES.join(", ")}.`);
+    throw new Error(
+      `${context} has unsupported status "${memory.status}". Expected one of: ${MEMORY_STATUSES.join(", ")}.`,
+    );
   }
   if (memory.origin && !MEMORY_ORIGINS.includes(memory.origin)) {
-    throw new Error(`${context} has unsupported origin "${memory.origin}". Expected one of: ${MEMORY_ORIGINS.join(", ")}.`);
+    throw new Error(
+      `${context} has unsupported origin "${memory.origin}". Expected one of: ${MEMORY_ORIGINS.join(", ")}.`,
+    );
   }
   if (!INVOCATION_MODES.includes(memory.invocation_mode ?? DEFAULT_INVOCATION_MODE)) {
-    throw new Error(`${context} has unsupported invocation_mode "${memory.invocation_mode}". Expected one of: ${INVOCATION_MODES.join(", ")}.`);
+    throw new Error(
+      `${context} has unsupported invocation_mode "${memory.invocation_mode}". Expected one of: ${INVOCATION_MODES.join(", ")}.`,
+    );
   }
   if (!RISK_LEVELS.includes(memory.risk_level ?? DEFAULT_RISK_LEVEL)) {
-    throw new Error(`${context} has unsupported risk_level "${memory.risk_level}". Expected one of: ${RISK_LEVELS.join(", ")}.`);
+    throw new Error(
+      `${context} has unsupported risk_level "${memory.risk_level}". Expected one of: ${RISK_LEVELS.join(", ")}.`,
+    );
   }
   if (memory.area && !MEMORY_AREAS.includes(memory.area)) {
     throw new Error(`${context} has unsupported area "${memory.area}". Expected one of: ${MEMORY_AREAS.join(", ")}.`);
@@ -380,17 +398,26 @@ export function validateMemory(memory: Memory, context = "Memory"): void {
   validateOptionalTemporalIso(memory.valid_from, "valid_from", context);
   validateOptionalTemporalIso(memory.valid_until, "valid_until", context);
   validateOptionalTemporalIso(memory.observed_at, "observed_at", context);
-  if (memory.supersession_reason !== undefined && memory.supersession_reason !== null && typeof memory.supersession_reason !== "string") {
+  if (
+    memory.supersession_reason !== undefined &&
+    memory.supersession_reason !== null &&
+    typeof memory.supersession_reason !== "string"
+  ) {
     throw new Error(`${context} has invalid supersession_reason.`);
   }
-  if (memory.confidence !== undefined && (!Number.isFinite(memory.confidence) || memory.confidence < 0 || memory.confidence > 1)) {
+  if (
+    memory.confidence !== undefined &&
+    (!Number.isFinite(memory.confidence) || memory.confidence < 0 || memory.confidence > 1)
+  ) {
     throw new Error(`${context} has invalid confidence "${memory.confidence}". Expected a number between 0 and 1.`);
   }
   if (memory.source_episode !== undefined && typeof memory.source_episode !== "string") {
     throw new Error(`${context} has invalid source_episode.`);
   }
   if (memory.review_state !== undefined && !REVIEW_STATES.includes(memory.review_state)) {
-    throw new Error(`${context} has unsupported review_state "${memory.review_state}". Expected one of: ${REVIEW_STATES.join(", ")}.`);
+    throw new Error(
+      `${context} has unsupported review_state "${memory.review_state}". Expected one of: ${REVIEW_STATES.join(", ")}.`,
+    );
   }
   if (typeof memory.stale !== "boolean") {
     throw new Error(`${context} has invalid stale "${memory.stale}". Expected a boolean.`);
@@ -434,10 +461,16 @@ export function validatePreference(pref: Preference, context = "Preference"): vo
   validateOptionalTemporalIso(pref.valid_from, "valid_from", context);
   validateOptionalTemporalIso(pref.valid_until, "valid_until", context);
   validateOptionalTemporalIso(pref.observed_at, "observed_at", context);
-  if (pref.supersession_reason !== undefined && pref.supersession_reason !== null && typeof pref.supersession_reason !== "string") {
+  if (
+    pref.supersession_reason !== undefined &&
+    pref.supersession_reason !== null &&
+    typeof pref.supersession_reason !== "string"
+  ) {
     throw new Error(`${context} has invalid supersession_reason.`);
   }
   if (pref.review_state !== undefined && !REVIEW_STATES.includes(pref.review_state)) {
-    throw new Error(`${context} has unsupported review_state "${pref.review_state}". Expected one of: ${REVIEW_STATES.join(", ")}.`);
+    throw new Error(
+      `${context} has unsupported review_state "${pref.review_state}". Expected one of: ${REVIEW_STATES.join(", ")}.`,
+    );
   }
 }

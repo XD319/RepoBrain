@@ -1,5 +1,9 @@
 import type { BrainConfig } from "../../types.js";
-import { buildTaskRoutingBundle, type BuildTaskRoutingBundleOptions, type TaskRoutingBundle } from "../../task-routing.js";
+import {
+  buildTaskRoutingBundle,
+  type BuildTaskRoutingBundleOptions,
+  type TaskRoutingBundle,
+} from "../../task-routing.js";
 
 export interface RoutingInspectorViewModel {
   contractVersion: string;

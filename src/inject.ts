@@ -78,7 +78,9 @@ export async function buildInjection(
   const requestedIds = normalizeRequestedIds(rawOptions.ids ?? []);
 
   if (layer === "full" && requestedIds.length === 0) {
-    throw new Error('The "full" inject layer requires "--ids" so RepoBrain does not dump every selected memory body by default.');
+    throw new Error(
+      'The "full" inject layer requires "--ids" so RepoBrain does not dump every selected memory body by default.',
+    );
   }
 
   const taskAware = hasSelectionContext(options);
@@ -253,7 +255,9 @@ async function loadInjectionDataFromCache(
   const orderedSelectedRecords = selectedRelativePaths.map((relativePath) => {
     const record = selectedRecordsByRelativePath.get(relativePath);
     if (!record) {
-      throw new Error(`Cached memory "${relativePath}" could not be loaded from disk. Re-run "brain inject" to refresh the cache.`);
+      throw new Error(
+        `Cached memory "${relativePath}" could not be loaded from disk. Re-run "brain inject" to refresh the cache.`,
+      );
     }
 
     return record;
@@ -270,7 +274,8 @@ async function loadInjectionDataFromCache(
     candidateCount: cache.entries.filter((entry) => entry.status === "candidate").length,
     lastUpdated: cache.entries[0]?.date ?? "N/A",
     selectedFromIds,
-    eligibleCountOverride: cache.entries.filter((entry) => isCacheEntryInjectable(entry, request.includeWorking)).length,
+    eligibleCountOverride: cache.entries.filter((entry) => isCacheEntryInjectable(entry, request.includeWorking))
+      .length,
   };
 }
 

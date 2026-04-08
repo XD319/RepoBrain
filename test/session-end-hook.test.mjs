@@ -72,10 +72,7 @@ await runTest("session-end hook decodes Windows GB18030 stdin before extraction"
     const result = await runNodeProcessBuffer(
       [hookPath],
       projectRoot,
-      Buffer.concat([
-        Buffer.from("gotcha: ", "utf8"),
-        Buffer.from([0xd6, 0xd0]),
-      ]),
+      Buffer.concat([Buffer.from("gotcha: ", "utf8"), Buffer.from([0xd6, 0xd0])]),
       {
         BRAIN_EXTRACTOR_COMMAND: zhFixtureCommand,
       },
@@ -83,7 +80,10 @@ await runTest("session-end hook decodes Windows GB18030 stdin before extraction"
     assert.equal(result.code, 0);
 
     const records = await loadStoredMemoryRecords(projectRoot);
-    assert.ok(records.some((entry) => entry.memory.title.includes("中文上下文")), "expected extracted zh memory");
+    assert.ok(
+      records.some((entry) => entry.memory.title.includes("中文上下文")),
+      "expected extracted zh memory",
+    );
   });
 });
 

@@ -35,7 +35,10 @@ describe("tui adapters", () => {
   it("builds candidate list and safe summary", () => {
     const now = "2026-04-01T10:00:00.000Z";
     const records = [
-      createRecord("decisions/2026-04-01-use-tsup.md", createMemory({ title: "Use tsup", status: "active", date: now })),
+      createRecord(
+        "decisions/2026-04-01-use-tsup.md",
+        createMemory({ title: "Use tsup", status: "active", date: now }),
+      ),
       createRecord(
         "patterns/2026-04-01-node-stream-parser.md",
         createMemory({

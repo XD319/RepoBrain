@@ -13,7 +13,15 @@ export interface MemoriesScreenProps {
   onError: (message: string | null) => void;
 }
 
-const TYPE_FILTERS: MemoryBrowserFilters["type"][] = ["all", "decision", "gotcha", "convention", "pattern", "working", "goal"];
+const TYPE_FILTERS: MemoryBrowserFilters["type"][] = [
+  "all",
+  "decision",
+  "gotcha",
+  "convention",
+  "pattern",
+  "working",
+  "goal",
+];
 const STATUS_FILTERS: MemoryBrowserFilters["status"][] = ["all", "active", "candidate", "done", "stale", "superseded"];
 const IMPORTANCE_FILTERS: MemoryBrowserFilters["importance"][] = ["all", "high", "medium", "low"];
 
@@ -101,9 +109,14 @@ export function MemoriesScreen({ projectRoot, onMessage, onError }: MemoriesScre
       <Text>
         Filters: type={filters.type} status={filters.status} importance={filters.importance}
       </Text>
-      <Text>Showing {Math.min(entries.length, 15)} / {entries.length}</Text>
+      <Text>
+        Showing {Math.min(entries.length, 15)} / {entries.length}
+      </Text>
       {entries.slice(0, 15).map((entry, index) => (
-        <Text key={`${entry.memory.date}-${entry.memory.title}`} {...(index === selectedIndex ? { color: "cyan" } : {})}>
+        <Text
+          key={`${entry.memory.date}-${entry.memory.title}`}
+          {...(index === selectedIndex ? { color: "cyan" } : {})}
+        >
           {index === selectedIndex ? ">" : " "} {entry.memory.date} | {entry.memory.type} | {entry.memory.importance} |{" "}
           {entry.status} | {entry.memory.title}
         </Text>

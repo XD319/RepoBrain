@@ -99,9 +99,11 @@ export function PreferencesScreen({ projectRoot, onMessage, onError }: Preferenc
       <Text>Keys: j/k move | d/Enter detail | x dismiss selected target | r refresh</Text>
       {model.active.length === 0 && <Text>No active preferences found.</Text>}
       {model.active.map((entry, index) => (
-        <Text key={`${entry.targetType}-${entry.target}-${entry.reason}`} {...(index === selectedIndex ? { color: "cyan" } : {})}>
-          {index === selectedIndex ? ">" : " "}
-          [{entry.preference}] {entry.targetType}:{entry.target} ({entry.reason})
+        <Text
+          key={`${entry.targetType}-${entry.target}-${entry.reason}`}
+          {...(index === selectedIndex ? { color: "cyan" } : {})}
+        >
+          {index === selectedIndex ? ">" : " "}[{entry.preference}] {entry.targetType}:{entry.target} ({entry.reason})
         </Text>
       ))}
       {showDetail && selected && (

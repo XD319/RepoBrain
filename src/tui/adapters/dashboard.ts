@@ -31,7 +31,10 @@ export interface DashboardStatusViewModel {
 
 export async function buildDashboardStatsViewModel(projectRoot: string): Promise<DashboardStatsViewModel> {
   const { records, schema } = await loadSchemaValidatedMemoryRecords(projectRoot);
-  return createDashboardStatsViewModel(records.map((entry) => entry.memory), schema.summary);
+  return createDashboardStatsViewModel(
+    records.map((entry) => entry.memory),
+    schema.summary,
+  );
 }
 
 export async function buildDashboardStatusViewModel(projectRoot: string): Promise<DashboardStatusViewModel> {

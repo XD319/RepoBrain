@@ -72,9 +72,7 @@ export function App({ projectRoot, initialScreen }: AppProps): React.JSX.Element
   return (
     <Box flexDirection="column">
       <Text color="cyan">RepoBrain TUI</Text>
-      <Text>
-        Screens: 1 Dashboard | 2 Review | 3 Memories | 4 Preferences | 5 Routing | Active: {activeLabel}
-      </Text>
+      <Text>Screens: 1 Dashboard | 2 Review | 3 Memories | 4 Preferences | 5 Routing | Active: {activeLabel}</Text>
       <Text>Global: Tab switch, q/Esc/Ctrl+C exit</Text>
       <Text color="gray">Hint: press r to refresh current screen data.</Text>
       <Text color="gray">Message: {globalMessage}</Text>

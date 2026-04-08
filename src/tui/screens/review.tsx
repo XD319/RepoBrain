@@ -20,7 +20,10 @@ export function clampSelection(length: number, selectedIndex: number): number {
   return Math.max(0, Math.min(selectedIndex, length - 1));
 }
 
-export function getSelectedCandidateId(model: CandidateListViewModel | null, selectedIndex: number): string | undefined {
+export function getSelectedCandidateId(
+  model: CandidateListViewModel | null,
+  selectedIndex: number,
+): string | undefined {
   if (!model || model.candidates.length === 0) {
     return undefined;
   }

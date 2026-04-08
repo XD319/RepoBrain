@@ -485,7 +485,10 @@ async function handleAddMemory(args: Record<string, unknown>, projectRoot: strin
   };
 }
 
-async function handleSuggestSkills(args: Record<string, unknown>, projectRoot: string): Promise<Record<string, unknown>> {
+async function handleSuggestSkills(
+  args: Record<string, unknown>,
+  projectRoot: string,
+): Promise<Record<string, unknown>> {
   const task = asRequiredString(args.task, "task");
   const explicitPaths = asOptionalStringArray(args.paths, "paths");
   const resolvedPaths = resolveSuggestedSkillPaths(projectRoot, explicitPaths);
@@ -640,10 +643,7 @@ async function handleReview(projectRoot: string): Promise<Record<string, unknown
     content: [
       {
         type: "text",
-        text:
-          items.length === 0
-            ? "No candidate memories waiting for review."
-            : `Candidate memories: ${items.length}.`,
+        text: items.length === 0 ? "No candidate memories waiting for review." : `Candidate memories: ${items.length}.`,
       },
     ],
     structuredContent: {
@@ -706,7 +706,10 @@ async function handleList(args: Record<string, unknown>, projectRoot: string): P
     content: [
       {
         type: "text",
-        text: filtered.length === 0 ? "No memories found." : `Listed ${filtered.length} memor${filtered.length === 1 ? "y" : "ies"}.`,
+        text:
+          filtered.length === 0
+            ? "No memories found."
+            : `Listed ${filtered.length} memor${filtered.length === 1 ? "y" : "ies"}.`,
       },
     ],
     structuredContent: {

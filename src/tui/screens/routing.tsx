@@ -15,7 +15,10 @@ export function parsePathsInput(raw: string): string[] {
   return parseCommaSeparatedValues(raw);
 }
 
-export function buildRoutingInput(task: string, pathsInput: string): { task: string; paths: string[]; pathSource: "none" | "explicit" } {
+export function buildRoutingInput(
+  task: string,
+  pathsInput: string,
+): { task: string; paths: string[]; pathSource: "none" | "explicit" } {
   const paths = parsePathsInput(pathsInput);
   return {
     task: task.trim(),
@@ -120,7 +123,9 @@ export function RoutingScreen({ projectRoot, onMessage, onError }: RoutingScreen
       {busy && <Text color="yellow">Routing...</Text>}
       {result && (
         <Box flexDirection="column">
-          <Text>Display mode: {result.displayMode} | Path source: {result.pathSource}</Text>
+          <Text>
+            Display mode: {result.displayMode} | Path source: {result.pathSource}
+          </Text>
           <Section title="Invocation Plan">
             <Text>required: {result.bundle.skill_plan.required.join(", ") || "-"}</Text>
             <Text>prefer_first: {result.bundle.skill_plan.prefer_first.join(", ") || "-"}</Text>

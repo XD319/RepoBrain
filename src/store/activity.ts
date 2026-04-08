@@ -70,9 +70,12 @@ function parseActivityState(raw: string): BrainActivityState {
   try {
     const parsed = JSON.parse(raw) as { lastInjectedAt?: unknown; recentLoadedMemories?: unknown };
     const recentLoadedMemories = Array.isArray(parsed.recentLoadedMemories)
-      ? parsed.recentLoadedMemories.map((entry) => parseActivityEntry(entry)).filter((entry): entry is MemoryActivityEntry => entry !== null)
+      ? parsed.recentLoadedMemories
+          .map((entry) => parseActivityEntry(entry))
+          .filter((entry): entry is MemoryActivityEntry => entry !== null)
       : [];
-    const lastInjectedAt = typeof parsed.lastInjectedAt === "string" && parsed.lastInjectedAt.trim() ? parsed.lastInjectedAt : null;
+    const lastInjectedAt =
+      typeof parsed.lastInjectedAt === "string" && parsed.lastInjectedAt.trim() ? parsed.lastInjectedAt : null;
     return lastInjectedAt ? { lastInjectedAt, recentLoadedMemories } : { recentLoadedMemories };
   } catch {
     return { recentLoadedMemories: [] };

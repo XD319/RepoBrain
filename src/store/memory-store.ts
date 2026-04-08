@@ -8,12 +8,7 @@ import { MEMORY_TYPES } from "../types.js";
 import { initBrain } from "./core.js";
 import { parseMemory, serializeMemory } from "./serialize.js";
 import { writeMemoryIndexCache } from "./memory-index.js";
-import {
-  DEFAULT_MEMORY_VERSION,
-  getMemoryStatus,
-  normalizeMemory,
-  validateMemory,
-} from "./validate.js";
+import { DEFAULT_MEMORY_VERSION, getMemoryStatus, normalizeMemory, validateMemory } from "./validate.js";
 import { commitAtomicWriteOperations, createAtomicWriteOperation } from "./atomic-write.js";
 
 const DIRECTORY_BY_TYPE: Record<MemoryType, string> = {
@@ -160,7 +155,8 @@ export async function updateStoredMemoryStatus(record: StoredMemoryRecord, statu
   };
   if (status === "stale") {
     nextMemory.valid_until = record.memory.valid_until ?? nowIso;
-    nextMemory.supersession_reason = record.memory.supersession_reason ?? "Marked stale via brain dismiss or score workflow";
+    nextMemory.supersession_reason =
+      record.memory.supersession_reason ?? "Marked stale via brain dismiss or score workflow";
   }
   if (status === "superseded") {
     nextMemory.valid_until = record.memory.valid_until ?? nowIso;
@@ -217,7 +213,8 @@ async function supersedeMatchingActiveMemories(
         status: "superseded",
         stale: true,
         valid_until: entry.memory.valid_until ?? nowIso,
-        supersession_reason: entry.memory.supersession_reason ?? "Superseded by newer active memory with the same identity",
+        supersession_reason:
+          entry.memory.supersession_reason ?? "Superseded by newer active memory with the same identity",
       });
       await writeFile(entry.filePath, serializeMemory(updatedMemory), "utf8");
     }),

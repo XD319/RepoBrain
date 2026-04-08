@@ -17,7 +17,10 @@ export async function savePreference(preference: Preference, projectRoot: string
   const fileName = `pref-${normalizedPreference.target_type}-${slugifyMemoryTitle(normalizedPreference.target)}.md`;
   const content = serializePreference(normalizedPreference);
   for (let attempt = 0; attempt < 1000; attempt += 1) {
-    const relativePath = path.join("preferences", ensureUniquePreferenceFileNameSuffix(normalizedPreference, fileName, attempt));
+    const relativePath = path.join(
+      "preferences",
+      ensureUniquePreferenceFileNameSuffix(normalizedPreference, fileName, attempt),
+    );
     const filePath = path.join(brainDir, relativePath);
     try {
       await writeFile(filePath, content, { encoding: "utf8", flag: "wx" });
@@ -32,7 +35,9 @@ export async function savePreference(preference: Preference, projectRoot: string
 
 export async function loadAllPreferences(projectRoot: string): Promise<Preference[]> {
   const records = await loadStoredPreferenceRecords(projectRoot);
-  return records.map((entry) => entry.preference).sort((left, right) => right.created_at.localeCompare(left.created_at));
+  return records
+    .map((entry) => entry.preference)
+    .sort((left, right) => right.created_at.localeCompare(left.created_at));
 }
 
 export async function loadStoredPreferenceRecords(projectRoot: string): Promise<StoredPreferenceRecord[]> {

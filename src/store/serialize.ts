@@ -1,7 +1,32 @@
 import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 
-import type { InvocationMode, Memory, MemoryArea, MemoryOrigin, MemorySource, MemoryStatus, MemoryType, ReviewState, RiskLevel } from "../types.js";
-import { normalizeMemory, DEFAULT_INVOCATION_MODE, DEFAULT_MEMORY_CONFIDENCE, DEFAULT_MEMORY_HIT_COUNT, DEFAULT_MEMORY_LAST_USED, DEFAULT_MEMORY_SCORE, DEFAULT_MEMORY_STALE, DEFAULT_MEMORY_SUPERSEDES, DEFAULT_MEMORY_SUPERSEDED_BY, DEFAULT_MEMORY_VERSION, DEFAULT_REVIEW_STATE, DEFAULT_RISK_LEVEL, isoDateOnlyFromKnownDate, validateMemory } from "./validate.js";
+import type {
+  InvocationMode,
+  Memory,
+  MemoryArea,
+  MemoryOrigin,
+  MemorySource,
+  MemoryStatus,
+  MemoryType,
+  ReviewState,
+  RiskLevel,
+} from "../types.js";
+import {
+  normalizeMemory,
+  DEFAULT_INVOCATION_MODE,
+  DEFAULT_MEMORY_CONFIDENCE,
+  DEFAULT_MEMORY_HIT_COUNT,
+  DEFAULT_MEMORY_LAST_USED,
+  DEFAULT_MEMORY_SCORE,
+  DEFAULT_MEMORY_STALE,
+  DEFAULT_MEMORY_SUPERSEDES,
+  DEFAULT_MEMORY_SUPERSEDED_BY,
+  DEFAULT_MEMORY_VERSION,
+  DEFAULT_REVIEW_STATE,
+  DEFAULT_RISK_LEVEL,
+  isoDateOnlyFromKnownDate,
+  validateMemory,
+} from "./validate.js";
 
 export const ARRAY_FRONTMATTER_FIELDS = [
   "tags",
@@ -18,7 +43,9 @@ export const ARRAY_FRONTMATTER_FIELDS = [
 ] as const;
 
 export function quoteYaml(value: string): string {
-  return stringifyYaml({ value }, { defaultStringType: "QUOTE_DOUBLE", lineWidth: 0 }).trim().replace(/^value:\s*/, "");
+  return stringifyYaml({ value }, { defaultStringType: "QUOTE_DOUBLE", lineWidth: 0 })
+    .trim()
+    .replace(/^value:\s*/, "");
 }
 
 export function serializeMemory(memory: Memory): string {
@@ -83,7 +110,9 @@ export function parseMemory(content: string, filePath: string): Memory {
   const status = frontmatter.status;
   const origin = frontmatter.origin;
   if (!type || !importance || !frontmatter.title || !frontmatter.summary || !frontmatter.date) {
-    throw new Error(`Memory file "${filePath}" must include type, title, summary, importance, and date in frontmatter.`);
+    throw new Error(
+      `Memory file "${filePath}" must include type, title, summary, importance, and date in frontmatter.`,
+    );
   }
 
   const memoryInput: Memory = {
@@ -240,7 +269,11 @@ export function parseFrontmatter(raw: string): {
 }
 
 function stringifyFrontmatter(frontmatter: Record<string, unknown>): string {
-  return stringifyYaml(frontmatter, { defaultKeyType: "PLAIN", defaultStringType: "QUOTE_DOUBLE", lineWidth: 0 }).trimEnd();
+  return stringifyYaml(frontmatter, {
+    defaultKeyType: "PLAIN",
+    defaultStringType: "QUOTE_DOUBLE",
+    lineWidth: 0,
+  }).trimEnd();
 }
 
 export function extractFrontmatterAndBody(content: string): { rawFrontmatter: string; body: string } | null {
