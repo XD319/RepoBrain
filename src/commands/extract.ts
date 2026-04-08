@@ -106,7 +106,9 @@ export function register(program: Command): void {
             sessionSummary = trimmed || undefined;
           } catch (error: unknown) {
             const reason = error instanceof Error && error.message ? error.message : String(error);
-            throw new Error(`Failed to read --input-file "${inputFilePath}": ${reason}`);
+            throw new Error(`Failed to read --input-file "${inputFilePath}": ${reason}`, {
+              cause: error,
+            });
           }
         } else {
           sessionSummary = (await helpers.readOptionalStdin())?.trim() || undefined;

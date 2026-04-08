@@ -151,3 +151,30 @@ graph LR
 | **维稳** | `brain audit-memory`, `brain stats` | 定期检查、Schema 健康度清理、执行缓存状态扫描。 |
 
 > 对于包含 MCP, Claude Code 插件集成或者 Cursor 预设，请深度查阅代码库根源下的 `/docs` 以及 `/integrations`。
+---
+
+## 分层 Inject
+
+`brain inject` 现在支持可选的分层输出，用来做渐进式 retrieval；默认行为仍与过去保持兼容。
+
+```bash
+# 默认行为（与之前一致）
+brain inject
+
+# 适合 session start 的最小索引层
+brain inject --layer index --task "fix refund flow"
+
+# 现有的摘要型注入体验
+brain inject --layer summary --task "fix refund flow"
+
+# 输出完整 memory 内容（frontmatter + detail）
+brain inject --layer full --task "fix refund flow"
+```
+
+各层语义：
+
+- `index`：紧凑输出 `id`、`title`、`tags`、`score`、`totalScore`，以及存在 task-aware 原因时的 `why_now`。
+- `summary`：默认层，等价于当前的 inject Markdown 体验。
+- `full`：为每条已选 memory 输出完整序列化 Markdown，包含完整 frontmatter 和 detail。
+
+如果 `--layer` 取值非法，CLI 会返回清晰错误提示；如果某一层没有命中结果，也会保持当前 CLI 一致的空结果风格。

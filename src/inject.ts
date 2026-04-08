@@ -1,6 +1,6 @@
 import { execSync } from "node:child_process";
 
-import { getMemoryStatus, loadStoredMemoryRecords, recordInjectedMemories } from "./store.js";
+import { getMemoryStatus, loadStoredMemoryRecords, recordInjectedMemories, serializeMemory } from "./store.js";
 import { isMemoryCurrentlyValid } from "./temporal.js";
 import {
   buildInjectScoreReport,
@@ -10,7 +10,7 @@ import {
   normalizeSelectionOptions,
 } from "./inject-ranking.js";
 import type { DiversitySelectionDecision, MemorySelectionOptions, RankedMemoryCandidate } from "./inject-ranking.js";
-import type { BrainConfig, Memory, StoredMemoryRecord } from "./types.js";
+import type { BrainConfig, InjectLayer, Memory, StoredMemoryRecord } from "./types.js";
 import {
   loadSessionProfile,
   renderSessionProfileInjectSection,
@@ -27,6 +27,7 @@ export interface BuildInjectionOptions extends MemorySelectionOptions {
   explain?: boolean;
   includeWorking?: boolean;
   gitContext?: GitContext;
+  layer?: InjectLayer;
   /** When false, skip `.brain/runtime/session-profile.json`. Default: true. */
   includeSessionProfile?: boolean;
 }
@@ -69,6 +70,7 @@ export async function buildInjection(
   const candidateCount = allRecords.filter((entry) => getMemoryStatus(entry.memory) === "candidate").length;
   emitLineageWarnings(activeRecords);
   const options = normalizeSelectionOptions(rawOptions);
+  const layer = resolveInjectLayer(rawOptions.layer);
   const taskAware = hasSelectionContext(options);
   const gitContext = rawOptions.noContext
     ? { changedFiles: [], branchName: "" }
@@ -114,7 +116,7 @@ export async function buildInjection(
       : []),
     ...(sessionVisible && sessionProfile ? ["", renderSessionProfileInjectSection(sessionProfile), ""] : []),
     "## Injected Memories (Priority Order)",
-    renderGroup(selected, taskAware),
+    renderGroup(selected, taskAware, layer),
     "",
     "---",
     `Source: .brain/ (${allMemories.length} durable records, last updated: ${lastUpdated})`,
@@ -303,12 +305,20 @@ function renderSelectionSummary(
   return `Selection mode: ${modes.join(" + ")} (${parts.join(" | ")}). Memories are ranked by contextual score, then injection priority.`;
 }
 
-function renderGroup(memories: RankedMemory[], taskAware: boolean): string {
+function renderGroup(memories: RankedMemory[], taskAware: boolean, layer: InjectLayer): string {
   if (memories.length === 0) {
     return "_None._";
   }
 
-  return memories.map((memory) => renderRankedMemory(memory, taskAware)).join("\n");
+  switch (layer) {
+    case "index":
+      return memories.map((memory) => renderIndexMemory(memory, taskAware)).join("\n");
+    case "full":
+      return memories.map((memory, index) => renderFullMemory(memory, taskAware, index)).join("\n\n");
+    case "summary":
+    default:
+      return memories.map((memory) => renderRankedMemory(memory, taskAware)).join("\n");
+  }
 }
 
 function renderRankedMemory(entry: RankedMemory, taskAware: boolean): string {
@@ -324,6 +334,39 @@ function renderRankedMemory(entry: RankedMemory, taskAware: boolean): string {
     lines.push(`  Why now: ${formatCompactReasons(entry.report.reasons).join("; ")}`);
   }
 
+  return lines.join("\n");
+}
+
+function renderIndexMemory(entry: RankedMemory, taskAware: boolean): string {
+  const lines = [
+    `- id: ${entry.relativePath}`,
+    `  title: ${entry.memory.title}`,
+    `  tags: ${entry.memory.tags.length > 0 ? entry.memory.tags.join(", ") : "-"}`,
+    `  score: ${entry.memory.score} | totalScore: ${entry.report.totalScore}`,
+  ];
+
+  if (taskAware && entry.report.reasons.length > 0) {
+    lines.push(`  why_now: ${formatCompactReasons(entry.report.reasons, 3).join("; ")}`);
+  }
+
+  return lines.join("\n");
+}
+
+function renderFullMemory(entry: RankedMemory, taskAware: boolean, index: number): string {
+  const titlePrefix = entry.memory.version && entry.memory.version >= 2 ? `[Updated v${entry.memory.version}] ` : "";
+  const lines = [
+    `### ${index + 1}. ${titlePrefix}${entry.memory.title}`,
+    `- id: ${entry.relativePath}`,
+    `- type: ${entry.memory.type}`,
+    `- importance: ${entry.memory.importance}`,
+    `- score: ${entry.memory.score} | totalScore: ${entry.report.totalScore}`,
+  ];
+
+  if (taskAware && entry.report.reasons.length > 0) {
+    lines.push(`- why_now: ${formatCompactReasons(entry.report.reasons, 3).join("; ")}`);
+  }
+
+  lines.push("", "```md", serializeMemory(entry.memory), "```");
   return lines.join("\n");
 }
 
@@ -448,6 +491,18 @@ function shouldRenderExplain(explain: boolean | undefined): boolean {
   }
 
   return process.env.REPOBRAIN_DEBUG === "1" || process.env.DEBUG?.includes("repobrain:inject") === true;
+}
+
+function resolveInjectLayer(layer: InjectLayer | undefined): InjectLayer {
+  if (!layer) {
+    return "summary";
+  }
+
+  if (layer === "index" || layer === "summary" || layer === "full") {
+    return layer;
+  }
+
+  throw new Error(`Unsupported inject layer "${layer}". Expected one of: index, summary, full.`);
 }
 
 function hasGitContextComponent(entry: RankedMemory): boolean {

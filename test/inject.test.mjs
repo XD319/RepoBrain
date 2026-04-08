@@ -513,6 +513,99 @@ await runTest("inject always includes active goals even when the token budget is
   });
 });
 
+await runTest("inject renders the index layer with compact retrieval metadata", async () => {
+  await withTempRepo(async (projectRoot) => {
+    await saveMemory(
+      {
+        type: "decision",
+        title: "Refund transaction boundary",
+        summary: "Keep refund writes inside the transaction wrapper.",
+        detail: "## DECISION\n\nKeep refund writes inside the transaction wrapper before syncing the ledger.",
+        tags: ["payments", "refund"],
+        importance: "high",
+        date: "2026-04-01T09:00:00.000Z",
+        status: "active",
+        skill_trigger_tasks: ["fix refund flow"],
+      },
+      projectRoot,
+    );
+
+    const injection = await buildInjection(projectRoot, DEFAULT_BRAIN_CONFIG, {
+      layer: "index",
+      task: "fix refund flow before release",
+    });
+
+    assert.match(injection, /## Injected Memories \(Priority Order\)/);
+    assert.match(injection, /- id: decisions\/2026-04-01-refund-transaction-boundary-090000000\.md/);
+    assert.match(injection, /  title: Refund transaction boundary/);
+    assert.match(injection, /  tags: payments, refund/);
+    assert.match(injection, /  score: 60 \| totalScore: /);
+    assert.match(injection, /  why_now: Task Phrase Match: fix refund flow/);
+    assert.doesNotMatch(injection, /Scope:/);
+  });
+});
+
+await runTest("inject keeps summary as the default compatible rendering layer", async () => {
+  await withTempRepo(async (projectRoot) => {
+    await saveMemory(
+      {
+        type: "decision",
+        title: "Config branching must normalize env booleans first",
+        summary: "Normalize environment booleans before any config branching.",
+        detail: "## DECISION\n\nNormalize environment booleans before any config branching.",
+        tags: ["config"],
+        importance: "medium",
+        date: "2026-04-01T09:00:00.000Z",
+        status: "active",
+      },
+      projectRoot,
+    );
+
+    const defaultInjection = await buildInjection(projectRoot, DEFAULT_BRAIN_CONFIG);
+    const summaryInjection = await buildInjection(projectRoot, DEFAULT_BRAIN_CONFIG, { layer: "summary" });
+
+    assert.equal(summaryInjection, defaultInjection);
+    assert.match(summaryInjection, /- \[decision \| medium\] Config branching must normalize env booleans first/);
+    assert.match(summaryInjection, /  Scope: Normalize environment booleans before any config branching\./);
+  });
+});
+
+await runTest("inject renders the full layer with serialized memory markdown", async () => {
+  await withTempRepo(async (projectRoot) => {
+    await saveMemory(
+      {
+        type: "pattern",
+        title: "Full memory render",
+        summary: "Render the entire memory body for follow-up retrieval.",
+        detail: "## PATTERN\n\nRender the full body so a later agent can rehydrate it exactly.",
+        tags: ["retrieval"],
+        importance: "medium",
+        date: "2026-04-01T09:00:00.000Z",
+        status: "active",
+      },
+      projectRoot,
+    );
+
+    const injection = await buildInjection(projectRoot, DEFAULT_BRAIN_CONFIG, { layer: "full" });
+
+    assert.match(injection, /### 1\. Full memory render/);
+    assert.match(injection, /- id: patterns\/2026-04-01-full-memory-render-090000000\.md/);
+    assert.match(injection, /```md/);
+    assert.match(injection, /---\ntype: "pattern"/);
+    assert.match(injection, /title: "Full memory render"/);
+    assert.match(injection, /## PATTERN\n\nRender the full body so a later agent can rehydrate it exactly\./);
+  });
+});
+
+await runTest("inject rejects unsupported layer values with a clear error", async () => {
+  await withTempRepo(async (projectRoot) => {
+    await assert.rejects(
+      () => buildInjection(projectRoot, DEFAULT_BRAIN_CONFIG, { layer: "compact" }),
+      /Unsupported inject layer "compact"\. Expected one of: index, summary, full\./,
+    );
+  });
+});
+
 await runTest("inject prefers refactor memories that understand task phrases, modules, and scoped paths", async () => {
   await withTempRepo(async (projectRoot) => {
     await saveMemory(

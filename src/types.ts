@@ -36,6 +36,7 @@ export const MEMORY_AUDIT_ISSUE_TYPES = ["stale", "conflict", "low_signal", "ove
 export const MEMORY_SCHEMA_ISSUE_SEVERITIES = ["error", "warning"] as const;
 /** Human review / lifecycle flag for durable knowledge; does not replace `status`. */
 export const REVIEW_STATES = ["unset", "pending_review", "cleared"] as const;
+export const INJECT_LAYERS = ["index", "summary", "full"] as const;
 
 export type MemoryType = (typeof MEMORY_TYPES)[number];
 export type PreferenceKind = (typeof PREFERENCE_KINDS)[number];
@@ -59,6 +60,7 @@ export type MemoryReviewReason = (typeof MEMORY_REVIEW_REASONS)[number];
 export type MemoryAuditIssueType = (typeof MEMORY_AUDIT_ISSUE_TYPES)[number];
 export type MemorySchemaIssueSeverity = (typeof MEMORY_SCHEMA_ISSUE_SEVERITIES)[number];
 export type ReviewState = (typeof REVIEW_STATES)[number];
+export type InjectLayer = (typeof INJECT_LAYERS)[number];
 
 export interface Memory {
   type: MemoryType;

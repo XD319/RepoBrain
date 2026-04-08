@@ -151,3 +151,31 @@ graph LR
 | **Analyze** | `brain audit-memory`, `brain stats` | Lints and maintains schema & structural integrity over time. |
 
 > For extended integrations (MCP, Claude plugin, Cursor directives), please review `/docs` and the `/integrations` directories! Let your agents actually remember.
+
+---
+
+## Layered Inject
+
+`brain inject` now supports optional layered output for progressive retrieval, while keeping the default behavior fully compatible.
+
+```bash
+# Default behavior (same as before)
+brain inject
+
+# Minimal retrieval index for session start
+brain inject --layer index --task "fix refund flow"
+
+# Existing summary-oriented inject payload
+brain inject --layer summary --task "fix refund flow"
+
+# Full memory bodies (frontmatter + detail) for deeper follow-up retrieval
+brain inject --layer full --task "fix refund flow"
+```
+
+Layer semantics:
+
+- `index`: compact list with `id`, `title`, `tags`, `score`, `totalScore`, and `why_now` when task-aware reasons exist.
+- `summary`: default layer, equivalent to the existing inject markdown experience.
+- `full`: includes serialized memory markdown for each selected item, including complete frontmatter and detail.
+
+Invalid values return a clear CLI error. When no memories are selected, all layers keep the same CLI-friendly empty-state style.

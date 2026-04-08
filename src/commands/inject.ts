@@ -3,6 +3,7 @@ import { stdout as output } from "node:process";
 import { loadConfig, renderConfigWarnings } from "../config.js";
 import { buildInjection } from "../inject.js";
 import { initBrain } from "../store.js";
+import { INJECT_LAYERS, type InjectLayer } from "../types.js";
 import * as helpers from "./helpers.js";
 
 export function register(program: Command): void {
@@ -25,6 +26,12 @@ export function register(program: Command): void {
     .option("--no-context", "Skip Git-context scoring and use the legacy injection ordering.")
     .option("--explain", "Append per-memory Git-context scores as an HTML comment.")
     .option("--include-working", "Include active working memories in the injected output.")
+    .option(
+      "--layer <layer>",
+      `Inject output layer: ${INJECT_LAYERS.join(" | ")}. Default: summary.`,
+      parseInjectLayer,
+      "summary",
+    )
     .option("--no-session", "Skip `.brain/runtime/session-profile.json` overlay (durable memories only).")
     .action(
       async (options: {
@@ -34,6 +41,7 @@ export function register(program: Command): void {
         context?: boolean;
         explain?: boolean;
         includeWorking?: boolean;
+        layer: InjectLayer;
         noSession?: boolean;
       }) => {
         const projectRoot = await helpers.resolveProjectRoot();
@@ -50,6 +58,7 @@ export function register(program: Command): void {
           ...(options.context === false ? { noContext: true } : {}),
           ...(options.explain ? { explain: true } : {}),
           ...(options.includeWorking ? { includeWorking: true } : {}),
+          layer: options.layer,
           ...(options.noSession ? { includeSessionProfile: false } : {}),
         });
         output.write(`${injection}\n`);
@@ -57,4 +66,13 @@ export function register(program: Command): void {
     );
 
   program;
+}
+
+function parseInjectLayer(value: string): InjectLayer {
+  const normalized = value.trim().toLowerCase();
+  if (normalized === "index" || normalized === "summary" || normalized === "full") {
+    return normalized;
+  }
+
+  throw new Error(`Invalid value for "--layer": "${value}". Expected one of: ${INJECT_LAYERS.join(", ")}.`);
 }
