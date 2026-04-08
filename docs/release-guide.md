@@ -64,6 +64,25 @@ npm install -g ./repobrain-<version>.tgz
 brain --version
 ```
 
+## Trusted Publishing Setup
+
+Use npm Trusted Publishing for the GitHub Actions release job instead of a long-lived `NPM_TOKEN`.
+
+One-time npm setup:
+
+1. Open the `repobrain` package settings on npm
+2. Add `XD319/RepoBrain` as a trusted publisher
+3. Point it at the `Publish` workflow in this repository
+4. Reuse the tag trigger `v*` so tagged releases match the trusted publisher rule
+
+Repo expectations:
+
+- keep `permissions.id-token: write` in `.github/workflows/publish.yml`
+- publish with `npm publish --provenance`
+- do not depend on `NODE_AUTH_TOKEN` or a repository-level `NPM_TOKEN` secret for the default release path
+
+If trusted publishing is not available yet, fall back to a local `npm publish` from a 2FA-enabled maintainer account and treat it as a temporary manual release path.
+
 ## Proof Assets To Link In The Release
 
 - [`docs/demo-proof.md`](./demo-proof.md)

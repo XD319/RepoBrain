@@ -12,6 +12,7 @@ Use this checklist before the first public release and before any later packagin
 - [ ] `npm run eval:proof`
 - [ ] `npm pack --dry-run`
 - [ ] Verify every path in `package.json.files` exists and is intentionally published
+- [ ] Trusted publisher is configured for `XD319/RepoBrain` on npm, or a temporary manual publish owner is identified
 
 ## Documentation
 

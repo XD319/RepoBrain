@@ -11,12 +11,13 @@
 - [ ] `npm run demo:proof`
 - [ ] `npm run eval:proof`
 - [ ] `npm pack --dry-run`
-- [ ] 检查 `package.json.files` 中每个路径都真实存在，且确实应该被发布
+- [ ] 检查 `package.json.files` 里的每个路径都真实存在，且确实应该被发布
+- [ ] npm 上已为 `XD319/RepoBrain` 配好 trusted publisher，或者已经明确临时手动发布的维护者账号
 
 ## 文档
 
 - [ ] `README.md` 和 `README.zh-CN.md` 已同步更新
-- [ ] `docs/` 下被链接的文档在适用时同时提供英文和简体中文版
+- [ ] `docs/` 下被链接的文档在适用时同时提供英文和简体中文版本
 - [ ] README 中的 demo proof、evaluation、case study 链接都可正常打开
 - [ ] quickstart 示例与当前 CLI 行为一致
 - [ ] release notes / changelog 能清楚说明用户实际会如何使用这个工具
@@ -34,7 +35,7 @@
 
 测试 `brain extract` 时，请使用具体、repo-specific 的总结。过薄或泛化的记录，本来就应该被拒绝。
 
-首个公开 release 还应确认 `docs/demo-assets/` 下的 demo 资产包已成功生成。
+首个公开 release 还应确认 `docs/demo-assets/` 下的 demo 资产包已经成功生成。
 
 ## 跨平台覆盖
 
