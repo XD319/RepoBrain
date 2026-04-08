@@ -167,8 +167,9 @@ brain inject --layer index --task "fix refund flow"
 # 现有的摘要型注入体验
 brain inject --layer summary --task "fix refund flow"
 
-# 输出完整 memory 内容（frontmatter + detail）
-brain inject --layer full --task "fix refund flow"
+# 按 id 展开指定 memories
+brain inject --layer summary --ids "decisions/2026-04-01-refund-boundary-090000000.md"
+brain inject --layer full --ids "2026-04-01-refund-boundary-090000000"
 ```
 
 各层语义：
@@ -177,4 +178,11 @@ brain inject --layer full --task "fix refund flow"
 - `summary`：默认层，等价于当前的 inject Markdown 体验。
 - `full`：为每条已选 memory 输出完整序列化 Markdown，包含完整 frontmatter 和 detail。
 
-如果 `--layer` 取值非法，CLI 会返回清晰错误提示；如果某一层没有命中结果，也会保持当前 CLI 一致的空结果风格。
+`--ids` 支持重复传入，也支持逗号分隔。RepoBrain 直接复用现有 memory 文件标识，因此 id 可以是：
+
+- `.brain/` 相对路径，例如 `decisions/2026-04-01-refund-boundary-090000000.md`
+- 文件 stem，例如 `2026-04-01-refund-boundary-090000000`
+
+未提供 `--ids` 时，`index` 和 `summary` 仍走现有排序与预算选择逻辑；`full` 会要求显式提供 `--ids`，避免默认把完整 memory 正文一次性全部打出。
+
+如果 `--layer` 取值非法、id 不存在、id 重复，或 memory 当前不可用于 inject，CLI 都会返回清晰错误提示；如果某一层没有命中结果，也会保持当前 CLI 一致的空结果风格。

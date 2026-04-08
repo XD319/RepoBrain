@@ -168,8 +168,9 @@ brain inject --layer index --task "fix refund flow"
 # Existing summary-oriented inject payload
 brain inject --layer summary --task "fix refund flow"
 
-# Full memory bodies (frontmatter + detail) for deeper follow-up retrieval
-brain inject --layer full --task "fix refund flow"
+# Expand specific memories by id into summary/full
+brain inject --layer summary --ids "decisions/2026-04-01-refund-boundary-090000000.md"
+brain inject --layer full --ids "2026-04-01-refund-boundary-090000000"
 ```
 
 Layer semantics:
@@ -178,4 +179,11 @@ Layer semantics:
 - `summary`: default layer, equivalent to the existing inject markdown experience.
 - `full`: includes serialized memory markdown for each selected item, including complete frontmatter and detail.
 
-Invalid values return a clear CLI error. When no memories are selected, all layers keep the same CLI-friendly empty-state style.
+`--ids` accepts repeated values or a comma-separated list. RepoBrain reuses the existing memory file identifiers, so each id can be either:
+
+- the `.brain/` relative path, such as `decisions/2026-04-01-refund-boundary-090000000.md`
+- the file stem, such as `2026-04-01-refund-boundary-090000000`
+
+Without `--ids`, `index` and `summary` still use the normal ranking and token-budget selection flow. `full` is intentionally stricter and requires `--ids` so the CLI does not dump every selected memory body by accident.
+
+Invalid layer values, unknown ids, duplicate ids, or non-injectable memories return clear CLI errors. When no memories are selected, supported layers keep the same CLI-friendly empty-state style.

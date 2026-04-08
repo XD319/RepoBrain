@@ -28,6 +28,7 @@ export interface BuildInjectionOptions extends MemorySelectionOptions {
   includeWorking?: boolean;
   gitContext?: GitContext;
   layer?: InjectLayer;
+  ids?: string[];
   /** When false, skip `.brain/runtime/session-profile.json`. Default: true. */
   includeSessionProfile?: boolean;
 }
@@ -44,6 +45,10 @@ interface SelectionResult {
   selected: RankedMemory[];
   staleCount: number;
   eligibleCount: number;
+}
+
+interface ResolveRequestedIdsOptions {
+  includeWorking: boolean;
 }
 
 export async function buildInjection(
@@ -71,6 +76,7 @@ export async function buildInjection(
   emitLineageWarnings(activeRecords);
   const options = normalizeSelectionOptions(rawOptions);
   const layer = resolveInjectLayer(rawOptions.layer);
+  const requestedIds = normalizeRequestedIds(rawOptions.ids ?? []);
   const taskAware = hasSelectionContext(options);
   const gitContext = rawOptions.noContext
     ? { changedFiles: [], branchName: "" }
@@ -88,7 +94,16 @@ export async function buildInjection(
     },
     staleCount,
   );
-  const selected = selection.selected;
+  if (layer === "full" && requestedIds.length === 0) {
+    throw new Error('The "full" inject layer requires "--ids" so RepoBrain does not dump every selected memory body by default.');
+  }
+
+  const selected =
+    requestedIds.length > 0
+      ? resolveRequestedRankedMemories(allRecords, ranked, requestedIds, {
+          includeWorking: Boolean(rawOptions.includeWorking),
+        })
+      : selection.selected;
 
   await recordInjectedMemories(
     projectRoot,
@@ -503,6 +518,125 @@ function resolveInjectLayer(layer: InjectLayer | undefined): InjectLayer {
   }
 
   throw new Error(`Unsupported inject layer "${layer}". Expected one of: index, summary, full.`);
+}
+
+function normalizeRequestedIds(values: string[]): string[] {
+  const normalized: string[] = [];
+  const seen = new Set<string>();
+
+  for (const rawValue of values) {
+    const trimmed = rawValue.trim();
+    if (!trimmed) {
+      continue;
+    }
+
+    const key = trimmed.toLowerCase();
+    if (seen.has(key)) {
+      throw new Error(`Duplicate id "${trimmed}" in "--ids". Remove repeated values before retrying.`);
+    }
+
+    seen.add(key);
+    normalized.push(trimmed);
+  }
+
+  return normalized;
+}
+
+function resolveRequestedRankedMemories(
+  allRecords: StoredMemoryRecord[],
+  ranked: RankedMemory[],
+  requestedIds: string[],
+  options: ResolveRequestedIdsOptions,
+): RankedMemory[] {
+  const allByRelativePath = new Map(allRecords.map((entry) => [toBrainRelativePath(entry.relativePath), entry]));
+  const allByStem = new Map(allRecords.map((entry) => [memoryFileStem(entry), entry]));
+  const rankedByRelativePath = new Map(ranked.map((entry) => [entry.relativePath, entry]));
+  const resolved: RankedMemory[] = [];
+  const seenTargets = new Set<string>();
+
+  for (const requestedId of requestedIds) {
+    const record = resolveRequestedMemoryRecord(requestedId, allByRelativePath, allByStem);
+    const relativePath = toBrainRelativePath(record.relativePath);
+
+    if (seenTargets.has(relativePath)) {
+      throw new Error(`Duplicate id "${requestedId}" resolves to the same memory "${relativePath}".`);
+    }
+
+    const requestedRanked = rankedByRelativePath.get(relativePath);
+    if (!requestedRanked) {
+      throw new Error(buildNonInjectableMemoryMessage(record, options.includeWorking));
+    }
+
+    resolved.push(requestedRanked);
+    seenTargets.add(relativePath);
+  }
+
+  return resolved;
+}
+
+function resolveRequestedMemoryRecord(
+  requestedId: string,
+  byRelativePath: Map<string, StoredMemoryRecord>,
+  byStem: Map<string, StoredMemoryRecord>,
+): StoredMemoryRecord {
+  const direct = byRelativePath.get(requestedId);
+  if (direct) {
+    return direct;
+  }
+
+  const normalizedId = requestedId.replace(/\\/g, "/").replace(/^\.brain\//, "");
+  const normalizedDirect = byRelativePath.get(normalizedId);
+  if (normalizedDirect) {
+    return normalizedDirect;
+  }
+
+  const stem = byStem.get(requestedId);
+  if (stem) {
+    return stem;
+  }
+
+  throw new Error(
+    `Unknown memory id "${requestedId}". Use a memory relative path like "decisions/..." or a file stem like "2026-04-01-my-memory-090000000".`,
+  );
+}
+
+function buildNonInjectableMemoryMessage(record: StoredMemoryRecord, includeWorking: boolean): string {
+  const relativePath = toBrainRelativePath(record.relativePath);
+  const memory = record.memory;
+  const status = getMemoryStatus(memory);
+
+  if (memory.type === "working" && !includeWorking) {
+    return `Memory "${relativePath}" is not injectable by default because it is a working memory. Re-run with "--include-working" if you really want it.`;
+  }
+
+  if (status !== "active") {
+    return `Memory "${relativePath}" is not injectable because its status is "${status}".`;
+  }
+
+  if (memory.stale) {
+    return `Memory "${relativePath}" is not injectable because it is marked stale.`;
+  }
+
+  if (memory.superseded_by) {
+    return `Memory "${relativePath}" is not injectable because it has been superseded by "${memory.superseded_by}".`;
+  }
+
+  if (memory.review_state === "pending_review") {
+    return `Memory "${relativePath}" is not injectable because it is pending review.`;
+  }
+
+  const now = new Date();
+  if (!isMemoryCurrentlyValid(memory, now)) {
+    return `Memory "${relativePath}" is not injectable because it is outside its validity window.`;
+  }
+
+  return `Memory "${relativePath}" is not currently injectable.`;
+}
+
+function memoryFileStem(entry: StoredMemoryRecord): string {
+  const segments = toBrainRelativePath(entry.relativePath).split("/");
+  const fileName = segments.at(-1) ?? "";
+  return fileName.replace(/\.md$/i, "");
 }
 
 function hasGitContextComponent(entry: RankedMemory): boolean {

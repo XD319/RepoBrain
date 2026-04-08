@@ -570,7 +570,52 @@ await runTest("inject keeps summary as the default compatible rendering layer", 
   });
 });
 
-await runTest("inject renders the full layer with serialized memory markdown", async () => {
+await runTest("inject expands requested ids in summary layer", async () => {
+  await withTempRepo(async (projectRoot) => {
+    await saveMemory(
+      {
+        type: "pattern",
+        title: "First expanded memory",
+        summary: "This memory should be expanded by file stem.",
+        detail: "## PATTERN\n\nFirst expanded memory detail.",
+        tags: ["retrieval", "first"],
+        importance: "medium",
+        date: "2026-04-01T09:00:00.000Z",
+        status: "active",
+      },
+      projectRoot,
+    );
+
+    await saveMemory(
+      {
+        type: "decision",
+        title: "Second expanded memory",
+        summary: "This memory should be expanded by relative path.",
+        detail: "## DECISION\n\nSecond expanded memory detail.",
+        tags: ["retrieval", "second"],
+        importance: "high",
+        date: "2026-04-01T10:00:00.000Z",
+        status: "active",
+      },
+      projectRoot,
+    );
+
+    const injection = await buildInjection(projectRoot, DEFAULT_BRAIN_CONFIG, {
+      layer: "summary",
+      ids: ["2026-04-01-first-expanded-memory-090000000", "decisions/2026-04-01-second-expanded-memory-100000000.md"],
+    });
+
+    assert.match(injection, /First expanded memory/);
+    assert.match(injection, /Second expanded memory/);
+    assert.ok(
+      injection.indexOf("First expanded memory") < injection.indexOf("Second expanded memory"),
+      "expected requested ids to preserve caller order",
+    );
+    assert.doesNotMatch(injection, /Why now:/);
+  });
+});
+
+await runTest("inject expands requested ids in full layer with serialized memory markdown", async () => {
   await withTempRepo(async (projectRoot) => {
     await saveMemory(
       {
@@ -586,7 +631,10 @@ await runTest("inject renders the full layer with serialized memory markdown", a
       projectRoot,
     );
 
-    const injection = await buildInjection(projectRoot, DEFAULT_BRAIN_CONFIG, { layer: "full" });
+    const injection = await buildInjection(projectRoot, DEFAULT_BRAIN_CONFIG, {
+      layer: "full",
+      ids: ["patterns/2026-04-01-full-memory-render-090000000.md"],
+    });
 
     assert.match(injection, /### 1\. Full memory render/);
     assert.match(injection, /- id: patterns\/2026-04-01-full-memory-render-090000000\.md/);
@@ -597,11 +645,94 @@ await runTest("inject renders the full layer with serialized memory markdown", a
   });
 });
 
+await runTest("inject full layer requires explicit ids", async () => {
+  await withTempRepo(async (projectRoot) => {
+    await saveMemory(
+      {
+        type: "pattern",
+        title: "Full memory render",
+        summary: "Render the entire memory body for follow-up retrieval.",
+        detail: "## PATTERN\n\nRender the full body so a later agent can rehydrate it exactly.",
+        tags: ["retrieval"],
+        importance: "medium",
+        date: "2026-04-01T09:00:00.000Z",
+        status: "active",
+      },
+      projectRoot,
+    );
+
+    await assert.rejects(
+      () => buildInjection(projectRoot, DEFAULT_BRAIN_CONFIG, { layer: "full" }),
+      /The "full" inject layer requires "--ids" so RepoBrain does not dump every selected memory body by default\./,
+    );
+  });
+});
+
 await runTest("inject rejects unsupported layer values with a clear error", async () => {
   await withTempRepo(async (projectRoot) => {
     await assert.rejects(
       () => buildInjection(projectRoot, DEFAULT_BRAIN_CONFIG, { layer: "compact" }),
       /Unsupported inject layer "compact"\. Expected one of: index, summary, full\./,
+    );
+  });
+});
+
+await runTest("inject rejects unknown and duplicate ids with clear errors", async () => {
+  await withTempRepo(async (projectRoot) => {
+    await saveMemory(
+      {
+        type: "decision",
+        title: "Known memory",
+        summary: "A memory used for id validation.",
+        detail: "## DECISION\n\nKnown memory detail.",
+        tags: ["known"],
+        importance: "medium",
+        date: "2026-04-01T09:00:00.000Z",
+        status: "active",
+      },
+      projectRoot,
+    );
+
+    await assert.rejects(
+      () => buildInjection(projectRoot, DEFAULT_BRAIN_CONFIG, { layer: "summary", ids: ["missing-id"] }),
+      /Unknown memory id "missing-id"\./,
+    );
+
+    await assert.rejects(
+      () =>
+        buildInjection(projectRoot, DEFAULT_BRAIN_CONFIG, {
+          layer: "summary",
+          ids: ["2026-04-01-known-memory-090000000", "2026-04-01-known-memory-090000000"],
+        }),
+      /Duplicate id "2026-04-01-known-memory-090000000" in "--ids"\./,
+    );
+  });
+});
+
+await runTest("inject rejects ids for memories that are not currently injectable", async () => {
+  await withTempRepo(async (projectRoot) => {
+    await saveMemory(
+      {
+        type: "decision",
+        title: "Pending review memory",
+        summary: "This should not be injectable while pending review.",
+        detail: "## DECISION\n\nPending review detail.",
+        tags: ["review"],
+        importance: "medium",
+        date: "2026-04-01T09:00:00.000Z",
+        status: "active",
+        review_state: "pending_review",
+      },
+      projectRoot,
+    );
+
+    await assert.rejects(
+      () =>
+        buildInjection(projectRoot, DEFAULT_BRAIN_CONFIG, {
+          layer: "summary",
+          ids: ["2026-04-01-pending-review-memory-090000000"],
+        }),
+      /is not injectable because it is pending review\./,
     );
   });
 });
