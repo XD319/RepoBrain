@@ -6,11 +6,13 @@ import path from "node:path";
 
 import {
   initBrain,
+  loadMemoryIndexCache,
   loadAllMemories,
   loadConfig,
   loadStoredMemoryRecords,
   renderConfigWarnings,
   saveMemory,
+  updateIndex,
 } from "../dist/store-api.js";
 
 const repoRoot = process.cwd();
@@ -147,6 +149,45 @@ await runTest("new skill routing fields round-trip through save and load", async
     assert.equal(stored.invocation_mode, "prefer");
     assert.equal(stored.risk_level, "medium");
     assert.equal(stored.origin, "failure");
+  });
+});
+
+await runTest("updateIndex writes a derived memory-index cache without changing markdown source-of-truth", async () => {
+  await withTempRepo(async (projectRoot) => {
+    await saveMemory(
+      {
+        type: "decision",
+        title: "Cache metadata mirrors markdown memories",
+        summary: "The derived cache should be regenerated from markdown files.",
+        detail: "## DECISION\n\nThe markdown memory remains the source of truth.",
+        tags: ["cache", "index"],
+        importance: "medium",
+        date: "2026-04-08T09:00:00.000Z",
+        status: "active",
+        risk_level: "high",
+        path_scope: ["src/cache/**"],
+        files: ["src/cache/index.ts"],
+      },
+      projectRoot,
+    );
+
+    await updateIndex(projectRoot);
+
+    const cachePath = path.join(projectRoot, ".brain", "memory-index.json");
+    const raw = await readFile(cachePath, "utf8");
+    const parsed = JSON.parse(raw);
+
+    assert.equal(parsed.version, 1);
+    assert.equal(parsed.entry_count, 1);
+    assert.equal(parsed.entries[0]?.relativePath, "decisions/2026-04-08-cache-metadata-mirrors-markdown-memories-090000000.md");
+    assert.equal(parsed.entries[0]?.risk_level, "high");
+    assert.deepEqual(parsed.entries[0]?.path_scope, ["src/cache/**"]);
+    assert.deepEqual(parsed.entries[0]?.files, ["src/cache/index.ts"]);
+    assert.equal(typeof parsed.entries[0]?.token_size, "number");
+
+    const loaded = await loadMemoryIndexCache(projectRoot);
+    assert.equal(loaded.status, "ready");
+    assert.equal(loaded.cache?.entry_count, 1);
   });
 });
 

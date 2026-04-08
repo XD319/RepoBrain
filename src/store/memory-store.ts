@@ -7,6 +7,7 @@ import type { Memory, MemoryStatus, MemoryType, StoredMemoryRecord } from "../ty
 import { MEMORY_TYPES } from "../types.js";
 import { initBrain } from "./core.js";
 import { parseMemory, serializeMemory } from "./serialize.js";
+import { writeMemoryIndexCache } from "./memory-index.js";
 import {
   DEFAULT_MEMORY_VERSION,
   getMemoryStatus,
@@ -59,7 +60,8 @@ export async function loadStoredMemoryRecords(projectRoot: string): Promise<Stor
 }
 
 export async function updateIndex(projectRoot: string): Promise<void> {
-  const memories = await loadAllMemories(projectRoot);
+  const records = await loadStoredMemories(projectRoot);
+  const memories = records.map((entry) => entry.memory).sort((left, right) => right.date.localeCompare(left.date));
   const brainDir = getBrainDir(projectRoot);
   const indexPath = path.join(brainDir, "index.md");
   const byType = new Map<MemoryType, Memory[]>(
@@ -90,6 +92,13 @@ export async function updateIndex(projectRoot: string): Promise<void> {
     ...sections,
   ].join("\n");
   await writeFile(indexPath, content, "utf8");
+
+  try {
+    await writeMemoryIndexCache(projectRoot, records);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    process.stderr.write(`[brain] warning: failed to update derived memory index cache: ${message}\n`);
+  }
 }
 
 export async function overwriteStoredMemory(record: StoredMemoryRecord): Promise<void> {

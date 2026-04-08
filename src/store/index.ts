@@ -20,6 +20,12 @@ export {
 } from "./preference-store.js";
 export { loadActivityState, recordInjectedMemories } from "./activity.js";
 export {
+  loadMemoryIndexCache,
+  loadStoredMemoryRecordsByBrainRelativePaths,
+  MEMORY_INDEX_CACHE_VERSION,
+  writeMemoryIndexCache,
+} from "./memory-index.js";
+export {
   ARRAY_FRONTMATTER_FIELDS,
   extractFrontmatterAndBody,
   parseFrontmatter,

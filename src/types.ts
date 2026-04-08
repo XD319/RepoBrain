@@ -111,6 +111,36 @@ export interface Memory {
   review_state?: ReviewState;
 }
 
+export interface DerivedMemoryIndexEntry {
+  id: string;
+  relativePath: string;
+  title: string;
+  summary: string;
+  tags: string[];
+  risk_level: RiskLevel;
+  path_scope: string[];
+  files: string[];
+  token_size: number;
+  updated_at: string;
+  date: string;
+  type: MemoryType;
+  status: MemoryStatus;
+  stale: boolean;
+  review_state: ReviewState;
+  superseded_by: string | null;
+  valid_from: string | null;
+  valid_until: string | null;
+  expires: string | null;
+  source_mtime_ms: number;
+}
+
+export interface DerivedMemoryIndexCache {
+  version: number;
+  generated_at: string;
+  entry_count: number;
+  entries: DerivedMemoryIndexEntry[];
+}
+
 export interface Preference {
   kind: PreferenceKind;
   target_type: PreferenceTargetType;

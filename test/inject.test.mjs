@@ -1,10 +1,10 @@
 import { expect, it } from "vitest";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
 import { buildInjection } from "../dist/inject.js";
-import { initBrain, loadStoredMemoryRecords, saveMemory } from "../dist/store-api.js";
+import { initBrain, loadStoredMemoryRecords, saveMemory, updateIndex } from "../dist/store-api.js";
 
 const DEFAULT_BRAIN_CONFIG = {
   workflowMode: "recommended-semi-auto",
@@ -642,6 +642,66 @@ await runTest("inject expands requested ids in full layer with serialized memory
     assert.match(injection, /---\ntype: "pattern"/);
     assert.match(injection, /title: "Full memory render"/);
     assert.match(injection, /## PATTERN\n\nRender the full body so a later agent can rehydrate it exactly\./);
+  });
+});
+
+await runTest("inject with ids falls back to markdown scan when memory-index cache is missing", async () => {
+  await withTempRepo(async (projectRoot) => {
+    await saveMemory(
+      {
+        type: "pattern",
+        title: "Missing cache fallback",
+        summary: "Inject should still resolve ids from markdown when the cache is absent.",
+        detail: "## PATTERN\n\nFallback should read the markdown source of truth.",
+        tags: ["cache", "fallback"],
+        importance: "medium",
+        date: "2026-04-01T09:00:00.000Z",
+        status: "active",
+      },
+      projectRoot,
+    );
+
+    const injection = await buildInjection(projectRoot, DEFAULT_BRAIN_CONFIG, {
+      layer: "summary",
+      ids: ["2026-04-01-missing-cache-fallback-090000000"],
+    });
+
+    assert.match(injection, /Missing cache fallback/);
+    assert.match(injection, /\[RepoBrain\] injected 1\/1 eligible memories\./);
+  });
+});
+
+await runTest("inject with ids falls back to markdown scan when memory-index cache is corrupted", async () => {
+  await withTempRepo(async (projectRoot) => {
+    await saveMemory(
+      {
+        type: "pattern",
+        title: "Corrupt cache fallback",
+        summary: "Inject should ignore a broken cache file.",
+        detail: "## PATTERN\n\nBroken cache content should not block inject.",
+        tags: ["cache", "fallback"],
+        importance: "medium",
+        date: "2026-04-01T09:00:00.000Z",
+        status: "active",
+      },
+      projectRoot,
+    );
+
+    await updateIndex(projectRoot);
+    const cachePath = path.join(projectRoot, ".brain", "memory-index.json");
+    const original = await readFile(cachePath, "utf8");
+
+    await writeFile(cachePath, "{not valid json", "utf8");
+
+    const injection = await buildInjection(projectRoot, DEFAULT_BRAIN_CONFIG, {
+      layer: "full",
+      ids: ["patterns/2026-04-01-corrupt-cache-fallback-090000000.md"],
+    });
+
+    assert.match(injection, /Corrupt cache fallback/);
+    assert.match(injection, /```md/);
+
+    await writeFile(cachePath, original, "utf8");
   });
 });
 

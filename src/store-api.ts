@@ -2,9 +2,11 @@ export {
   approveCandidateMemory,
   getMemoryStatus,
   initBrain,
+  loadMemoryIndexCache,
   loadAllMemories,
   loadAllPreferences,
   loadStoredMemoryRecords,
+  loadStoredMemoryRecordsByBrainRelativePaths,
   loadStoredPreferenceRecords,
   normalizeMemory,
   normalizePreference,
@@ -18,6 +20,7 @@ export {
   supersedeMemoryPair,
   updateIndex,
   validatePreference,
+  writeMemoryIndexCache,
 } from "./store.js";
 export { buildMemoryEvolutionChain } from "./timeline-explain.js";
 export { isMemoryCurrentlyValid } from "./temporal.js";

@@ -207,3 +207,13 @@ These ids are derived from the same matched memories and routing signals already
 - higher-risk matches are favored for `suggested_full_ids`
 
 Markdown output stays compatible with the current structure and only adds a short `Expansion Plan` section near the end when hints are available.
+
+## Derived Memory Index Cache
+
+RepoBrain can now maintain a lightweight derived cache at `.brain/memory-index.json` to speed up progressive retrieval paths such as `brain inject --ids ...`.
+
+- Markdown memory files in `.brain/*.md` remain the only source of truth.
+- `memory-index.json` is derived metadata only: ids, titles, summaries, tags, risk hints, scoped path/file hints, token estimates, and source mtime for invalidation.
+- The cache is regenerated alongside `brain` flows that already refresh `.brain/index.md`, so state sync stays simple.
+- If the cache is missing, stale, version-mismatched, or corrupted, RepoBrain automatically falls back to recomputing from `.brain/*.md`.
+- Cache problems never block core CLI behavior; correctness wins over cache usage every time.

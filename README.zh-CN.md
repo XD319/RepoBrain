@@ -206,3 +206,13 @@ bundle 中可能包含：
 - 风险更高的 memory 更容易进入 `suggested_full_ids`
 
 Markdown 输出仍保持当前主结构兼容；只有在存在建议时，末尾会多一个简短的 `Expansion Plan` 小节。
+
+## 派生 Memory 索引缓存
+
+RepoBrain 现在会维护一个轻量的派生缓存 `.brain/memory-index.json`，用来加速 `brain inject --ids ...` 这类渐进式 retrieval 路径。
+
+- `.brain/*.md` 里的 Markdown memory 仍然是唯一的 source of truth。
+- `memory-index.json` 只保存派生元数据：id、title、summary、tags、risk 提示、path/file 派生信息、token 粗略估算，以及用于失效判断的源文件 mtime。
+- 缓存会随着已有会刷新 `.brain/index.md` 的流程一起重建，避免额外引入复杂的状态同步。
+- 如果缓存缺失、过期、版本不匹配或损坏，RepoBrain 会自动回退到直接从 `.brain/*.md` 现算。
+- 任何缓存问题都不会阻塞核心 CLI；正确性始终优先于缓存命中。

@@ -1,6 +1,13 @@
 import { execSync } from "node:child_process";
 
-import { getMemoryStatus, loadStoredMemoryRecords, recordInjectedMemories, serializeMemory } from "./store.js";
+import {
+  getMemoryStatus,
+  loadMemoryIndexCache,
+  loadStoredMemoryRecords,
+  loadStoredMemoryRecordsByBrainRelativePaths,
+  recordInjectedMemories,
+  serializeMemory,
+} from "./store.js";
 import { isMemoryCurrentlyValid } from "./temporal.js";
 import {
   buildInjectScoreReport,
@@ -10,7 +17,7 @@ import {
   normalizeSelectionOptions,
 } from "./inject-ranking.js";
 import type { DiversitySelectionDecision, MemorySelectionOptions, RankedMemoryCandidate } from "./inject-ranking.js";
-import type { BrainConfig, InjectLayer, Memory, StoredMemoryRecord } from "./types.js";
+import type { BrainConfig, DerivedMemoryIndexEntry, InjectLayer, Memory, StoredMemoryRecord } from "./types.js";
 import {
   loadSessionProfile,
   renderSessionProfileInjectSection,
@@ -51,36 +58,41 @@ interface ResolveRequestedIdsOptions {
   includeWorking: boolean;
 }
 
+interface InjectionDataSet {
+  allRecords: StoredMemoryRecord[];
+  allMemories: Memory[];
+  staleCount: number;
+  candidateCount: number;
+  lastUpdated: string;
+  selectedFromIds: RankedMemory[] | null;
+  eligibleCountOverride?: number;
+}
+
 export async function buildInjection(
   projectRoot: string,
   config: BrainConfig,
   rawOptions: BuildInjectionOptions = {},
 ): Promise<string> {
-  const allRecords = await loadStoredMemoryRecords(projectRoot);
-  const allMemories = allRecords.map((entry) => entry.memory);
-  const now = new Date();
-  const statusActivePool = allRecords.filter((entry) => {
-    if (getMemoryStatus(entry.memory) !== "active") {
-      return false;
-    }
-
-    if (rawOptions.includeWorking) {
-      return true;
-    }
-
-    return entry.memory.type !== "working";
-  });
-  const staleCount = statusActivePool.filter((entry) => entry.memory.stale).length;
-  const activeRecords = statusActivePool.filter((entry) => isMemoryCurrentlyValid(entry.memory, now));
-  const candidateCount = allRecords.filter((entry) => getMemoryStatus(entry.memory) === "candidate").length;
-  emitLineageWarnings(activeRecords);
   const options = normalizeSelectionOptions(rawOptions);
   const layer = resolveInjectLayer(rawOptions.layer);
   const requestedIds = normalizeRequestedIds(rawOptions.ids ?? []);
+
+  if (layer === "full" && requestedIds.length === 0) {
+    throw new Error('The "full" inject layer requires "--ids" so RepoBrain does not dump every selected memory body by default.');
+  }
+
   const taskAware = hasSelectionContext(options);
   const gitContext = rawOptions.noContext
     ? { changedFiles: [], branchName: "" }
     : (rawOptions.gitContext ?? getGitContext(projectRoot));
+  const injectionData = await loadInjectionData(projectRoot, options, gitContext, {
+    includeWorking: Boolean(rawOptions.includeWorking),
+    noContext: Boolean(rawOptions.noContext),
+    requestedIds,
+  });
+
+  const activeRecords = buildInjectablePool(injectionData.allRecords, Boolean(rawOptions.includeWorking));
+  emitLineageWarnings(activeRecords);
   const ranked = rankMemories(activeRecords, options, {
     gitContext,
     gitContextEnabled: !rawOptions.noContext && shouldUseGitContext(activeRecords, gitContext),
@@ -92,25 +104,17 @@ export async function buildInjection(
       injectDiversity: config.injectDiversity ?? true,
       injectExplainMaxItems: config.injectExplainMaxItems ?? 4,
     },
-    staleCount,
+    injectionData.staleCount,
   );
-  if (layer === "full" && requestedIds.length === 0) {
-    throw new Error('The "full" inject layer requires "--ids" so RepoBrain does not dump every selected memory body by default.');
-  }
 
-  const selected =
-    requestedIds.length > 0
-      ? resolveRequestedRankedMemories(allRecords, ranked, requestedIds, {
-          includeWorking: Boolean(rawOptions.includeWorking),
-        })
-      : selection.selected;
+  const selected = injectionData.selectedFromIds ?? selection.selected;
 
   await recordInjectedMemories(
     projectRoot,
     selected.map((entry) => entry.memory),
   );
 
-  const lastUpdated = allMemories[0]?.date ?? "N/A";
+  const lastUpdated = injectionData.lastUpdated;
 
   const sessionProfile = rawOptions.includeSessionProfile === false ? null : await loadSessionProfile(projectRoot);
   const sessionVisible = Boolean(sessionProfile && sessionProfileHasVisibleContent(sessionProfile));
@@ -134,25 +138,25 @@ export async function buildInjection(
     renderGroup(selected, taskAware, layer),
     "",
     "---",
-    `Source: .brain/ (${allMemories.length} durable records, last updated: ${lastUpdated})`,
+    `Source: .brain/ (${injectionData.allMemories.length} durable records, last updated: ${lastUpdated})`,
     ...(sessionVisible
       ? [
           "Session overlay: `.brain/runtime/session-profile.json` (ephemeral; local-only; not promoted to durable knowledge unless you run `brain session-promote`).",
         ]
       : []),
-    `[RepoBrain] injected ${selected.length}/${selection.eligibleCount} eligible memories.`,
-    ...(candidateCount > 0
+    `[RepoBrain] injected ${selected.length}/${injectionData.eligibleCountOverride ?? selection.eligibleCount} eligible memories.`,
+    ...(injectionData.candidateCount > 0
       ? [
-          `Pending review: ${candidateCount} candidate memor${candidateCount === 1 ? "y" : "ies"}. Run "brain review" to inspect them.`,
+          `Pending review: ${injectionData.candidateCount} candidate memor${injectionData.candidateCount === 1 ? "y" : "ies"}. Run "brain review" to inspect them.`,
         ]
       : []),
     "Requirements:",
     "- Understand these memories before choosing an implementation plan",
     "- If you need to conflict with a high-priority memory, explain why first",
     "- Do not suggest approaches that have already been ruled out",
-    ...(selection.staleCount > 0
+    ...(injectionData.staleCount > 0
       ? [
-          `Note: ${selection.staleCount} stale memor${selection.staleCount === 1 ? "y is" : "ies are"} currently excluded. Run "brain score" to review them.`,
+          `Note: ${injectionData.staleCount} stale memor${injectionData.staleCount === 1 ? "y is" : "ies are"} currently excluded. Run "brain score" to review them.`,
         ]
       : []),
     ...(shouldRenderExplain(rawOptions.explain)
@@ -161,7 +165,210 @@ export async function buildInjection(
   ].join("\n");
 }
 
+async function loadInjectionData(
+  projectRoot: string,
+  options: MemorySelectionOptions,
+  gitContext: GitContext,
+  request: {
+    includeWorking: boolean;
+    noContext: boolean;
+    requestedIds: string[];
+  },
+): Promise<InjectionDataSet> {
+  if (request.requestedIds.length === 0) {
+    return loadInjectionDataFromStore(projectRoot);
+  }
+
+  const cached = await loadInjectionDataFromCache(projectRoot, options, gitContext, request);
+  if (cached) {
+    return cached;
+  }
+
+  const fallback = await loadInjectionDataFromStore(projectRoot);
+  const injectablePool = buildInjectablePool(fallback.allRecords, request.includeWorking);
+  const selectedFromIds = resolveRequestedRankedMemories(
+    fallback.allRecords,
+    rankMemories(injectablePool, options, {
+      gitContext,
+      gitContextEnabled: !request.noContext && shouldUseGitContext(injectablePool, gitContext),
+    }),
+    request.requestedIds,
+    { includeWorking: request.includeWorking },
+  );
+
+  return {
+    ...fallback,
+    selectedFromIds,
+  };
+}
+
+async function loadInjectionDataFromStore(projectRoot: string): Promise<InjectionDataSet> {
+  const allRecords = await loadStoredMemoryRecords(projectRoot);
+  const allMemories = allRecords.map((entry) => entry.memory);
+  const statusActivePool = allRecords.filter((entry) => getMemoryStatus(entry.memory) === "active");
+
+  return {
+    allRecords,
+    allMemories,
+    staleCount: statusActivePool.filter((entry) => entry.memory.stale).length,
+    candidateCount: allRecords.filter((entry) => getMemoryStatus(entry.memory) === "candidate").length,
+    lastUpdated: allMemories[0]?.date ?? "N/A",
+    selectedFromIds: null,
+  };
+}
+
+async function loadInjectionDataFromCache(
+  projectRoot: string,
+  options: MemorySelectionOptions,
+  gitContext: GitContext,
+  request: {
+    includeWorking: boolean;
+    noContext: boolean;
+    requestedIds: string[];
+  },
+): Promise<InjectionDataSet | null> {
+  const cacheResult = await loadMemoryIndexCache(projectRoot);
+  if (!cacheResult.cache || cacheResult.status !== "ready") {
+    return null;
+  }
+
+  const cache = cacheResult.cache;
+  let selectedEntries: DerivedMemoryIndexEntry[];
+  try {
+    selectedEntries = resolveRequestedCacheEntries(cache.entries, request.requestedIds, {
+      includeWorking: request.includeWorking,
+    });
+  } catch (error) {
+    if (error instanceof Error && error.message.startsWith("Unknown memory id")) {
+      return null;
+    }
+
+    throw error;
+  }
+  const selectedRelativePaths = selectedEntries.map((entry) => entry.relativePath);
+  const selectedRecords = await loadStoredMemoryRecordsByBrainRelativePaths(projectRoot, selectedRelativePaths);
+  const selectedRecordsByRelativePath = new Map(
+    selectedRecords.map((entry) => [toBrainRelativePath(entry.relativePath), entry]),
+  );
+  const orderedSelectedRecords = selectedRelativePaths.map((relativePath) => {
+    const record = selectedRecordsByRelativePath.get(relativePath);
+    if (!record) {
+      throw new Error(`Cached memory "${relativePath}" could not be loaded from disk. Re-run "brain inject" to refresh the cache.`);
+    }
+
+    return record;
+  });
+  const selectedFromIds = scoreMemories(orderedSelectedRecords, options, {
+    gitContext,
+    gitContextEnabled: !request.noContext && shouldUseGitContext(orderedSelectedRecords, gitContext),
+  });
+
+  return {
+    allRecords: orderedSelectedRecords,
+    allMemories: cache.entries.map((entry) => toCachedMemorySummary(entry)),
+    staleCount: cache.entries.filter((entry) => entry.status === "active" && entry.stale).length,
+    candidateCount: cache.entries.filter((entry) => entry.status === "candidate").length,
+    lastUpdated: cache.entries[0]?.date ?? "N/A",
+    selectedFromIds,
+    eligibleCountOverride: cache.entries.filter((entry) => isCacheEntryInjectable(entry, request.includeWorking)).length,
+  };
+}
+
+function buildInjectablePool(allRecords: StoredMemoryRecord[], includeWorking: boolean): StoredMemoryRecord[] {
+  const now = new Date();
+  return allRecords.filter((entry) => {
+    if (getMemoryStatus(entry.memory) !== "active") {
+      return false;
+    }
+
+    if (!includeWorking && entry.memory.type === "working") {
+      return false;
+    }
+
+    return isMemoryCurrentlyValid(entry.memory, now);
+  });
+}
+
+function toCachedMemorySummary(entry: DerivedMemoryIndexEntry): Memory {
+  return {
+    type: entry.type,
+    title: entry.title,
+    summary: entry.summary,
+    detail: "",
+    tags: entry.tags,
+    importance: "medium",
+    date: entry.date,
+    score: 60,
+    hit_count: 0,
+    last_used: null,
+    created_at: entry.updated_at,
+    stale: entry.stale,
+    status: entry.status,
+    review_state: entry.review_state,
+    risk_level: entry.risk_level,
+    path_scope: entry.path_scope,
+    files: entry.files,
+    superseded_by: entry.superseded_by,
+    ...(entry.valid_from ? { valid_from: entry.valid_from } : {}),
+    ...(entry.valid_until ? { valid_until: entry.valid_until } : {}),
+    ...(entry.expires ? { expires: entry.expires } : {}),
+  };
+}
+
+function isCacheEntryInjectable(entry: DerivedMemoryIndexEntry, includeWorking: boolean): boolean {
+  if (entry.status !== "active") {
+    return false;
+  }
+
+  if (!includeWorking && entry.type === "working") {
+    return false;
+  }
+
+  if (entry.stale || entry.superseded_by || entry.review_state === "pending_review") {
+    return false;
+  }
+
+  return isDerivedEntryCurrentlyValid(entry, new Date());
+}
+
+function isDerivedEntryCurrentlyValid(entry: DerivedMemoryIndexEntry, now: Date): boolean {
+  const currentTime = now.getTime();
+  const start = parseDateLike(entry.valid_from);
+  const end = parseDateLike(entry.valid_until ?? entry.expires);
+
+  if (start !== null && currentTime < start) {
+    return false;
+  }
+
+  if (end !== null && currentTime > end) {
+    return false;
+  }
+
+  return true;
+}
+
+function parseDateLike(value: string | null | undefined): number | null {
+  if (!value) {
+    return null;
+  }
+
+  const isoValue = /^\d{4}-\d{2}-\d{2}$/.test(value) ? `${value}T23:59:59.999Z` : value;
+  const parsed = Date.parse(isoValue);
+  return Number.isNaN(parsed) ? null : parsed;
+}
+
 function rankMemories(
+  records: StoredMemoryRecord[],
+  options: MemorySelectionOptions,
+  context: {
+    gitContext: GitContext;
+    gitContextEnabled: boolean;
+  },
+): RankedMemory[] {
+  return scoreMemories(records, options, context).sort(compareRankedMemories);
+}
+
+function scoreMemories(
   records: StoredMemoryRecord[],
   options: MemorySelectionOptions,
   context: {
@@ -193,8 +400,7 @@ function rankMemories(
         report,
         tokenCost: approximateTokens(rendered),
       };
-    })
-    .sort(compareRankedMemories);
+    });
 }
 
 function compareRankedMemories(left: RankedMemory, right: RankedMemory): number {
@@ -574,11 +780,46 @@ function resolveRequestedRankedMemories(
   return resolved;
 }
 
+function resolveRequestedCacheEntries(
+  entries: DerivedMemoryIndexEntry[],
+  requestedIds: string[],
+  options: ResolveRequestedIdsOptions,
+): DerivedMemoryIndexEntry[] {
+  const byRelativePath = new Map(entries.map((entry) => [entry.relativePath, entry]));
+  const byStem = new Map(entries.map((entry) => [memoryFileStem(entry.relativePath), entry]));
+  const resolved: DerivedMemoryIndexEntry[] = [];
+  const seenTargets = new Set<string>();
+
+  for (const requestedId of requestedIds) {
+    const entry = resolveRequestedMemoryTarget(requestedId, byRelativePath, byStem);
+    if (seenTargets.has(entry.relativePath)) {
+      throw new Error(`Duplicate id "${requestedId}" resolves to the same memory "${entry.relativePath}".`);
+    }
+
+    if (!isCacheEntryInjectable(entry, options.includeWorking)) {
+      throw new Error(buildNonInjectableCacheEntryMessage(entry, options.includeWorking));
+    }
+
+    resolved.push(entry);
+    seenTargets.add(entry.relativePath);
+  }
+
+  return resolved;
+}
+
 function resolveRequestedMemoryRecord(
   requestedId: string,
   byRelativePath: Map<string, StoredMemoryRecord>,
   byStem: Map<string, StoredMemoryRecord>,
 ): StoredMemoryRecord {
+  return resolveRequestedMemoryTarget(requestedId, byRelativePath, byStem);
+}
+
+function resolveRequestedMemoryTarget<T>(
+  requestedId: string,
+  byRelativePath: Map<string, T>,
+  byStem: Map<string, T>,
+): T {
   const direct = byRelativePath.get(requestedId);
   if (direct) {
     return direct;
@@ -633,8 +874,39 @@ function buildNonInjectableMemoryMessage(record: StoredMemoryRecord, includeWork
   return `Memory "${relativePath}" is not currently injectable.`;
 }
 
-function memoryFileStem(entry: StoredMemoryRecord): string {
-  const segments = toBrainRelativePath(entry.relativePath).split("/");
+function buildNonInjectableCacheEntryMessage(entry: DerivedMemoryIndexEntry, includeWorking: boolean): string {
+  const relativePath = entry.relativePath;
+
+  if (entry.type === "working" && !includeWorking) {
+    return `Memory "${relativePath}" is not injectable by default because it is a working memory. Re-run with "--include-working" if you really want it.`;
+  }
+
+  if (entry.status !== "active") {
+    return `Memory "${relativePath}" is not injectable because its status is "${entry.status}".`;
+  }
+
+  if (entry.stale) {
+    return `Memory "${relativePath}" is not injectable because it is marked stale.`;
+  }
+
+  if (entry.superseded_by) {
+    return `Memory "${relativePath}" is not injectable because it has been superseded by "${entry.superseded_by}".`;
+  }
+
+  if (entry.review_state === "pending_review") {
+    return `Memory "${relativePath}" is not injectable because it is pending review.`;
+  }
+
+  if (!isDerivedEntryCurrentlyValid(entry, new Date())) {
+    return `Memory "${relativePath}" is not injectable because it is outside its validity window.`;
+  }
+
+  return `Memory "${relativePath}" is not currently injectable.`;
+}
+
+function memoryFileStem(value: StoredMemoryRecord | string): string {
+  const relativePath = typeof value === "string" ? value : toBrainRelativePath(value.relativePath);
+  const segments = relativePath.split("/");
   const fileName = segments.at(-1) ?? "";
   return fileName.replace(/\.md$/i, "");
 }
