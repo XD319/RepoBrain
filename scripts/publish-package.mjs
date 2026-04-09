@@ -17,7 +17,8 @@ export function resolvePublishPlan({
   }
 
   const hasNpmToken = npmToken.trim().length > 0;
-  const strategy = normalizedStrategy === "auto" ? (hasNpmToken ? "token" : "trusted") : normalizedStrategy;
+  const strategy =
+    normalizedStrategy === "auto" ? (isGitHubActions ? "trusted" : hasNpmToken ? "token" : "trusted") : normalizedStrategy;
 
   if (strategy === "token" && !hasNpmToken) {
     throw new Error("Publish strategy \"token\" requires the NPM_TOKEN environment variable.");
@@ -37,19 +38,27 @@ export function resolvePublishPlan({
     summary:
       strategy === "trusted"
         ? "Using npm trusted publishing with provenance."
-        : "Using the NPM_TOKEN fallback publish path.",
+      : "Using the NPM_TOKEN fallback publish path.",
   };
+}
+
+export function buildPublishEnv(plan, env = process.env) {
+  if (plan.strategy === "token") {
+    return {
+      ...env,
+      NODE_AUTH_TOKEN: env.NODE_AUTH_TOKEN ?? env.NPM_TOKEN,
+    };
+  }
+
+  const trustedEnv = { ...env };
+  delete trustedEnv.NODE_AUTH_TOKEN;
+  delete trustedEnv.NPM_TOKEN;
+  return trustedEnv;
 }
 
 export async function runPublish(plan, env = process.env) {
   const npmCommand = process.platform === "win32" ? "npm.cmd" : "npm";
-  const publishEnv =
-    plan.strategy === "token"
-      ? {
-          ...env,
-          NODE_AUTH_TOKEN: env.NODE_AUTH_TOKEN ?? env.NPM_TOKEN,
-        }
-      : env;
+  const publishEnv = buildPublishEnv(plan, env);
 
   await new Promise((resolve, reject) => {
     const child = spawn(npmCommand, plan.args, {

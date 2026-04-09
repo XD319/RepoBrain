@@ -6,7 +6,8 @@ Use this checklist before the first public release and before any later packagin
 
 - [ ] `npm run release:verify`
 - [ ] Verify every path in `package.json.files` exists and is intentionally published
-- [ ] npm trusted publisher is configured for `XD319/RepoBrain`, or `NPM_TOKEN` fallback is configured in repository secrets
+- [ ] npm trusted publisher is configured for `XD319/RepoBrain`
+- [ ] if CI must bypass trusted publishing temporarily, `REPOBRAIN_PUBLISH_STRATEGY=token` is set intentionally and the repository `NPM_TOKEN` secret is valid
 
 ## Documentation
 

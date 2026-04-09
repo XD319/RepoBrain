@@ -65,10 +65,11 @@ brain --version
 
 RepoBrain 现在会在 CI 中自动选择发布路径：
 
-- 没有 `NPM_TOKEN` secret 时，优先走 npm Trusted Publishing
-- 仓库里存在 `NPM_TOKEN` secret 时，自动回退到 token 发布路径
+- 在 GitHub Actions 中始终优先走 npm Trusted Publishing
+- `NPM_TOKEN` 默认只用于本地维护者发布
+- 只有在你显式设置 `REPOBRAIN_PUBLISH_STRATEGY=token` 时，CI 才会强制走 token fallback
 
-这样默认路径仍然是更现代的 trusted publishing，但当 npm 后台还没配置完成时，也不用再临时卡在手动发布。
+这样即使仓库里还保留着旧的 `NPM_TOKEN` secret，CI 默认也不会再误走 token 发布路径。
 
 npm 侧一次性配置：
 
@@ -81,13 +82,15 @@ npm 侧一次性配置：
 
 - `.github/workflows/publish.yml` 里保留 `permissions.id-token: write`
 - 发布命令统一走 `npm run release:publish`
-- 让脚本在 trusted publishing 场景下执行 `npm publish --provenance`，在 `NPM_TOKEN` fallback 场景下执行普通 `npm publish`
+- 让脚本在 GitHub Actions 里默认执行 `npm publish --provenance`
+- 只有在你有意测试 CI token fallback 时，才显式设置 `REPOBRAIN_PUBLISH_STRATEGY=token`
 
 可选的仓库级 fallback：
 
 1. 在 GitHub 仓库 secrets 中配置 `NPM_TOKEN`
 2. 使用对 `repobrain` 具备发布权限的 npm automation token 或等效 token
 3. 仍然推荐保留 trusted publishing；fallback 的目标是降低发布阻塞，而不是替代长期配置
+4. 如果 CI 必须临时走 token fallback，请显式设置 `REPOBRAIN_PUBLISH_STRATEGY=token`
 
 本地维护者路径：
 

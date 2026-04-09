@@ -6,7 +6,8 @@
 
 - [ ] `npm run release:verify`
 - [ ] 检查 `package.json.files` 里的每个路径都真实存在，且确实应该被发布
-- [ ] npm 上已为 `XD319/RepoBrain` 配好 trusted publisher，或者仓库 secrets 中已经配置 `NPM_TOKEN` fallback
+- [ ] npm 上已为 `XD319/RepoBrain` 配好 trusted publisher
+- [ ] 如果 CI 必须临时绕过 trusted publishing，已显式设置 `REPOBRAIN_PUBLISH_STRATEGY=token`，且仓库 `NPM_TOKEN` secret 有效
 
 ## 文档
 

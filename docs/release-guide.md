@@ -65,10 +65,11 @@ brain --version
 
 RepoBrain now auto-selects a publish path in CI:
 
-- prefer npm Trusted Publishing when no `NPM_TOKEN` secret is present
-- fall back to `NPM_TOKEN` automatically when the secret exists
+- always prefer npm Trusted Publishing inside GitHub Actions
+- use `NPM_TOKEN` automatically only for local maintainer publishing
+- force the token fallback in CI only when you explicitly set `REPOBRAIN_PUBLISH_STRATEGY=token`
 
-That keeps the default path modern, but removes the need to unblock a release manually when trusted publishing is not ready yet.
+That keeps the default CI path aligned with Trusted Publishing even if an old `NPM_TOKEN` repository secret still exists.
 
 One-time npm setup:
 
@@ -81,13 +82,15 @@ Repo expectations:
 
 - keep `permissions.id-token: write` in `.github/workflows/publish.yml`
 - publish through `npm run release:publish`
-- let the script choose `npm publish --provenance` for trusted publishing, or plain `npm publish` when `NPM_TOKEN` fallback is configured
+- let the script choose `npm publish --provenance` by default in GitHub Actions
+- only force plain `npm publish` in CI when you intentionally set `REPOBRAIN_PUBLISH_STRATEGY=token`
 
 Optional repository fallback:
 
 1. Add an `NPM_TOKEN` repository secret
 2. Use an npm automation token or another publish-capable token for the `repobrain` package
 3. Leave trusted publishing configured when possible; the fallback should reduce release friction, not replace long-term setup
+4. If the fallback must run in CI, set `REPOBRAIN_PUBLISH_STRATEGY=token` explicitly so the workflow does not silently bypass trusted publishing
 
 Local maintainer flow:
 

@@ -3,12 +3,12 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import path from "node:path";
 
-import { resolvePublishPlan } from "../scripts/publish-package.mjs";
+import { buildPublishEnv, resolvePublishPlan } from "../scripts/publish-package.mjs";
 
 const execFileAsync = promisify(execFile);
 const projectRoot = process.cwd();
 
-await runTest("publish script prefers token fallback when NPM_TOKEN exists", async () => {
+await runTest("publish script prefers token fallback locally when NPM_TOKEN exists", async () => {
   const plan = resolvePublishPlan({
     npmToken: "token-value",
     isGitHubActions: false,
@@ -26,6 +26,41 @@ await runTest("publish script falls back to trusted publishing in GitHub Actions
 
   assert.equal(plan.strategy, "trusted");
   assert.deepEqual(plan.args, ["publish", "--provenance"]);
+});
+
+await runTest("publish script prefers trusted publishing in GitHub Actions even when NPM_TOKEN exists", async () => {
+  const plan = resolvePublishPlan({
+    npmToken: "token-value",
+    isGitHubActions: true,
+  });
+
+  assert.equal(plan.strategy, "trusted");
+  assert.deepEqual(plan.args, ["publish", "--provenance"]);
+});
+
+await runTest("publish script strips token auth env when trusted publishing is selected", async () => {
+  const publishEnv = buildPublishEnv(
+    { strategy: "trusted" },
+    {
+      GITHUB_ACTIONS: "true",
+      NPM_TOKEN: "token-value",
+      NODE_AUTH_TOKEN: "node-token",
+    },
+  );
+
+  assert.equal("NPM_TOKEN" in publishEnv, false);
+  assert.equal("NODE_AUTH_TOKEN" in publishEnv, false);
+});
+
+await runTest("publish script maps NPM_TOKEN into NODE_AUTH_TOKEN for token fallback", async () => {
+  const publishEnv = buildPublishEnv(
+    { strategy: "token" },
+    {
+      NPM_TOKEN: "token-value",
+    },
+  );
+
+  assert.equal(publishEnv.NODE_AUTH_TOKEN, "token-value");
 });
 
 await runTest("publish script rejects trusted publishing outside GitHub Actions", async () => {
