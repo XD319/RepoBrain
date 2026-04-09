@@ -11,7 +11,10 @@ const cliPath = path.join(repoRoot, "dist", "cli.js");
 
 await runTest("conversation-start bootstraps with start on the first task-aware conversation", async () => {
   await withTempRepo(async (projectRoot) => {
-    const result = await runCliProcess(["conversation-start", "--task", "fix refund bug", "--format", "json"], projectRoot);
+    const result = await runCliProcess(
+      ["conversation-start", "--task", "fix refund bug", "--format", "json"],
+      projectRoot,
+    );
     assert.equal(result.code, 0, result.stderr);
 
     const parsed = JSON.parse(result.stdout);
@@ -25,10 +28,16 @@ await runTest("conversation-start bootstraps with start on the first task-aware 
 
 await runTest("conversation-start skips redundant refresh for the same task inside the reuse window", async () => {
   await withTempRepo(async (projectRoot) => {
-    const first = await runCliProcess(["conversation-start", "--task", "fix refund bug", "--format", "json"], projectRoot);
+    const first = await runCliProcess(
+      ["conversation-start", "--task", "fix refund bug", "--format", "json"],
+      projectRoot,
+    );
     assert.equal(first.code, 0, first.stderr);
 
-    const second = await runCliProcess(["conversation-start", "--task", "fix refund bug", "--format", "json"], projectRoot);
+    const second = await runCliProcess(
+      ["conversation-start", "--task", "fix refund bug", "--format", "json"],
+      projectRoot,
+    );
     assert.equal(second.code, 0, second.stderr);
 
     const parsed = JSON.parse(second.stdout);
@@ -38,27 +47,36 @@ await runTest("conversation-start skips redundant refresh for the same task insi
   });
 });
 
-await runTest("conversation-start refreshes compact context when the task changes later in the same session", async () => {
-  await withTempRepo(async (projectRoot) => {
-    const first = await runCliProcess(["conversation-start", "--task", "fix refund bug", "--format", "json"], projectRoot);
-    assert.equal(first.code, 0, first.stderr);
+await runTest(
+  "conversation-start refreshes compact context when the task changes later in the same session",
+  async () => {
+    await withTempRepo(async (projectRoot) => {
+      const first = await runCliProcess(
+        ["conversation-start", "--task", "fix refund bug", "--format", "json"],
+        projectRoot,
+      );
+      assert.equal(first.code, 0, first.stderr);
 
-    const second = await runCliProcess(
-      ["conversation-start", "--task", "audit payment webhook", "--format", "json"],
-      projectRoot,
-    );
-    assert.equal(second.code, 0, second.stderr);
+      const second = await runCliProcess(
+        ["conversation-start", "--task", "audit payment webhook", "--format", "json"],
+        projectRoot,
+      );
+      assert.equal(second.code, 0, second.stderr);
 
-    const parsed = JSON.parse(second.stdout);
-    assert.equal(parsed.action, "inject");
-    assert.equal(parsed.decision_trace.task_changed, true);
-    assert.ok(typeof parsed.context_markdown === "string" && parsed.context_markdown.length > 0);
-  });
-});
+      const parsed = JSON.parse(second.stdout);
+      assert.equal(parsed.action, "inject");
+      assert.equal(parsed.decision_trace.task_changed, true);
+      assert.ok(typeof parsed.context_markdown === "string" && parsed.context_markdown.length > 0);
+    });
+  },
+);
 
 await runTest("conversation-start refreshes compact context when the session profile changed", async () => {
   await withTempRepo(async (projectRoot) => {
-    const first = await runCliProcess(["conversation-start", "--task", "fix refund bug", "--format", "json"], projectRoot);
+    const first = await runCliProcess(
+      ["conversation-start", "--task", "fix refund bug", "--format", "json"],
+      projectRoot,
+    );
     assert.equal(first.code, 0, first.stderr);
 
     const runtimeDir = path.join(projectRoot, ".brain", "runtime");
@@ -77,7 +95,10 @@ await runTest("conversation-start refreshes compact context when the session pro
       "utf8",
     );
 
-    const second = await runCliProcess(["conversation-start", "--task", "fix refund bug", "--format", "json"], projectRoot);
+    const second = await runCliProcess(
+      ["conversation-start", "--task", "fix refund bug", "--format", "json"],
+      projectRoot,
+    );
     assert.equal(second.code, 0, second.stderr);
 
     const parsed = JSON.parse(second.stdout);

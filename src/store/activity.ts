@@ -143,7 +143,7 @@ function parseSelectionContext(value: unknown): BrainActivityState["lastSelectio
       ? candidate.includeSessionProfile
       : undefined;
 
-  if (!task && !(paths?.length) && !(modules?.length) && includeSessionProfile === undefined) {
+  if (!task && !paths?.length && !modules?.length && includeSessionProfile === undefined) {
     return undefined;
   }
 

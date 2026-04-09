@@ -1,11 +1,7 @@
 import { Command } from "commander";
 import { stdout as output } from "node:process";
 import { loadConfig, renderConfigWarnings } from "../config.js";
-import {
-  buildConversationStart,
-  renderConversationStart,
-  renderConversationStartJson,
-} from "../conversation-start.js";
+import { buildConversationStart, renderConversationStart, renderConversationStartJson } from "../conversation-start.js";
 import type { ConversationRefreshMode } from "../types.js";
 import * as helpers from "./helpers.js";
 

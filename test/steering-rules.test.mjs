@@ -35,17 +35,13 @@ const DETECTION_TRIGGER_PHRASES = [
   "4+",
 ];
 
-const PHASE_COMPLETION_PHRASES = [
-  "confidence booster",
-  "好的 / 谢谢 / ok / thanks / 嗯 / 收到",
-  "should_extract=true",
-];
+const PHASE_COMPLETION_PHRASES = ["confidence booster", "好的 / 谢谢 / ok / thanks / 嗯 / 收到", "should_extract=true"];
 
 const ANTI_REPETITION_PHRASE = "capture 建议";
 const CANDIDATE_FIRST_PHRASE = "candidate";
 
 const SAME_SESSION_REFRESH_PHRASES = [
-  "brain conversation-start --format json --task \"<当前任务描述>\" --path <已变更路径>",
+  'brain conversation-start --format json --task "<当前任务描述>" --path <已变更路径>',
   "`start`、`inject` 还是 `skip`",
 ];
 
@@ -180,7 +176,10 @@ await runTest("no generated rule references old subjective extract-proposal patt
     const paths = await writeSteeringRules(tmpDir, "all");
     for (const relativePath of paths) {
       const content = await readFile(path.join(tmpDir, relativePath), "utf8");
-      assert.ok(!content.includes("主动提议提取记忆"), `${relativePath} still contains old subjective extract-proposal pattern`);
+      assert.ok(
+        !content.includes("主动提议提取记忆"),
+        `${relativePath} still contains old subjective extract-proposal pattern`,
+      );
       assert.ok(!content.includes("提议示例"), `${relativePath} still contains old example-proposal pattern`);
     }
   } finally {

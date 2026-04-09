@@ -206,7 +206,9 @@ export function renderConversationStartJson(result: ConversationStartResult): st
         ...result,
         task_routing_bundle: {
           ...result.task_routing_bundle,
-          ...(result.task_routing_bundle ? { rendered_markdown: renderTaskRoutingBundle(result.task_routing_bundle) } : {}),
+          ...(result.task_routing_bundle
+            ? { rendered_markdown: renderTaskRoutingBundle(result.task_routing_bundle) }
+            : {}),
         },
       },
       null,
@@ -268,20 +270,18 @@ function decideConversationStart(input: {
     if (input.task?.trim()) {
       return {
         action: "start",
-        reason:
-          firstConversation
-            ? "No prior RepoBrain context load was found, so bootstrapping with the full session bundle."
-            : `The last RepoBrain context load is ${ageMinutes} minutes old, so this looks like a new session. Bootstrapping with the full session bundle.`,
+        reason: firstConversation
+          ? "No prior RepoBrain context load was found, so bootstrapping with the full session bundle."
+          : `The last RepoBrain context load is ${ageMinutes} minutes old, so this looks like a new session. Bootstrapping with the full session bundle.`,
         trace,
       };
     }
 
     return {
       action: "inject",
-      reason:
-        firstConversation
-          ? "No prior RepoBrain context load was found and no task was supplied, so loading compact repo context."
-          : `The last RepoBrain context load is ${ageMinutes} minutes old and no task was supplied, so loading compact repo context.`,
+      reason: firstConversation
+        ? "No prior RepoBrain context load was found and no task was supplied, so loading compact repo context."
+        : `The last RepoBrain context load is ${ageMinutes} minutes old and no task was supplied, so loading compact repo context.`,
       trace,
     };
   }
@@ -393,7 +393,10 @@ function hasArrayChange(current: string[], previous?: string[]): boolean {
     return true;
   }
 
-  return normalizedCurrent.length !== normalizedPrevious.length || normalizedCurrent.some((value, index) => value !== normalizedPrevious[index]);
+  return (
+    normalizedCurrent.length !== normalizedPrevious.length ||
+    normalizedCurrent.some((value, index) => value !== normalizedPrevious[index])
+  );
 }
 
 function normalizeValues(values: string[]): string[] {
