@@ -1,6 +1,6 @@
 {
   "name": "repobrain",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Git-friendly repo memory for coding agents.",
   "type": "module",
   "bin": {
