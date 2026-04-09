@@ -1,5 +1,18 @@
 {
-  "lastInjectedAt": "2026-04-08",
+  "lastInjectedAt": "2026-04-09",
+  "lastContextLoadedAt": "2026-04-09T09:27:28.007Z",
+  "lastContextSource": "inject",
+  "lastSelectionContext": {
+    "task": "tighten config parsing for npm release smoke validation",
+    "paths": [
+      "src/cli.ts",
+      "src/config.ts"
+    ],
+    "modules": [
+      "cli"
+    ],
+    "includeSessionProfile": true
+  },
   "recentLoadedMemories": [
     {
       "type": "decision",
@@ -11,7 +24,7 @@
       "type": "gotcha",
       "title": "Normalize CLI env booleans in src/config.ts before Commander validation",
       "importance": "medium",
-      "date": "2026-04-08T09:42:13.220Z"
+      "date": "2026-04-09T09:27:27.771Z"
     }
   ]
 }

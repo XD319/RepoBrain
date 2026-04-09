@@ -9,7 +9,7 @@ The generated demo covers the smallest believable loop in a TypeScript CLI-style
 1. initialize RepoBrain
 2. capture a first memory as a candidate
 3. review and approve it
-4. inject that memory into the next session
+4. use RepoBrain's smart conversation bootstrap in the next session
 5. derive a `suggest-skills` / `invocation_plan` result for a release task
 
 ## Run It
