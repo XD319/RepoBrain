@@ -37,10 +37,10 @@ brain inject
 如果同一个 session 里后续又开了一个新 conversation，优先执行：
 
 ```bash
-brain inject --task "<当前任务描述>" --path <已变更路径>
+brain conversation-start --format json --task "<当前任务描述>" --path <已变更路径>
 ```
 
-用轻量 inject 刷新 durable context；只有在还需要完整的 context + routing bundle 时，才重新执行 `brain start`。
+让 RepoBrain 根据 session 上下文决定是 `start`、`inject` 还是 `skip`；只有在明确只需要轻量 durable context 时，才直接执行 `brain inject`。
 
 ## 任务已知时
 

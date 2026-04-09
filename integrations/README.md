@@ -3,7 +3,7 @@
 RepoBrain adapters stay thin on purpose, but they now share a stronger contract with explicit detection triggers instead of soft prompts.
 
 - `.brain/` remains the only durable repo-memory store. No adapter may create a second store.
-- `brain start --format json` is the preferred entrypoint for the first conversation in a session; `brain inject` is the lightweight refresh path for a fresh conversation later in the same session and the fallback when `brain start` is unavailable.
+- `brain start --format json` is the preferred entrypoint for the first conversation in a session; `brain conversation-start --format json` is the preferred smart refresh entrypoint for a fresh conversation later in the same session; `brain inject` remains the explicit lightweight refresh path and the fallback when `brain start` is unavailable.
 - `brain suggest-skills --format json` remains the canonical task-known routing payload.
 - `brain capture` is the preferred phase-completion detection command. It runs local deterministic rules and defaults to candidate-first output.
 - `brain extract`, `brain reinforce`, and `brain routing-feedback` remain the only durable write paths for memories and routing policy artifacts.
@@ -14,7 +14,7 @@ RepoBrain adapters stay thin on purpose, but they now share a stronger contract 
 The adapter contract is lifecycle-based rather than agent-specific:
 
 1. **Session bootstrap**: consume `brain start --format json` in the first conversation of a session and read both `context_markdown` and `skill_plan`. Fall back to `brain inject` when `brain start` is unavailable.
-2. **Fresh conversation in the same session**: consume `brain inject --task "<task>" --path <path>` to refresh durable repo context without rerunning the full session bundle.
+2. **Fresh conversation in the same session**: consume `brain conversation-start --format json --task "<task>" --path <path>` so RepoBrain can decide whether to rerun the full bundle, refresh compact context, or skip a redundant reload.
 3. **Task known**: consume `brain suggest-skills --format json`, especially `invocation_plan`.
 4. **Phase completion**: run `brain capture --task "<task>" --path <path>` when a detection trigger fires. `should_extract=true` saves a candidate; `should_extract=false` means no action.
 5. **Session end**: emit an extract candidate in the shared markdown or JSON envelope if detection was not already run.
@@ -79,12 +79,12 @@ Claude Code, Codex, Cursor, and Copilot may already have their own task or actio
 - Adapter rule: prefer this in the first conversation of a session so context and routing stay in one auditable payload
 - Adapter example: `brain start --format json --task "debug flaky browser tests in CI"`
 
-### 2. Fresh Conversation In The Same Session: `inject`
+### 2. Fresh Conversation In The Same Session: `conversation-start`
 
-- Input command: `brain inject --task "<task>" --path <path>`
-- Canonical shape: markdown block
-- Contract example: [`contracts/session-start.inject.md`](./contracts/session-start.inject.md)
-- Adapter rule: use this when a fresh conversation starts later in the same session and you mainly need durable repo context again, not the full combined bundle
+- Input command: `brain conversation-start --format json --task "<task>" --path <path>`
+- Canonical shape: JSON object with `action`, `reason`, `decision_trace`, and either a full task-routing bundle, compact `context_markdown`, or a skip result
+- Adapter rule: use this when a fresh conversation starts later in the same session so RepoBrain can avoid redundant reloads while still refreshing when task scope, paths, modules, or session profile changed
+- Fallback contract: when the adapter explicitly wants only compact context, it can still consume [`contracts/session-start.inject.md`](./contracts/session-start.inject.md) via `brain inject`
 
 ### 3. Task Known: `suggest-skills` + `invocation_plan`
 
@@ -135,10 +135,10 @@ Adapters should follow the same fallback ladder:
 
 | Adapter | Session start | Task known | Phase completion | Failure handling |
 | --- | --- | --- | --- | --- |
-| Claude Code | Hook or operator starts the first conversation from `brain start --format json`; later fresh conversations can refresh via `brain inject` | Skill or hook reads `invocation_plan` JSON | `brain capture` at detection triggers; candidate-first | Hook emits reinforce event or calls `brain reinforce` |
-| Codex | Steering rule instructs the first conversation to run `brain start --format json`; later fresh conversations use `brain inject` | SKILL routes on `invocation_plan` JSON | `brain capture` at detection triggers; candidate-first | Agent calls `brain reinforce` on failure |
-| Cursor | `alwaysApply: true` rule instructs the first conversation to run `brain start --format json`; later fresh conversations can use `brain inject` | Rule file instructs agent to route on `invocation_plan` JSON | `brain capture` at detection triggers; candidate-first | Markdown fallback plus manual CLI |
-| Copilot | Custom instructions consume `brain start --format json` for session bootstrap and `brain inject` for later fresh conversations | Custom instructions point to `invocation_plan` JSON | `brain capture` at detection triggers; candidate-first; markdown fallback if shell unavailable | Shell or CI-driven reinforce |
+| Claude Code | Hook or operator starts the first conversation from `brain start --format json`; later fresh conversations can defer to `brain conversation-start --format json` | Skill or hook reads `invocation_plan` JSON | `brain capture` at detection triggers; candidate-first | Hook emits reinforce event or calls `brain reinforce` |
+| Codex | Steering rule instructs the first conversation to run `brain start --format json`; later fresh conversations use `brain conversation-start --format json` | SKILL routes on `invocation_plan` JSON | `brain capture` at detection triggers; candidate-first | Agent calls `brain reinforce` on failure |
+| Cursor | `alwaysApply: true` rule instructs the first conversation to run `brain start --format json`; later fresh conversations can use `brain conversation-start --format json` | Rule file instructs agent to route on `invocation_plan` JSON | `brain capture` at detection triggers; candidate-first | Markdown fallback plus manual CLI |
+| Copilot | Custom instructions consume `brain start --format json` for session bootstrap and `brain conversation-start --format json` for later fresh conversations | Custom instructions point to `invocation_plan` JSON | `brain capture` at detection triggers; candidate-first; markdown fallback if shell unavailable | Shell or CI-driven reinforce |
 
 ## Included Adapters
 

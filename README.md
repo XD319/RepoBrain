@@ -20,7 +20,7 @@ RepoBrain is local, Git-friendly memory infrastructure for coding agents such as
 
 - Keep durable repo knowledge in `.brain/` as plain Markdown plus frontmatter.
 - Review memory changes with normal Git workflows instead of hiding them in a hosted black box.
-- Re-inject the right context with `brain inject`, `brain suggest-skills`, and `brain route`.
+- Re-inject the right context with `brain conversation-start`, `brain inject`, `brain suggest-skills`, and `brain route`.
 
 ## Quick Start
 
@@ -67,14 +67,14 @@ brain approve --safe
 # Start a new session with context plus routing
 brain start --format json --task "continue request validation cleanup"
 
-# If a fresh conversation opens later in the same session, refresh durable context
-brain inject --task "continue request validation cleanup"
+# If a fresh conversation opens later in the same session, let RepoBrain decide
+brain conversation-start --format json --task "continue request validation cleanup"
 
 # Build context plus routing hints for a task-aware agent session
 brain route --task "refactor request validation" --format json
 ```
 
-Default loop summary: bootstrap a new session with `brain start`, refresh later fresh conversations in that same session with `brain inject`, auto-detect during regular work, queue candidates for review, then use `brain approve --safe` for the obvious wins and `brain approve <id>` for edge cases.
+Default loop summary: bootstrap a new session with `brain start`, let later fresh conversations in that same session use `brain conversation-start` for a smart `start` / `inject` / `skip` decision, auto-detect during regular work, queue candidates for review, then use `brain approve --safe` for the obvious wins and `brain approve <id>` for edge cases.
 
 Optional interactive UI:
 
@@ -128,7 +128,7 @@ RepoBrain keeps memory local to the repository:
 | Initialize a repo | `brain setup`, `brain init` | Create `.brain/`, apply a workflow preset, and optionally write steering rules |
 | Capture knowledge | `brain extract`, `brain extract-commit`, `brain capture` | Turn stdin, commit context, or session summaries into durable memory |
 | Review candidates | `brain review`, `brain approve`, `brain dismiss`, `brain promote-candidates` | Keep candidate-first workflows reviewable |
-| Start a task | `brain inject`, `brain suggest-skills`, `brain route`, `brain start` | Produce context blocks and deterministic routing plans |
+| Start a task | `brain inject`, `brain conversation-start`, `brain suggest-skills`, `brain route`, `brain start` | Produce context blocks and deterministic routing plans |
 | Inspect memory | `brain list`, `brain search`, `brain timeline`, `brain explain-memory`, `brain explain-preference` | Explore what the repo already knows |
 | Keep things healthy | `brain status`, `brain next`, `brain audit-memory`, `brain lint-memory`, `brain normalize-memory`, `brain score`, `brain sweep` | Maintain memory quality over time |
 | Team and adapters | `brain share`, `brain mcp`, `brain reinforce`, `brain routing-feedback` | Share memory, integrate adapters, and close the feedback loop |
@@ -137,7 +137,7 @@ The complete command reference lives in [docs/cli-reference.md](./docs/cli-refer
 
 ## Progressive Retrieval
 
-RepoBrain keeps the default `brain inject` behavior compatible as the lightweight follow-up path for later fresh conversations in the same session, while adding optional layered retrieval for larger or more safety-sensitive repos.
+RepoBrain keeps the default `brain inject` behavior compatible as the lightweight follow-up path when you explicitly want compact context, while `brain conversation-start` can decide whether a later fresh conversation in the same session should `inject`, rerun the full bundle, or skip a redundant refresh.
 
 ```bash
 brain inject --layer index --task "fix refund flow"

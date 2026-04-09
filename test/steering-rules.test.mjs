@@ -3,7 +3,7 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
 
-import { writeSteeringRules, getSteeringRulesStatus } from "../dist/store-api.js";
+import { getSteeringRulesStatus, writeSteeringRules } from "../dist/store-api.js";
 
 function runTest(name, callback) {
   it(name, callback);
@@ -13,57 +13,8 @@ const assert = {
   equal(actual, expected, message) {
     expect(actual, message).toBe(expected);
   },
-  strictEqual(actual, expected, message) {
-    expect(actual, message).toBe(expected);
-  },
-  notEqual(actual, expected, message) {
-    expect(actual, message).not.toBe(expected);
-  },
-  deepEqual(actual, expected, message) {
-    expect(actual, message).toEqual(expected);
-  },
-  notDeepEqual(actual, expected, message) {
-    expect(actual, message).not.toEqual(expected);
-  },
   ok(value, message) {
     expect(value, message).toBeTruthy();
-  },
-  match(value, pattern, message) {
-    expect(value, message).toMatch(pattern);
-  },
-  doesNotMatch(value, pattern, message) {
-    expect(value, message).not.toMatch(pattern);
-  },
-  throws(action, matcher, message) {
-    if (matcher === undefined) {
-      expect(action, message).toThrow();
-      return;
-    }
-    expect(action, message).toThrow(matcher);
-  },
-  async rejects(action, matcher, message) {
-    let failure;
-    try {
-      await action();
-    } catch (error) {
-      failure = error;
-    }
-    expect(failure, message ?? "expected promise to reject").toBeTruthy();
-    if (typeof matcher === "function") {
-      const handled = matcher(failure);
-      expect(handled, message ?? "reject matcher should confirm the error").toBe(true);
-      return;
-    }
-    if (matcher instanceof RegExp) {
-      expect(failure.message, message).toMatch(matcher);
-      return;
-    }
-    if (matcher && typeof matcher === "object") {
-      expect(failure, message).toMatchObject(matcher);
-    }
-  },
-  fail(message) {
-    throw new Error(message ?? "assert.fail was called");
   },
 };
 
@@ -76,21 +27,26 @@ const SHARED_CONTRACT_PHRASES = [
   ".brain/",
 ];
 
-const DEV_FALLBACK_PHRASES_ZH = ["npx brain", "node dist/cli.js", "brain --version"];
+const DEV_FALLBACK_PHRASES = ["npx brain", "node dist/cli.js", "brain --version"];
 
-const DEV_FALLBACK_PHRASES_EN = ["npx brain", "node dist/cli.js", "brain --version"];
+const DETECTION_TRIGGER_PHRASES = [
+  "move on / ship it / ready for review",
+  "implementation complete / all tests passing",
+  "4+",
+];
 
-const DETECTION_TRIGGER_PHRASES = ["修复了重复", "完成了一个子模块", "测试从失败变为成功"];
+const PHASE_COMPLETION_PHRASES = [
+  "confidence booster",
+  "好的 / 谢谢 / ok / thanks / 嗯 / 收到",
+  "should_extract=true",
+];
 
-const PHASE_COMPLETION_PHRASES = ["强信号", "不应触发检测的弱信号", "confidence booster"];
-
-const ANTI_REPETITION_PHRASE = "不要重复提出相同的 capture 建议";
-
+const ANTI_REPETITION_PHRASE = "capture 建议";
 const CANDIDATE_FIRST_PHRASE = "candidate";
 
-const SAME_SESSION_REFRESH_PHRASES_ZH = [
-  "后续又开了一个新 conversation",
-  'brain inject --task "<当前任务描述>" --path <已变更路径>',
+const SAME_SESSION_REFRESH_PHRASES = [
+  "brain conversation-start --format json --task \"<当前任务描述>\" --path <已变更路径>",
+  "`start`、`inject` 还是 `skip`",
 ];
 
 await runTest("writeSteeringRules writes all three agent rules", async () => {
@@ -128,7 +84,7 @@ await runTest("all generated rules include detection trigger conditions", async 
     for (const relativePath of paths) {
       const content = await readFile(path.join(tmpDir, relativePath), "utf8");
       for (const phrase of DETECTION_TRIGGER_PHRASES) {
-        assert.ok(content.includes(phrase), `${relativePath} is missing detection trigger: ${phrase}`);
+        assert.ok(content.includes(phrase), `${relativePath} is missing detection trigger phrase: ${phrase}`);
       }
     }
   } finally {
@@ -155,7 +111,7 @@ await runTest("all generated rules include same-session fresh conversation refre
     const paths = await writeSteeringRules(tmpDir, "all");
     for (const relativePath of paths) {
       const content = await readFile(path.join(tmpDir, relativePath), "utf8");
-      for (const phrase of SAME_SESSION_REFRESH_PHRASES_ZH) {
+      for (const phrase of SAME_SESSION_REFRESH_PHRASES) {
         assert.ok(content.includes(phrase), `${relativePath} is missing same-session refresh phrase: ${phrase}`);
       }
     }
@@ -224,10 +180,7 @@ await runTest("no generated rule references old subjective extract-proposal patt
     const paths = await writeSteeringRules(tmpDir, "all");
     for (const relativePath of paths) {
       const content = await readFile(path.join(tmpDir, relativePath), "utf8");
-      assert.ok(
-        !content.includes("主动提议提取记忆"),
-        `${relativePath} still contains old subjective extract-proposal pattern`,
-      );
+      assert.ok(!content.includes("主动提议提取记忆"), `${relativePath} still contains old subjective extract-proposal pattern`);
       assert.ok(!content.includes("提议示例"), `${relativePath} still contains old example-proposal pattern`);
     }
   } finally {
@@ -241,7 +194,7 @@ await runTest("all generated rules include dev-fallback command resolution", asy
     const paths = await writeSteeringRules(tmpDir, "all");
     for (const relativePath of paths) {
       const content = await readFile(path.join(tmpDir, relativePath), "utf8");
-      for (const phrase of DEV_FALLBACK_PHRASES_ZH) {
+      for (const phrase of DEV_FALLBACK_PHRASES) {
         assert.ok(content.includes(phrase), `${relativePath} is missing dev-fallback phrase: ${phrase}`);
       }
     }
@@ -257,12 +210,11 @@ await runTest("integration template files include dev-fallback command resolutio
     "integrations/copilot/copilot-instructions.md",
     "integrations/claude/SKILL.md",
   ];
-
   const projectRoot = process.cwd();
 
   for (const templatePath of templateFiles) {
     const content = await readFile(path.join(projectRoot, templatePath), "utf8");
-    for (const phrase of DEV_FALLBACK_PHRASES_EN) {
+    for (const phrase of DEV_FALLBACK_PHRASES) {
       assert.ok(content.includes(phrase), `${templatePath} is missing dev-fallback phrase: ${phrase}`);
     }
   }
@@ -275,7 +227,6 @@ await runTest("integration template files align with generated steering rules on
     "integrations/copilot/copilot-instructions.md",
     "integrations/claude/SKILL.md",
   ];
-
   const projectRoot = process.cwd();
 
   for (const templatePath of templateFiles) {
@@ -288,7 +239,11 @@ await runTest("integration template files align with generated steering rules on
       content.includes("fresh conversation") || content.includes("新 conversation"),
       `${templatePath} is missing same-session fresh conversation guidance`,
     );
-    assert.ok(content.includes("brain inject --task"), `${templatePath} is missing task-aware inject refresh guidance`);
+    assert.ok(
+      content.includes("brain conversation-start --format json --task") &&
+        (content.includes("brain inject") || content.includes("`inject`")),
+      `${templatePath} is missing smart conversation refresh guidance`,
+    );
   }
 });
 

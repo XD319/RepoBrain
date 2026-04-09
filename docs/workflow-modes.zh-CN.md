@@ -27,7 +27,7 @@
 `recommended-semi-auto` 适合大多数仓库：
 
 1. session 的首个 conversation：`brain start`（或回退到 `brain inject`）
-2. 同一 session 里后续新 conversation：`brain inject`
+2. 同一 session 里后续新 conversation：`brain conversation-start`
 3. session end：进入 candidate 队列
 4. `brain review`
 5. `brain approve --safe`

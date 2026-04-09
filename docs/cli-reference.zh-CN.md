@@ -26,7 +26,8 @@ echo "gotcha: retry loop exits too early" | brain capture --task "fix refund bug
 
 ## 上下文与路由
 
-- `brain inject`：生成轻量 repo context，特别适合同一 session 里后续新 conversation 的上下文刷新
+- `brain inject`：当你明确只需要轻量 durable context 时，生成 compact repo context
+- `brain conversation-start`：为同一 session 里后续新 conversation 判断是否应该 `start` / `inject` / `skip`
 - `brain suggest-skills`：生成确定性技能路由计划
 - `brain route` / `brain start`：用于 session 启动的一次性 context + routing bundle
 
@@ -34,6 +35,7 @@ echo "gotcha: retry loop exits too early" | brain capture --task "fix refund bug
 
 ```bash
 brain inject --task "refactor config loading" --path src/config.ts --path src/cli.ts --module cli
+brain conversation-start --format json --task "refactor config loading" --path src/config.ts
 brain suggest-skills --task "debug flaky browser tests" --path tests/e2e/login.spec.ts
 brain start --format json --task "fix refund bug"
 ```

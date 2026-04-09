@@ -25,16 +25,17 @@ Contract:
 - Use `skill_plan` as RepoBrain's routing policy input, not as a replacement for Codex-native workflow choices.
 - Treat the payload as Core-owned context and routing, not a Codex-owned schema.
 
-If a fresh conversation opens later in the same session and you mainly need durable repo context again, Codex should run and consume:
+If a fresh conversation opens later in the same session, Codex should run and consume:
 
-`brain inject --task "<current task>" --path <changed-path>`
+`brain conversation-start --format json --task "<current task>" --path <changed-path>`
 
 Contract:
 
-- Prefer this for later fresh conversations in the same session when rerunning the full bundle would be unnecessary.
-- Input shape is markdown.
-- Use it to load durable repo context before planning or editing.
-- Treat the payload as Core-owned context, not a Codex-owned schema.
+- Prefer this for later fresh conversations in the same session so RepoBrain can decide whether to rerun the full bundle, load compact context, or skip a redundant refresh.
+- Input shape is JSON with `action`, `reason`, and either `context_markdown` or a full routing bundle.
+- When `action` is `inject`, use `context_markdown` to load durable repo context before planning or editing.
+- When `action` is `start`, consume the returned bundle exactly like `brain start`.
+- When `action` is `skip`, continue with the current conversation state unless you explicitly need `brain inject`.
 
 Reference example:
 

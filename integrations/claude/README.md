@@ -9,8 +9,8 @@ session start hook
   -> brain start --format json
   -> Claude reads context_markdown and skill_plan
 fresh conversation later in same session
-  -> brain inject --task "<task>" --path <path>
-  -> Claude refreshes durable repo context
+  -> brain conversation-start --format json --task "<task>" --path <path>
+  -> Claude follows RepoBrain's start / inject / skip decision
 task becomes clear
   -> brain suggest-skills --format json (optional direct routing payload)
   -> Claude routes on invocation_plan when needed
@@ -26,7 +26,7 @@ failure detected
 
 1. Copy [`SKILL.md`](./SKILL.md) into your Claude skill location.
 2. Prefer `brain start --format json --task "<task>"` in the first conversation of a session before non-trivial work.
-3. If you open a fresh conversation later in the same session, refresh durable context with `brain inject --task "<task>" --path <path>`.
+3. If you open a fresh conversation later in the same session, run `brain conversation-start --format json --task "<task>" --path <path>` and follow the returned `action`.
 4. Use `brain suggest-skills --task "<task>"` when you want to inspect the raw routing payload manually.
 5. At phase boundaries, run `brain capture --task "<task>" --path <path>` to let local rules decide whether extraction is worthwhile.
 6. Pipe a failure summary to `brain reinforce` when a known memory is violated.
@@ -35,7 +35,7 @@ failure detected
 
 1. Keep the skill file as the human-readable contract adapter.
 2. Use the existing RepoBrain session-start hook to fetch `brain start --format json` for the first conversation automatically.
-3. If a fresh conversation opens later in the same session, refresh durable context with `brain inject --task "<task>" --path <path>`.
+3. If a fresh conversation opens later in the same session, let RepoBrain decide the lightest valid refresh with `brain conversation-start --format json --task "<task>" --path <path>`.
 4. At phase boundaries, run `brain capture` and let the local detection decide. Default is candidate-first.
 5. When only routing is needed after the task becomes clearer, consume `brain suggest-skills --format json` and route on `invocation_plan`.
 6. When a failure violates an existing memory, send the failure event to `brain reinforce`.

@@ -20,7 +20,7 @@ RepoBrain 是一套面向 Claude Code、Codex、Cursor、Copilot 等 Coding Agen
 
 - 把持久化仓库知识保存在 `.brain/` 中，格式是普通 Markdown 加 frontmatter。
 - 通过正常的 Git review 流程审阅记忆变化，而不是把上下文锁在黑盒服务里。
-- 用 `brain inject`、`brain suggest-skills` 和 `brain route` 在新会话里取回合适的上下文。
+- 用 `brain conversation-start`、`brain inject`、`brain suggest-skills` 和 `brain route` 在新会话里取回合适的上下文。
 
 ## 快速开始
 
@@ -67,16 +67,16 @@ brain approve --safe
 # 用 context + routing 启动一个新 session
 brain start --format json --task "continue request validation cleanup"
 
-# 如果同一个 session 里 later 开了一个新 conversation，就用轻量 inject 刷新 durable context
-brain inject --task "continue request validation cleanup"
+# 如果同一个 session 里 later 开了一个新 conversation，让 RepoBrain 智能判断是否需要刷新
+brain conversation-start --format json --task "continue request validation cleanup"
 
 # 为任务型 Agent 会话生成上下文和路由提示
 brain route --task "refactor request validation" --format json
 ```
 
-推荐流程补充：新 session 的首个 conversation 用 `brain start`；同一个 session 里后续新 conversation 用 `brain inject` 轻量刷新 durable context。
+推荐流程补充：新 session 的首个 conversation 用 `brain start`；同一个 session 里后续新 conversation 用 `brain conversation-start`，让 RepoBrain 智能决定是 `start`、`inject` 还是 `skip`。
 
-默认闭环可以理解为：新 session 的首个 conversation 用 `brain start` 启动；同一个 session 里后续新 conversation 用 `brain inject` 轻量续上上下文；日常开发时自动检测，先进入 candidate 队列，随后用 `brain approve --safe` 快速处理明显安全的项，再用 `brain approve <id>` 处理边界情况。
+默认闭环可以理解为：新 session 的首个 conversation 用 `brain start` 启动；同一个 session 里后续新 conversation 用 `brain conversation-start` 做智能刷新决策；日常开发时自动检测，先进入 candidate 队列，随后用 `brain approve --safe` 快速处理明显安全的项，再用 `brain approve <id>` 处理边界情况。
 
 可选的交互式终端界面：
 
@@ -130,7 +130,7 @@ RepoBrain 把记忆保存在当前仓库的本地目录中：
 | 初始化仓库 | `brain setup`, `brain init` | 创建 `.brain/`、应用 workflow preset，并可写入 steering rules |
 | 采集知识 | `brain extract`, `brain extract-commit`, `brain capture` | 从 stdin、commit 上下文或会话总结中提取 durable memory |
 | 审阅 candidate | `brain review`, `brain approve`, `brain dismiss`, `brain promote-candidates` | 保持 candidate-first 流程可审阅 |
-| 启动任务 | `brain inject`, `brain suggest-skills`, `brain route`, `brain start` | 生成上下文块和确定性的路由计划 |
+| 启动任务 | `brain inject`, `brain conversation-start`, `brain suggest-skills`, `brain route`, `brain start` | 生成上下文块和确定性的路由计划 |
 | 检索记忆 | `brain list`, `brain search`, `brain timeline`, `brain explain-memory`, `brain explain-preference` | 查看仓库已经知道什么 |
 | 维护质量 | `brain status`, `brain next`, `brain audit-memory`, `brain lint-memory`, `brain normalize-memory`, `brain score`, `brain sweep` | 长期维护记忆质量 |
 | 团队与适配器 | `brain share`, `brain mcp`, `brain reinforce`, `brain routing-feedback` | 分享记忆、接入适配器、闭环反馈 |
@@ -139,7 +139,7 @@ RepoBrain 把记忆保存在当前仓库的本地目录中：
 
 ## 渐进式检索
 
-RepoBrain 在保持默认 `brain inject` 行为兼容的同时，也把它定位为同一 session 里后续新 conversation 的轻量上下文刷新路径；此外还支持更适合大型仓库或高安全场景的分层检索。
+RepoBrain 在保持默认 `brain inject` 行为兼容的同时，也把它定位为“显式需要轻量 durable context 时”的兼容路径；对于同一 session 里后续新 conversation，优先用 `brain conversation-start` 来决定是否 `inject`、重跑完整 bundle，或直接跳过冗余刷新。
 
 ```bash
 brain inject --layer index --task "fix refund flow"

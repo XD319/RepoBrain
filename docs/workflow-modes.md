@@ -27,7 +27,7 @@ Detailed workflow preset comparison moved from `README.md`.
 `recommended-semi-auto` is the default for most repositories:
 
 1. first conversation in session: `brain start` (or `brain inject` as fallback)
-2. fresh conversation later in same session: `brain inject`
+2. fresh conversation later in same session: `brain conversation-start`
 3. session end: extract to candidate queue
 4. review: `brain review`
 5. quick pass: `brain approve --safe`

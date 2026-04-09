@@ -1,6 +1,7 @@
 import { loadConfig as loadConfigImpl } from "./config.js";
 import { extractMemories as extractMemoriesImpl } from "./extract.js";
 import { buildInjection as buildInjectionImpl } from "./inject.js";
+import { buildConversationStart as buildConversationStartImpl } from "./conversation-start.js";
 import { reviewCandidateMemories as reviewCandidateMemoriesImpl } from "./reviewer.js";
 import { reviewCandidateMemory as reviewCandidateMemoryImpl } from "./reviewer.js";
 import { loadAllMemories as loadAllMemoriesImpl } from "./store/memory-store.js";
@@ -45,6 +46,12 @@ export const initBrain = initBrainImpl;
  * Build an inject-ready context markdown block from current durable memories.
  */
 export const buildInjection = buildInjectionImpl;
+
+/**
+ * Decide whether a new conversation should bootstrap with the full session bundle,
+ * reload compact context, or skip a redundant refresh.
+ */
+export const buildConversationStart = buildConversationStartImpl;
 
 /**
  * Build deterministic skill shortlist and invocation plan for a given task context.

@@ -26,7 +26,8 @@ echo "gotcha: retry loop exits too early" | brain capture --task "fix refund bug
 
 ## Context and Routing
 
-- `brain inject`: build compact repo-context block, especially useful for a fresh conversation later in the same session
+- `brain inject`: build compact repo-context block when you explicitly want a lightweight durable-context refresh
+- `brain conversation-start`: decide whether a fresh conversation should run the full session bundle, reload compact context, or skip a redundant refresh
 - `brain suggest-skills`: build deterministic skill routing plan
 - `brain route` / `brain start`: return the combined context + routing bundle for session bootstrap
 
@@ -34,6 +35,7 @@ Examples:
 
 ```bash
 brain inject --task "refactor config loading" --path src/config.ts --path src/cli.ts --module cli
+brain conversation-start --format json --task "refactor config loading" --path src/config.ts
 brain suggest-skills --task "debug flaky browser tests" --path tests/e2e/login.spec.ts
 brain start --format json --task "fix refund bug"
 ```
