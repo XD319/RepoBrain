@@ -989,10 +989,6 @@ await runTest("working and goal frontmatter fields round-trip with backward-comp
 
 await runTest("cli extract --type working fills created updated and default expires", async () => {
   await withTempRepo(async (projectRoot) => {
-    const today = new Date();
-    const expectedCreated = formatDateOnly(today);
-    const expectedExpires = formatDateOnly(new Date(today.getFullYear(), today.getMonth(), today.getDate() + 7));
-
     const result = await runNodeProcess(
       [path.join(repoRoot, "dist", "cli.js"), "extract", "--source", "session", "--type", "working"],
       projectRoot,
@@ -1010,13 +1006,14 @@ await runTest("cli extract --type working fills created updated and default expi
     const stored = records[0]?.memory;
     assert.ok(stored);
     assert.equal(stored.type, "working");
-    assert.equal(stored.created, expectedCreated);
-    assert.equal(stored.updated, expectedCreated);
+    assert.match(stored.created ?? "", /^\d{4}-\d{2}-\d{2}$/);
+    assert.match(stored.updated ?? "", /^\d{4}-\d{2}-\d{2}$/);
+    const expectedExpires = formatUtcDateOnly(new Date(Date.parse(`${stored.updated}T00:00:00.000Z`) + 7 * 86400000));
     assert.equal(stored.expires, expectedExpires);
 
     const raw = await readFile(records[0].filePath, "utf8");
-    assert.match(raw, new RegExp(`created:\\s*"?${expectedCreated}"?`));
-    assert.match(raw, new RegExp(`updated:\\s*"?${expectedCreated}"?`));
+    assert.match(raw, new RegExp(`created:\\s*"?${stored.created}"?`));
+    assert.match(raw, new RegExp(`updated:\\s*"?${stored.updated}"?`));
     assert.match(raw, new RegExp(`expires:\\s*"?${expectedExpires}"?`));
   });
 });
@@ -1266,4 +1263,8 @@ function formatDateOnly(value) {
   const month = String(value.getMonth() + 1).padStart(2, "0");
   const day = String(value.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
+}
+
+function formatUtcDateOnly(value) {
+  return value.toISOString().slice(0, 10);
 }

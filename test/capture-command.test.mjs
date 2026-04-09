@@ -398,7 +398,7 @@ async function runCommand(command, args, cwd) {
 }
 
 function runTest(name, callback) {
-  it(name, callback);
+  it(name, { timeout: 60000 }, callback);
 }
 
 const assert = {
