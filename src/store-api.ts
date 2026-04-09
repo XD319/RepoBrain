@@ -58,6 +58,17 @@ export {
   summarizeRoutingEscalation,
   TASK_ROUTING_BUNDLE_CONTRACT_VERSION,
 } from "./task-routing.js";
+export {
+  buildConversationStart,
+  renderConversationStart,
+  renderConversationStartJson,
+  CONVERSATION_START_CONTRACT_VERSION,
+} from "./conversation-start.js";
+export type {
+  BuildConversationStartOptions,
+  ConversationStartDecisionTrace,
+  ConversationStartResult,
+} from "./conversation-start.js";
 export { reinforceMemories } from "./reinforce.js";
 export { setupRepoBrain } from "./setup.js";
 export { buildSharePlan } from "./share.js";

@@ -71,11 +71,12 @@ RepoBrain 坚持“稳定核心 + 轻量适配器”：
 
 统一生命周期契约：
 
-1. session start（`brain start` 或回退 `brain inject`）
-2. task-known routing（`brain suggest-skills`）
-3. phase-completion 检测（`brain capture`）
-4. session-end 提取候选
-5. failure reinforcement 路径
+1. session 的首个 conversation（`brain start`，不可用时回退 `brain inject`）
+2. 同一 session 里后续新 conversation（`brain conversation-start`，可决定 `start` / `inject` / `skip`）
+3. task-known routing（`brain suggest-skills`）
+4. phase-completion 检测（`brain capture`）
+5. session-end 提取候选
+6. failure reinforcement 路径
 
 ## 5. 阶段完成信号
 

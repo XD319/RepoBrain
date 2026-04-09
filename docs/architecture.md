@@ -71,11 +71,12 @@ Adapter responsibilities:
 
 Shared lifecycle contract:
 
-1. session start (`brain start` or fallback `brain inject`)
-2. task-known routing (`brain suggest-skills`)
-3. phase-completion detection (`brain capture`)
-4. session-end extraction suggestion/candidate
-5. failure reinforcement path
+1. first conversation in session (`brain start` or fallback `brain inject`)
+2. fresh conversation later in same session (`brain conversation-start`, which can choose `start`, `inject`, or `skip`)
+3. task-known routing (`brain suggest-skills`)
+4. phase-completion detection (`brain capture`)
+5. session-end extraction suggestion/candidate
+6. failure reinforcement path
 
 ## 5. Phase-Completion Signals
 

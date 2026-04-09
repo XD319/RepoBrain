@@ -6,7 +6,7 @@
 
 - 从第一版开始就按 semver 思路管理版本，即使首个公开包还是 `0.x`
 - CLI 输出形态、`.brain/` schema 兼容性，以及 adapter contract 都应视为 release surface
-- 只要改动影响 `brain inject`、`brain review`、`brain suggest-skills`、打包文件或生成的 adapter 资产，都应该写进 release notes
+- 只要改动影响 `brain inject`、`brain conversation-start`、`brain review`、`brain suggest-skills`、打包文件或生成的 adapter 资产，都应该写进 release notes
 
 ## Changelog 建议
 
@@ -40,7 +40,7 @@ npm pack --dry-run
 1. 在干净目录或临时环境里执行 `npm install -g repobrain`
 2. `brain --version` 返回预期版本
 3. 在新 Git 仓库中执行 `brain setup --no-git-hook`
-4. 有一条 approved memory 后，`brain inject` 能正常工作
+4. 有一条 approved memory 后，`brain conversation-start --format json --task "..."` 能正常工作
 5. `brain suggest-skills --format json` 返回可解析的 invocation plan
 
 ## 安装验证

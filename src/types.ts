@@ -37,6 +37,9 @@ export const MEMORY_SCHEMA_ISSUE_SEVERITIES = ["error", "warning"] as const;
 /** Human review / lifecycle flag for durable knowledge; does not replace `status`. */
 export const REVIEW_STATES = ["unset", "pending_review", "cleared"] as const;
 export const INJECT_LAYERS = ["index", "summary", "full"] as const;
+export const CONVERSATION_REFRESH_MODES = ["always", "task-change", "smart"] as const;
+export const CONTEXT_LOAD_SOURCES = ["inject", "route", "conversation-start"] as const;
+export const CONVERSATION_START_ACTIONS = ["start", "inject", "skip"] as const;
 
 export type MemoryType = (typeof MEMORY_TYPES)[number];
 export type PreferenceKind = (typeof PREFERENCE_KINDS)[number];
@@ -61,6 +64,9 @@ export type MemoryAuditIssueType = (typeof MEMORY_AUDIT_ISSUE_TYPES)[number];
 export type MemorySchemaIssueSeverity = (typeof MEMORY_SCHEMA_ISSUE_SEVERITIES)[number];
 export type ReviewState = (typeof REVIEW_STATES)[number];
 export type InjectLayer = (typeof INJECT_LAYERS)[number];
+export type ConversationRefreshMode = (typeof CONVERSATION_REFRESH_MODES)[number];
+export type ContextLoadSource = (typeof CONTEXT_LOAD_SOURCES)[number];
+export type ConversationStartAction = (typeof CONVERSATION_START_ACTIONS)[number];
 
 export interface Memory {
   type: MemoryType;
@@ -192,6 +198,14 @@ export interface MemoryActivityEntry {
 
 export interface BrainActivityState {
   lastInjectedAt?: string;
+  lastContextLoadedAt?: string;
+  lastContextSource?: ContextLoadSource;
+  lastSelectionContext?: {
+    task?: string;
+    paths?: string[];
+    modules?: string[];
+    includeSessionProfile?: boolean;
+  };
   recentLoadedMemories: MemoryActivityEntry[];
 }
 

@@ -14,7 +14,7 @@ Selection mode: task-aware (task="tighten config parsing for npm release smoke v
   Why now: Module Overlap: cli; Path Scope Match: src/** -> src/config.ts, src/cli.ts
 
 ---
-Source: .brain/ (2 durable records, last updated: 2026-04-08T09:42:13.220Z)
+Source: .brain/ (2 durable records, last updated: 2026-04-09T09:27:27.771Z)
 [RepoBrain] injected 2/2 eligible memories.
 Requirements:
 - Understand these memories before choosing an implementation plan

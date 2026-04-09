@@ -41,6 +41,14 @@ brain start --format json --task "<当前任务描述>"
 brain inject
 \`\`\`
 
+如果同一个 session 里后续又开了一个新 conversation，优先执行：
+
+\`\`\`bash
+brain conversation-start --format json --task "<当前任务描述>" --path <已变更路径>
+\`\`\`
+
+让 RepoBrain 根据 session 上下文决定是 \`start\`、\`inject\` 还是 \`skip\`；只有在明确只需要轻量 durable context 时，才直接执行 \`brain inject\`。
+
 ## 任务已知时
 
 当任务变得更明确、需要路由决策时：
@@ -161,6 +169,14 @@ brain start --format json --task "<当前任务描述>"
 \`\`\`bash
 brain inject
 \`\`\`
+
+如果同一个 session 里后续又开了一个新 conversation，优先执行：
+
+\`\`\`bash
+brain conversation-start --format json --task "<当前任务描述>" --path <已变更路径>
+\`\`\`
+
+让 RepoBrain 根据 session 上下文决定是 \`start\`、\`inject\` 还是 \`skip\`；只有在明确只需要轻量 durable context 时，才直接执行 \`brain inject\`。
 
 ## 任务已知时
 
@@ -289,6 +305,14 @@ brain start --format json --task "<当前任务描述>"
 \`\`\`bash
 brain inject
 \`\`\`
+
+如果同一个 session 里后续又开了一个新 conversation，优先执行：
+
+\`\`\`bash
+brain conversation-start --format json --task "<当前任务描述>" --path <已变更路径>
+\`\`\`
+
+让 RepoBrain 根据 session 上下文决定是 \`start\`、\`inject\` 还是 \`skip\`；只有在明确只需要轻量 durable context 时，才直接执行 \`brain inject\`。
 
 ## 任务已知时
 

@@ -38,6 +38,7 @@ export interface BuildInjectionOptions extends MemorySelectionOptions {
   ids?: string[];
   /** When false, skip `.brain/runtime/session-profile.json`. Default: true. */
   includeSessionProfile?: boolean;
+  activitySource?: "inject" | "route" | "conversation-start";
 }
 
 interface RankedMemory {
@@ -114,6 +115,13 @@ export async function buildInjection(
   await recordInjectedMemories(
     projectRoot,
     selected.map((entry) => entry.memory),
+    {
+      ...(options.task?.trim() ? { task: options.task.trim() } : {}),
+      paths: options.paths ?? [],
+      modules: options.modules ?? [],
+      includeSessionProfile: rawOptions.includeSessionProfile !== false,
+      source: rawOptions.activitySource ?? "inject",
+    },
   );
 
   const lastUpdated = injectionData.lastUpdated;

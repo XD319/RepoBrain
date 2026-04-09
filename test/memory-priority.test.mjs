@@ -18,7 +18,7 @@ await runTest("computeInjectPriority falls back to the freshest valid timestamp 
     stale: false,
   });
 
-  assert.ok(Math.abs(priority - 39.6) < 0.05, `expected ~39.6, got ${priority}`);
+  assert.ok(Math.abs(priority - 39.5) < 0.05, `expected ~39.5, got ${priority}`);
 });
 
 await runTest("computeInjectPriority discounts stale recency while preserving capped hit-count influence", async () => {

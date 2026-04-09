@@ -6,7 +6,7 @@ This guide turns the first npm release into a repeatable loop instead of a one-t
 
 - Use semver from day one, even if the first public package is `0.x`.
 - Treat CLI output shape, `.brain/` schema compatibility, and adapter contracts as release-notable surfaces.
-- If a change affects `brain inject`, `brain review`, `brain suggest-skills`, packaged files, or generated adapter assets, call it out explicitly in release notes.
+- If a change affects `brain inject`, `brain conversation-start`, `brain review`, `brain suggest-skills`, packaged files, or generated adapter assets, call it out explicitly in release notes.
 
 ## Changelog Guidance
 
@@ -40,7 +40,7 @@ Then manually verify:
 1. `npm install -g repobrain` works in a clean directory or temp environment
 2. `brain --version` resolves the expected version
 3. `brain setup --no-git-hook` works in a fresh Git repo
-4. `brain inject` works after one approved memory exists
+4. `brain conversation-start --format json --task "..."` works after one approved memory exists
 5. `brain suggest-skills --format json` returns a parseable invocation plan
 
 ## Install Verification

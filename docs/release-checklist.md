@@ -31,7 +31,8 @@ Verify the packaged CLI can complete this loop in a clean sample repo:
 3. `brain list`
 4. `brain inject`
 5. `brain status`
-6. `brain suggest-skills --format json --task "prepare first npm release" --path package.json`
+6. `brain conversation-start --format json --task "prepare first npm release" --path package.json`
+7. `brain suggest-skills --format json --task "prepare first npm release" --path package.json`
 
 Use a concrete, repo-specific summary when testing `brain extract`. Thin or generic notes should be rejected by design.
 

@@ -20,19 +20,22 @@ Prefer the session-start bundle from:
 
 How to use it:
 
+- Use this in the first conversation of a coding session.
 - Read `context_markdown` before planning or editing.
 - Treat `skill_plan` as RepoBrain's routing policy, not as an instruction to bypass Claude's native flow control.
 - Escalate when the payload shows conflicts, warnings, or missing context for the task.
 
-If only compact context is needed, Claude can still consume the markdown contract from:
+If a fresh conversation opens later in the same session, Claude can run the smart conversation bootstrap contract from:
 
-`brain inject --task "<current task>" --path <changed-path>`
+`brain conversation-start --format json --task "<current task>" --path <changed-path>`
 
 How to use it:
 
-- Read the inject block before planning or editing.
-- Treat it as compact repo context, not as a prompt to create Claude-local memory.
-- Escalate when the context looks stale, contradictory, or missing for the task.
+- Prefer this for later fresh conversations in the same session so RepoBrain can decide whether to rerun the full bundle, load compact context, or skip a redundant refresh.
+- When `action` is `inject`, read `context_markdown` before planning or editing.
+- When `action` is `start`, consume the returned bundle exactly like `brain start`.
+- When `action` is `skip`, keep working unless you explicitly need `brain inject`.
+- Treat the payload as Core-owned context, not as a prompt to create Claude-local memory.
 
 Reference example:
 

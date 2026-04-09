@@ -9,7 +9,7 @@
 1. 在真实仓库里初始化 durable repo memory
 2. capture 第一条 memory
 3. 先 review / approve，再写入长期知识
-4. 在下一次 session 开始前 inject 这条知识
+4. 在下一次 session 开始前通过 RepoBrain 的智能 conversation bootstrap 刷新这条知识
 5. 对明确任务产出真实的 `suggest-skills` / `invocation_plan`
 
 ## 录制准备
@@ -76,22 +76,22 @@ brain approve --safe
 
 `RepoBrain 不会把所有笔记都直接落盘。它会先判断这段输入是否足够具体、足够长期有价值，再通过 review/approve 进入长期知识。`
 
-## 场景 4：下一次 Session 开始前注入记忆
+## 场景 4：下一次 Session 开始前智能刷新记忆
 
 执行：
 
 ```bash
-brain inject --task "refactor config loading for the CLI" --path src/config.ts --path src/cli.ts --module cli
+brain conversation-start --format json --task "refactor config loading for the CLI" --path src/config.ts --path src/cli.ts --module cli
 ```
 
 停留展示：
 
-- 注入出来的 memory block
+- 返回的刷新决策与 context block
 - 末尾的 requirements 提示
 
 旁白建议：
 
-`这样下一次 session 一开始就能带着 repo-specific context，不需要再让 agent 重复踩同一个坑。`
+`这样下一次 session 一开始就能按需续上 repo-specific context，不需要再让 agent 重复踩同一个坑。`
 
 ## 场景 5：展示任务路由
 
@@ -114,7 +114,7 @@ brain share --all-active
 brain setup
 cat session-summary.txt | brain extract --candidate
 brain review && brain approve --safe
-brain inject
+brain conversation-start --format json --task "refactor config loading for the CLI"
 ```
 
 收尾台词：

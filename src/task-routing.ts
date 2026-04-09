@@ -94,6 +94,7 @@ export async function buildTaskRoutingBundle(
       task,
       paths,
       modules: options.modules ?? [],
+      activitySource: "route",
       ...(options.includeSessionProfile === false ? { includeSessionProfile: false } : {}),
     }),
     buildSkillShortlist(projectRoot, {

@@ -8,7 +8,7 @@ Show that RepoBrain can:
 
 1. initialize durable repo memory in a real repository
 2. capture one concrete lesson
-3. inject that lesson into the next coding session
+3. refresh that lesson into the next coding session with RepoBrain's smart conversation bootstrap
 4. review and approve durable memories
 5. keep the workflow reviewable and Git-friendly
 6. derive a task-known invocation plan with `brain suggest-skills`
@@ -77,22 +77,22 @@ Narration:
 
 `RepoBrain does not save every note. It first checks whether the input looks durable and specific enough to keep.`
 
-## Scene 4: Start The Next Session With Memory
+## Scene 4: Start The Next Session With Smart Memory Refresh
 
 Run:
 
 ```bash
-brain inject --task "refactor config loading for the CLI" --path src/config.ts --path src/cli.ts --module cli
+brain conversation-start --format json --task "refactor config loading for the CLI" --path src/config.ts --path src/cli.ts --module cli
 ```
 
 Pause on:
 
-- the injected memory block
+- the returned refresh decision and context block
 - the requirement footer
 
 Narration:
 
-`The next session starts with repo-specific context already loaded, so the agent does not have to rediscover the same lesson.`
+`The next session can reuse repo-specific context without blindly reloading it every time, so the agent does not have to rediscover the same lesson.`
 
 ## Scene 5: Show The Team Workflow
 
@@ -115,7 +115,7 @@ Show these three commands together:
 brain setup
 cat session-summary.txt | brain extract --candidate
 brain review && brain approve --safe
-brain inject
+brain conversation-start --format json --task "refactor config loading for the CLI"
 ```
 
 Closing line:

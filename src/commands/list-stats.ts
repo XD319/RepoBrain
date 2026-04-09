@@ -103,7 +103,9 @@ export function register(program: Command): void {
 
       output.write(`Workflow: ${snapshot.workflow.label} (${snapshot.workflow.mode})\n`);
       if (snapshot.nextSteps.length === 0) {
-        output.write('Next: run "brain inject" before the next coding session.\n');
+        output.write(
+          'Next: run "brain start" for the first conversation in the next coding session, or "brain conversation-start" for a smart later-conversation refresh.\n',
+        );
         return;
       }
 

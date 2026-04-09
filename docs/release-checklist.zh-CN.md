@@ -31,7 +31,8 @@
 3. `brain list`
 4. `brain inject`
 5. `brain status`
-6. `brain suggest-skills --format json --task "prepare first npm release" --path package.json`
+6. `brain conversation-start --format json --task "prepare first npm release" --path package.json`
+7. `brain suggest-skills --format json --task "prepare first npm release" --path package.json`
 
 测试 `brain extract` 时，请使用具体、repo-specific 的总结。过薄或泛化的记录，本来就应该被拒绝。
 

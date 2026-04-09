@@ -2,17 +2,28 @@ import { mkdir, readFile } from "node:fs/promises";
 import path from "node:path";
 
 import { getBrainDir } from "../config.js";
-import type { BrainActivityState, Memory, MemoryActivityEntry, MemoryType } from "../types.js";
+import type { BrainActivityState, ContextLoadSource, Memory, MemoryActivityEntry, MemoryType } from "../types.js";
 import { IMPORTANCE_LEVELS, MEMORY_TYPES } from "../types.js";
 import { commitAtomicWriteOperations, createAtomicWriteOperation, type AtomicWriteOperation } from "./atomic-write.js";
 import { loadStoredMemoryRecords } from "./memory-store.js";
 import { serializeMemory } from "./serialize.js";
 import { looksLikeCorruptedPlaceholderText, normalizeMemory, validateMemory } from "./validate.js";
 
-export async function recordInjectedMemories(projectRoot: string, memories: Memory[]): Promise<void> {
+export async function recordInjectedMemories(
+  projectRoot: string,
+  memories: Memory[],
+  options: {
+    task?: string;
+    paths?: string[];
+    modules?: string[];
+    includeSessionProfile?: boolean;
+    source?: ContextLoadSource;
+  } = {},
+): Promise<void> {
   const brainDir = getBrainDir(projectRoot);
   await mkdir(brainDir, { recursive: true });
-  const injectedAt = new Date().toISOString().slice(0, 10);
+  const loadedAt = new Date().toISOString();
+  const injectedAt = loadedAt.slice(0, 10);
   const activityStatePath = getActivityStatePath(projectRoot);
 
   const operations: AtomicWriteOperation[] = [];
@@ -34,6 +45,14 @@ export async function recordInjectedMemories(projectRoot: string, memories: Memo
 
   const state: BrainActivityState = {
     lastInjectedAt: injectedAt,
+    lastContextLoadedAt: loadedAt,
+    lastContextSource: options.source ?? "inject",
+    lastSelectionContext: {
+      ...(options.task?.trim() ? { task: options.task.trim() } : {}),
+      ...((options.paths ?? []).length > 0 ? { paths: normalizeActivityValues(options.paths ?? []) } : {}),
+      ...((options.modules ?? []).length > 0 ? { modules: normalizeActivityValues(options.modules ?? []) } : {}),
+      includeSessionProfile: options.includeSessionProfile !== false,
+    },
     recentLoadedMemories: memories.slice(0, 5).map(toActivityEntry),
   };
   operations.push(createAtomicWriteOperation(activityStatePath, JSON.stringify(state, null, 2)));
@@ -68,7 +87,13 @@ function toActivityEntry(memory: Memory): MemoryActivityEntry {
 
 function parseActivityState(raw: string): BrainActivityState {
   try {
-    const parsed = JSON.parse(raw) as { lastInjectedAt?: unknown; recentLoadedMemories?: unknown };
+    const parsed = JSON.parse(raw) as {
+      lastInjectedAt?: unknown;
+      lastContextLoadedAt?: unknown;
+      lastContextSource?: unknown;
+      lastSelectionContext?: unknown;
+      recentLoadedMemories?: unknown;
+    };
     const recentLoadedMemories = Array.isArray(parsed.recentLoadedMemories)
       ? parsed.recentLoadedMemories
           .map((entry) => parseActivityEntry(entry))
@@ -76,10 +101,69 @@ function parseActivityState(raw: string): BrainActivityState {
       : [];
     const lastInjectedAt =
       typeof parsed.lastInjectedAt === "string" && parsed.lastInjectedAt.trim() ? parsed.lastInjectedAt : null;
-    return lastInjectedAt ? { lastInjectedAt, recentLoadedMemories } : { recentLoadedMemories };
+    const lastContextLoadedAt =
+      typeof parsed.lastContextLoadedAt === "string" && parsed.lastContextLoadedAt.trim()
+        ? parsed.lastContextLoadedAt
+        : null;
+    const lastContextSource =
+      parsed.lastContextSource === "inject" ||
+      parsed.lastContextSource === "route" ||
+      parsed.lastContextSource === "conversation-start"
+        ? parsed.lastContextSource
+        : undefined;
+    const lastSelectionContext = parseSelectionContext(parsed.lastSelectionContext);
+
+    return {
+      ...(lastInjectedAt ? { lastInjectedAt } : {}),
+      ...(lastContextLoadedAt ? { lastContextLoadedAt } : {}),
+      ...(lastContextSource ? { lastContextSource } : {}),
+      ...(lastSelectionContext ? { lastSelectionContext } : {}),
+      recentLoadedMemories,
+    };
   } catch {
     return { recentLoadedMemories: [] };
   }
+}
+
+function parseSelectionContext(value: unknown): BrainActivityState["lastSelectionContext"] | undefined {
+  if (!value || typeof value !== "object") {
+    return undefined;
+  }
+
+  const candidate = value as Record<string, unknown>;
+  const task = typeof candidate.task === "string" && candidate.task.trim() ? candidate.task.trim() : undefined;
+  const paths = Array.isArray(candidate.paths)
+    ? candidate.paths.map((entry) => String(entry).trim()).filter(Boolean)
+    : undefined;
+  const modules = Array.isArray(candidate.modules)
+    ? candidate.modules.map((entry) => String(entry).trim()).filter(Boolean)
+    : undefined;
+  const includeSessionProfile =
+    candidate.includeSessionProfile === true || candidate.includeSessionProfile === false
+      ? candidate.includeSessionProfile
+      : undefined;
+
+  if (!task && !(paths?.length) && !(modules?.length) && includeSessionProfile === undefined) {
+    return undefined;
+  }
+
+  return {
+    ...(task ? { task } : {}),
+    ...(paths?.length ? { paths: normalizeActivityValues(paths) } : {}),
+    ...(modules?.length ? { modules: normalizeActivityValues(modules) } : {}),
+    ...(includeSessionProfile !== undefined ? { includeSessionProfile } : {}),
+  };
+}
+
+function normalizeActivityValues(values: string[]): string[] {
+  return Array.from(
+    new Set(
+      values
+        .map((value) => value.trim().replace(/\\/g, "/"))
+        .filter(Boolean)
+        .sort((left, right) => left.localeCompare(right)),
+    ),
+  );
 }
 
 function parseActivityEntry(value: unknown): MemoryActivityEntry | null {
