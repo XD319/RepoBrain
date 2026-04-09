@@ -356,7 +356,7 @@ export function renderWorkflowSummaryLines(workflowMode: WorkflowMode): string[]
 export function renderSetupNextSteps(workflowMode: WorkflowMode): string[] {
   const preset = getWorkflowPreset(workflowMode);
   const steps = [
-    'Start each session with "brain inject".',
+    'Start the first conversation in each session with "brain start"; if a fresh conversation opens later in the same session, refresh context with "brain inject".',
     'End sessions by extracting candidates with "brain extract" or let the hook queue them for review.',
     'Use "brain review" and "brain approve --safe" as the normal daily promotion loop.',
   ];
@@ -450,7 +450,9 @@ export async function buildWorkflowSnapshot(
   }
 
   if (nextSteps.length === 0) {
-    nextSteps.push('run "brain inject" before the next coding session');
+    nextSteps.push(
+      'run "brain start" for the first conversation in the next coding session, or "brain inject" if you only need a light context refresh',
+    );
   }
 
   return {

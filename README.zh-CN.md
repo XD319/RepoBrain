@@ -64,14 +64,19 @@ echo "decision: keep API validation at the controller boundary" | brain capture 
 brain review
 brain approve --safe
 
-# 为下一次任务生成仓库上下文
+# 用 context + routing 启动一个新 session
+brain start --format json --task "continue request validation cleanup"
+
+# 如果同一个 session 里 later 开了一个新 conversation，就用轻量 inject 刷新 durable context
 brain inject --task "continue request validation cleanup"
 
 # 为任务型 Agent 会话生成上下文和路由提示
 brain route --task "refactor request validation" --format json
 ```
 
-默认闭环可以理解为：日常开发时自动检测，先进入 candidate 队列，随后用 `brain approve --safe` 快速处理明显安全的项，再用 `brain approve <id>` 处理边界情况。
+推荐流程补充：新 session 的首个 conversation 用 `brain start`；同一个 session 里后续新 conversation 用 `brain inject` 轻量刷新 durable context。
+
+默认闭环可以理解为：新 session 的首个 conversation 用 `brain start` 启动；同一个 session 里后续新 conversation 用 `brain inject` 轻量续上上下文；日常开发时自动检测，先进入 candidate 队列，随后用 `brain approve --safe` 快速处理明显安全的项，再用 `brain approve <id>` 处理边界情况。
 
 可选的交互式终端界面：
 
@@ -134,7 +139,7 @@ RepoBrain 把记忆保存在当前仓库的本地目录中：
 
 ## 渐进式检索
 
-RepoBrain 在保持默认 `brain inject` 行为兼容的同时，也支持更适合大型仓库或高安全场景的分层检索。
+RepoBrain 在保持默认 `brain inject` 行为兼容的同时，也把它定位为同一 session 里后续新 conversation 的轻量上下文刷新路径；此外还支持更适合大型仓库或高安全场景的分层检索。
 
 ```bash
 brain inject --layer index --task "fix refund flow"

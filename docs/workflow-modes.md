@@ -26,12 +26,13 @@ Detailed workflow preset comparison moved from `README.md`.
 
 `recommended-semi-auto` is the default for most repositories:
 
-1. session start: `brain inject`
-2. session end: extract to candidate queue
-3. review: `brain review`
-4. quick pass: `brain approve --safe`
-5. edge cases: `brain approve <id>`
-6. hygiene: `brain score` and `brain sweep --dry-run`
+1. first conversation in session: `brain start` (or `brain inject` as fallback)
+2. fresh conversation later in same session: `brain inject`
+3. session end: extract to candidate queue
+4. review: `brain review`
+5. quick pass: `brain approve --safe`
+6. edge cases: `brain approve <id>`
+7. hygiene: `brain score` and `brain sweep --dry-run`
 
 ## Safe Auto-Approve Rules
 

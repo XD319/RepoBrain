@@ -26,12 +26,13 @@
 
 `recommended-semi-auto` 适合大多数仓库：
 
-1. session start：`brain inject`
-2. session end：进入 candidate 队列
-3. `brain review`
-4. `brain approve --safe`
-5. `brain approve <id>` 处理边界项
-6. `brain score` + `brain sweep --dry-run` 做卫生治理
+1. session 的首个 conversation：`brain start`（或回退到 `brain inject`）
+2. 同一 session 里后续新 conversation：`brain inject`
+3. session end：进入 candidate 队列
+4. `brain review`
+5. `brain approve --safe`
+6. `brain approve <id>` 处理边界项
+7. `brain score` + `brain sweep --dry-run` 做卫生治理
 
 ## 安全自动提升条件
 

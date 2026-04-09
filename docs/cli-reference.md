@@ -26,9 +26,9 @@ echo "gotcha: retry loop exits too early" | brain capture --task "fix refund bug
 
 ## Context and Routing
 
-- `brain inject`: build compact session context block
+- `brain inject`: build compact repo-context block, especially useful for a fresh conversation later in the same session
 - `brain suggest-skills`: build deterministic skill routing plan
-- `brain route` / `brain start`: return context + routing bundle
+- `brain route` / `brain start`: return the combined context + routing bundle for session bootstrap
 
 Examples:
 

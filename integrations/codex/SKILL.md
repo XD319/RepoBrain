@@ -20,16 +20,18 @@ Prefer the session-start bundle:
 
 Contract:
 
+- Use this in the first conversation of a coding session.
 - Read `context_markdown` before planning or editing.
 - Use `skill_plan` as RepoBrain's routing policy input, not as a replacement for Codex-native workflow choices.
 - Treat the payload as Core-owned context and routing, not a Codex-owned schema.
 
-If only compact context is needed, Codex can still run and consume:
+If a fresh conversation opens later in the same session and you mainly need durable repo context again, Codex should run and consume:
 
 `brain inject --task "<current task>" --path <changed-path>`
 
 Contract:
 
+- Prefer this for later fresh conversations in the same session when rerunning the full bundle would be unnecessary.
 - Input shape is markdown.
 - Use it to load durable repo context before planning or editing.
 - Treat the payload as Core-owned context, not a Codex-owned schema.

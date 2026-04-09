@@ -26,9 +26,9 @@ echo "gotcha: retry loop exits too early" | brain capture --task "fix refund bug
 
 ## 上下文与路由
 
-- `brain inject`：生成会话上下文块
+- `brain inject`：生成轻量 repo context，特别适合同一 session 里后续新 conversation 的上下文刷新
 - `brain suggest-skills`：生成确定性技能路由计划
-- `brain route` / `brain start`：一次返回 context + routing bundle
+- `brain route` / `brain start`：用于 session 启动的一次性 context + routing bundle
 
 示例：
 

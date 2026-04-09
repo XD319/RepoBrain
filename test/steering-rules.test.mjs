@@ -88,6 +88,11 @@ const ANTI_REPETITION_PHRASE = "不要重复提出相同的 capture 建议";
 
 const CANDIDATE_FIRST_PHRASE = "candidate";
 
+const SAME_SESSION_REFRESH_PHRASES_ZH = [
+  "后续又开了一个新 conversation",
+  'brain inject --task "<当前任务描述>" --path <已变更路径>',
+];
+
 await runTest("writeSteeringRules writes all three agent rules", async () => {
   const tmpDir = await mkdtemp(path.join(os.tmpdir(), "brain-steering-"));
   try {
@@ -138,6 +143,21 @@ await runTest("all generated rules include anti-repetition guidance", async () =
     for (const relativePath of paths) {
       const content = await readFile(path.join(tmpDir, relativePath), "utf8");
       assert.ok(content.includes(ANTI_REPETITION_PHRASE), `${relativePath} is missing anti-repetition guidance`);
+    }
+  } finally {
+    await rm(tmpDir, { recursive: true, force: true });
+  }
+});
+
+await runTest("all generated rules include same-session fresh conversation refresh guidance", async () => {
+  const tmpDir = await mkdtemp(path.join(os.tmpdir(), "brain-steering-"));
+  try {
+    const paths = await writeSteeringRules(tmpDir, "all");
+    for (const relativePath of paths) {
+      const content = await readFile(path.join(tmpDir, relativePath), "utf8");
+      for (const phrase of SAME_SESSION_REFRESH_PHRASES_ZH) {
+        assert.ok(content.includes(phrase), `${relativePath} is missing same-session refresh phrase: ${phrase}`);
+      }
     }
   } finally {
     await rm(tmpDir, { recursive: true, force: true });
@@ -264,6 +284,11 @@ await runTest("integration template files align with generated steering rules on
     assert.ok(content.includes("candidate"), `${templatePath} is missing candidate-first wording`);
     assert.ok(content.includes("brain reinforce"), `${templatePath} is missing failure path`);
     assert.ok(content.includes(".brain/"), `${templatePath} is missing .brain/ reference`);
+    assert.ok(
+      content.includes("fresh conversation") || content.includes("新 conversation"),
+      `${templatePath} is missing same-session fresh conversation guidance`,
+    );
+    assert.ok(content.includes("brain inject --task"), `${templatePath} is missing task-aware inject refresh guidance`);
   }
 });
 

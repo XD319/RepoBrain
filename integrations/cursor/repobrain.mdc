@@ -34,6 +34,14 @@ brain start --format json --task "<当前任务描述>"
 brain inject
 ```
 
+如果同一个 session 里后续又开了一个新 conversation，优先执行：
+
+```bash
+brain inject --task "<当前任务描述>" --path <已变更路径>
+```
+
+用轻量 inject 刷新 durable context；只有在还需要完整的 context + routing bundle 时，才重新执行 `brain start`。
+
 ## 任务已知时
 
 当任务变得更明确、需要路由决策时：

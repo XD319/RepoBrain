@@ -64,14 +64,17 @@ echo "decision: keep API validation at the controller boundary" | brain capture 
 brain review
 brain approve --safe
 
-# Start the next task with repo context
+# Start a new session with context plus routing
+brain start --format json --task "continue request validation cleanup"
+
+# If a fresh conversation opens later in the same session, refresh durable context
 brain inject --task "continue request validation cleanup"
 
 # Build context plus routing hints for a task-aware agent session
 brain route --task "refactor request validation" --format json
 ```
 
-Default loop summary: auto-detect during regular work, queue candidates for review, then use `brain approve --safe` for the obvious wins and `brain approve <id>` for edge cases.
+Default loop summary: bootstrap a new session with `brain start`, refresh later fresh conversations in that same session with `brain inject`, auto-detect during regular work, queue candidates for review, then use `brain approve --safe` for the obvious wins and `brain approve <id>` for edge cases.
 
 Optional interactive UI:
 
@@ -134,7 +137,7 @@ The complete command reference lives in [docs/cli-reference.md](./docs/cli-refer
 
 ## Progressive Retrieval
 
-RepoBrain keeps the default `brain inject` behavior compatible, while adding optional layered retrieval for larger or more safety-sensitive repos.
+RepoBrain keeps the default `brain inject` behavior compatible as the lightweight follow-up path for later fresh conversations in the same session, while adding optional layered retrieval for larger or more safety-sensitive repos.
 
 ```bash
 brain inject --layer index --task "fix refund flow"
