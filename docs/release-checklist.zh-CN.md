@@ -4,15 +4,9 @@
 
 ## 包完整性
 
-- [ ] `npm run build`
-- [ ] `npm run typecheck`
-- [ ] `npm test`
-- [ ] `npm run smoke:package`
-- [ ] `npm run demo:proof`
-- [ ] `npm run eval:proof`
-- [ ] `npm pack --dry-run`
+- [ ] `npm run release:verify`
 - [ ] 检查 `package.json.files` 里的每个路径都真实存在，且确实应该被发布
-- [ ] npm 上已为 `XD319/RepoBrain` 配好 trusted publisher，或者已经明确临时手动发布的维护者账号
+- [ ] npm 上已为 `XD319/RepoBrain` 配好 trusted publisher，或者仓库 secrets 中已经配置 `NPM_TOKEN` fallback
 
 ## 文档
 
@@ -54,3 +48,4 @@
 - 仍需人工验证的命令
 - shell 编码或终端行为上的残余风险
 - release 之后应立即补上的 follow-up
+- 这次发布最终走的是 trusted publishing，还是 `NPM_TOKEN` fallback

@@ -74,6 +74,8 @@
     "demo:proof": "node scripts/generate-demo-proof.mjs",
     "proof:bundles": "node scripts/generate-proof-bundles.mjs",
     "eval:proof": "node scripts/run-proof-evals.mjs",
+    "release:verify": "npm run build && npm run typecheck && npm run lint && npm run format:check && npm test && npm run demo:proof && npm run eval:proof && npm run smoke:package && npm pack --dry-run",
+    "release:publish": "node scripts/publish-package.mjs",
     "typecheck": "tsc --noEmit",
     "mcp": "node dist/mcp/server.js"
   },

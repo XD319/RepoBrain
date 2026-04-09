@@ -29,10 +29,7 @@
 要验证的是“打包后的产物”，不只是源码目录：
 
 ```bash
-npm run build
-npm test
-npm run smoke:package
-npm pack --dry-run
+npm run release:verify
 ```
 
 然后做一轮人工确认：
@@ -66,7 +63,12 @@ brain --version
 
 ## Trusted Publishing 配置
 
-建议把 GitHub Actions 的发布链路切到 npm Trusted Publishing，而不是继续维护长期有效的 `NPM_TOKEN`。
+RepoBrain 现在会在 CI 中自动选择发布路径：
+
+- 没有 `NPM_TOKEN` secret 时，优先走 npm Trusted Publishing
+- 仓库里存在 `NPM_TOKEN` secret 时，自动回退到 token 发布路径
+
+这样默认路径仍然是更现代的 trusted publishing，但当 npm 后台还没配置完成时，也不用再临时卡在手动发布。
 
 npm 侧一次性配置：
 
@@ -78,10 +80,20 @@ npm 侧一次性配置：
 仓库侧需要保持：
 
 - `.github/workflows/publish.yml` 里保留 `permissions.id-token: write`
-- 发布命令使用 `npm publish --provenance`
-- 默认发布路径不再依赖 `NODE_AUTH_TOKEN` 或仓库级 `NPM_TOKEN` secret
+- 发布命令统一走 `npm run release:publish`
+- 让脚本在 trusted publishing 场景下执行 `npm publish --provenance`，在 `NPM_TOKEN` fallback 场景下执行普通 `npm publish`
 
-如果 trusted publishing 还没配好，就先用开启了 2FA 的维护者账号在本机执行 `npm publish`，把它视为临时的手动发布路径。
+可选的仓库级 fallback：
+
+1. 在 GitHub 仓库 secrets 中配置 `NPM_TOKEN`
+2. 使用对 `repobrain` 具备发布权限的 npm automation token 或等效 token
+3. 仍然推荐保留 trusted publishing；fallback 的目标是降低发布阻塞，而不是替代长期配置
+
+本地维护者路径：
+
+- 先执行 `npm run release:verify`
+- 如果仍需本机发布，导出 `NPM_TOKEN` 后执行 `npm run release:publish`
+- 如果在非 GitHub Actions 环境里误走 trusted publishing，脚本会直接报出明确错误
 
 ## 发布时建议一起给出的 Proof 资产
 

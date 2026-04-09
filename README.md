@@ -135,6 +135,17 @@ RepoBrain keeps memory local to the repository:
 
 The complete command reference lives in [docs/cli-reference.md](./docs/cli-reference.md).
 
+## Release Flow
+
+RepoBrain now keeps the maintainer release loop short:
+
+```bash
+npm run release:verify
+npm run release:publish
+```
+
+`release:verify` runs the full release gate, including build, typecheck, lint, format check, tests, proof generation, smoke packaging, and `npm pack --dry-run`. `release:publish` automatically prefers GitHub trusted publishing in Actions and falls back to `NPM_TOKEN` when that secret is configured for CI or exported locally. The detailed maintainer checklist still lives in [docs/release-guide.md](./docs/release-guide.md) and [docs/release-checklist.md](./docs/release-checklist.md).
+
 ## Progressive Retrieval
 
 RepoBrain keeps the default `brain inject` behavior compatible as the lightweight follow-up path when you explicitly want compact context, while `brain conversation-start` can decide whether a later fresh conversation in the same session should `inject`, rerun the full bundle, or skip a redundant refresh.

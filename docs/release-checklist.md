@@ -4,15 +4,9 @@ Use this checklist before the first public release and before any later packagin
 
 ## Package Integrity
 
-- [ ] `npm run build`
-- [ ] `npm run typecheck`
-- [ ] `npm test`
-- [ ] `npm run smoke:package`
-- [ ] `npm run demo:proof`
-- [ ] `npm run eval:proof`
-- [ ] `npm pack --dry-run`
+- [ ] `npm run release:verify`
 - [ ] Verify every path in `package.json.files` exists and is intentionally published
-- [ ] Trusted publisher is configured for `XD319/RepoBrain` on npm, or a temporary manual publish owner is identified
+- [ ] npm trusted publisher is configured for `XD319/RepoBrain`, or `NPM_TOKEN` fallback is configured in repository secrets
 
 ## Documentation
 
@@ -54,3 +48,4 @@ Record anything the automated checks do not fully prove yet:
 - commands that still need manual verification
 - residual risk around shell encoding or terminal behavior
 - follow-up tasks that should land immediately after release
+- whether CI used trusted publishing or the `NPM_TOKEN` fallback for this release

@@ -60,5 +60,7 @@ jobs:
       - name: Dry-run pack
         run: npm pack --dry-run
 
-      - name: Publish package with trusted publishing
-        run: npm publish --provenance
+      - name: Publish package
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm run release:publish

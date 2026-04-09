@@ -137,6 +137,17 @@ RepoBrain 把记忆保存在当前仓库的本地目录中：
 
 完整命令参考见 [docs/cli-reference.zh-CN.md](./docs/cli-reference.zh-CN.md)。
 
+## 发布流程
+
+RepoBrain 现在把维护者发版流程收敛成两步：
+
+```bash
+npm run release:verify
+npm run release:publish
+```
+
+`release:verify` 会跑完整的发版门禁，包括 build、typecheck、lint、format check、测试、proof 生成、打包 smoke test 和 `npm pack --dry-run`。`release:publish` 会在 GitHub Actions 中优先使用 trusted publishing；如果 CI 或本地显式提供了 `NPM_TOKEN`，则自动回退到 token 发布。更完整的维护者说明仍然放在 [docs/release-guide.zh-CN.md](./docs/release-guide.zh-CN.md) 和 [docs/release-checklist.zh-CN.md](./docs/release-checklist.zh-CN.md)。
+
 ## 渐进式检索
 
 RepoBrain 在保持默认 `brain inject` 行为兼容的同时，也把它定位为“显式需要轻量 durable context 时”的兼容路径；对于同一 session 里后续新 conversation，优先用 `brain conversation-start` 来决定是否 `inject`、重跑完整 bundle，或直接跳过冗余刷新。

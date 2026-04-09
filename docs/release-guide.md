@@ -29,10 +29,7 @@ Suggested headings:
 Run the packaged flow, not only the source checkout:
 
 ```bash
-npm run build
-npm test
-npm run smoke:package
-npm pack --dry-run
+npm run release:verify
 ```
 
 Then manually verify:
@@ -66,7 +63,12 @@ brain --version
 
 ## Trusted Publishing Setup
 
-Use npm Trusted Publishing for the GitHub Actions release job instead of a long-lived `NPM_TOKEN`.
+RepoBrain now auto-selects a publish path in CI:
+
+- prefer npm Trusted Publishing when no `NPM_TOKEN` secret is present
+- fall back to `NPM_TOKEN` automatically when the secret exists
+
+That keeps the default path modern, but removes the need to unblock a release manually when trusted publishing is not ready yet.
 
 One-time npm setup:
 
@@ -78,10 +80,20 @@ One-time npm setup:
 Repo expectations:
 
 - keep `permissions.id-token: write` in `.github/workflows/publish.yml`
-- publish with `npm publish --provenance`
-- do not depend on `NODE_AUTH_TOKEN` or a repository-level `NPM_TOKEN` secret for the default release path
+- publish through `npm run release:publish`
+- let the script choose `npm publish --provenance` for trusted publishing, or plain `npm publish` when `NPM_TOKEN` fallback is configured
 
-If trusted publishing is not available yet, fall back to a local `npm publish` from a 2FA-enabled maintainer account and treat it as a temporary manual release path.
+Optional repository fallback:
+
+1. Add an `NPM_TOKEN` repository secret
+2. Use an npm automation token or another publish-capable token for the `repobrain` package
+3. Leave trusted publishing configured when possible; the fallback should reduce release friction, not replace long-term setup
+
+Local maintainer flow:
+
+- run `npm run release:verify`
+- if you still need to publish locally, export `NPM_TOKEN` and run `npm run release:publish`
+- the script prints a clear error if trusted publishing is selected outside GitHub Actions
 
 ## Proof Assets To Link In The Release
 
