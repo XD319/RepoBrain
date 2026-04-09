@@ -81,6 +81,7 @@ One-time npm setup:
 Repo expectations:
 
 - keep `permissions.id-token: write` in `.github/workflows/publish.yml`
+- keep the publish workflow on npm `>=11.5.1` (RepoBrain currently does this by running the publish workflow on Node `24`)
 - publish through `npm run release:publish`
 - let the script choose `npm publish --provenance` by default in GitHub Actions
 - only force plain `npm publish` in CI when you intentionally set `REPOBRAIN_PUBLISH_STRATEGY=token`

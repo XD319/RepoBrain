@@ -81,6 +81,7 @@ npm 侧一次性配置：
 仓库侧需要保持：
 
 - `.github/workflows/publish.yml` 里保留 `permissions.id-token: write`
+- 发布 workflow 所用的 npm 版本保持在 `>=11.5.1`（RepoBrain 当前通过在发布 workflow 中使用 Node `24` 来满足这一点）
 - 发布命令统一走 `npm run release:publish`
 - 让脚本在 GitHub Actions 里默认执行 `npm publish --provenance`
 - 只有在你有意测试 CI token fallback 时，才显式设置 `REPOBRAIN_PUBLISH_STRATEGY=token`

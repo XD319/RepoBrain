@@ -7,6 +7,7 @@
 - [ ] `npm run release:verify`
 - [ ] 检查 `package.json.files` 里的每个路径都真实存在，且确实应该被发布
 - [ ] npm 上已为 `XD319/RepoBrain` 配好 trusted publisher
+- [ ] `.github/workflows/publish.yml` 使用了支持 npm trusted publishing 的 Node/npm 组合（RepoBrain 目前固定为 Node `24`）
 - [ ] 如果 CI 必须临时绕过 trusted publishing，已显式设置 `REPOBRAIN_PUBLISH_STRATEGY=token`，且仓库 `NPM_TOKEN` secret 有效
 
 ## 文档

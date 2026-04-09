@@ -7,6 +7,7 @@ Use this checklist before the first public release and before any later packagin
 - [ ] `npm run release:verify`
 - [ ] Verify every path in `package.json.files` exists and is intentionally published
 - [ ] npm trusted publisher is configured for `XD319/RepoBrain`
+- [ ] `.github/workflows/publish.yml` runs the publish job on a Node/npm combination that supports npm trusted publishing (RepoBrain uses Node `24`)
 - [ ] if CI must bypass trusted publishing temporarily, `REPOBRAIN_PUBLISH_STRATEGY=token` is set intentionally and the repository `NPM_TOKEN` secret is valid
 
 ## Documentation
