@@ -135,6 +135,21 @@ RepoBrain keeps memory local to the repository:
 
 The complete command reference lives in [docs/cli-reference.md](./docs/cli-reference.md).
 
+## Import Rule Files
+
+RepoBrain now exposes a core parser for rule-oriented Markdown files such as `AGENTS.md`, `CLAUDE.md`, `CONVENTIONS.md`, and `.cursorrules`. It turns heading sections into candidate memories while preserving the existing candidate-first review flow.
+
+```ts
+import { parseRuleFileToMemories } from "repobrain";
+
+const memories = parseRuleFileToMemories(ruleMarkdown, "AGENTS.md", {
+  defaultType: "convention",
+  defaultImportance: "medium",
+});
+```
+
+The parser prefers explicit `decision:`, `gotcha:`, `convention:`, `pattern:`, and `goal:` prefixes, falls back to heading-based inference, skips weak sections such as table-of-contents blocks or link-only references, and returns normalized memories with `source: "manual"` plus `status: "candidate"`.
+
 ## Progressive Retrieval
 
 RepoBrain keeps the default `brain inject` behavior compatible as the lightweight follow-up path when you explicitly want compact context, while `brain conversation-start` can decide whether a later fresh conversation in the same session should `inject`, rerun the full bundle, or skip a redundant refresh.

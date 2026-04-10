@@ -1,5 +1,6 @@
 import { loadConfig as loadConfigImpl } from "./config.js";
 import { extractMemories as extractMemoriesImpl } from "./extract.js";
+import { parseRuleFileToMemories as parseRuleFileToMemoriesImpl } from "./import.js";
 import { buildInjection as buildInjectionImpl } from "./inject.js";
 import { buildConversationStart as buildConversationStartImpl } from "./conversation-start.js";
 import { reviewCandidateMemories as reviewCandidateMemoriesImpl } from "./reviewer.js";
@@ -67,6 +68,11 @@ export const buildTaskRoutingBundle = buildTaskRoutingBundleImpl;
  * Extract candidate durable memories from conversation/session text.
  */
 export const extractMemories = extractMemoriesImpl;
+
+/**
+ * Parse rule-oriented Markdown files such as AGENTS.md or .cursorrules into candidate memories.
+ */
+export const parseRuleFileToMemories = parseRuleFileToMemoriesImpl;
 
 /**
  * Review a single candidate memory against existing stored memories.

@@ -262,7 +262,7 @@ const AREA_RULES: Array<{ area: MemoryArea; pattern: RegExp }> = [
   },
 ];
 
-const DOMAIN_TAG_RULES: Array<{ tag: string; pattern: RegExp }> = [
+export const DOMAIN_TAG_RULES: Array<{ tag: string; pattern: RegExp }> = [
   { tag: "extract", pattern: /\bextract(?:or|ion)?\b|(?:抽取|提取)/iu },
   { tag: "memory", pattern: /\bmemory|repo brain\b|(?:记忆|记忆库)/iu },
   { tag: "git", pattern: /\bgit|commit|diff stat\b|(?:提交|变更文件)/iu },

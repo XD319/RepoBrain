@@ -169,3 +169,18 @@ brain inject --layer full --ids "2026-04-01-refund-boundary-090000000"
 | 各 Agent 适配说明 | [integrations/claude/README.md](./integrations/claude/README.md), [integrations/codex/README.md](./integrations/codex/README.md), [integrations/cursor/README.md](./integrations/cursor/README.md), [integrations/copilot/README.md](./integrations/copilot/README.md) |
 
 如需查看 extended integrations、adapter contract 和各 Agent 的接入细节，请继续阅读 `/docs` 与 `/integrations` 目录。
+
+## 导入规则文件
+
+RepoBrain 现在提供了一个面向规则类 Markdown 文件的核心解析器，可用于 `AGENTS.md`、`CLAUDE.md`、`CONVENTIONS.md` 和 `.cursorrules` 这类已有规则文档。它会把每个 heading section 转成 candidate memory，同时保持现有的 candidate-first 审核流程不变。
+
+```ts
+import { parseRuleFileToMemories } from "repobrain";
+
+const memories = parseRuleFileToMemories(ruleMarkdown, "AGENTS.md", {
+  defaultType: "convention",
+  defaultImportance: "medium",
+});
+```
+
+解析器会优先识别显式的 `decision:`、`gotcha:`、`convention:`、`pattern:`、`goal:` 前缀；如果没有前缀，再根据 heading 推断类型；同时会跳过目录、纯链接参考区和明显过短的 section。返回结果已经按 RepoBrain 的内存结构归一化，并统一带上 `source: "manual"` 和 `status: "candidate"`。
