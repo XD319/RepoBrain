@@ -236,7 +236,7 @@ const TYPE_SIGNAL_RULES: Record<MemoryType, SignalRule[]> = {
   working: [
     {
       pattern:
-        /\b(?:working|for now|in progress|pending|follow-up|remaining|checklist|track this|until rollout|next step|ongoing)\b/iu,
+        /\b(?:working|for now|in progress|pending|follow-up|remaining|checklist|track this|until rollout|next step|ongoing|workaround)\b/iu,
       weight: 2.2,
       detail: "working-context keyword",
     },
@@ -736,6 +736,9 @@ function identifyCandidate(fragment: ExtractionFragment): LocalCandidateDraft | 
     typeScores.pattern += 0.8;
     typeScores.gotcha += 0.6;
     typeScores.goal += 0.3;
+    if (typeScores.decision >= 2.2) {
+      addEvidence(typeScores, extractionEvidence, "decision", 0.8, "cause", "decision keyword reinforced by rationale");
+    }
   }
 
   if (RISK_PATTERN.test(text)) {
@@ -1355,6 +1358,9 @@ function scoreCandidateQuality(
 ): { qualityScore: number; rejectReason?: RejectReason } {
   const combined = `${memory.title}\n${memory.summary}\n${memory.detail}`;
   const tokens = normalizeForKey(combined).split(" ").filter(Boolean);
+  const usesCjkThresholds = hasCjkMajority(combined);
+  const minTokenCount = usesCjkThresholds ? 3 : 8;
+  const minSummaryLength = usesCjkThresholds ? 12 : 24;
   const maxTypeScore = candidate.typeScores[candidate.chosenType];
   let score = 18 + Math.round(maxTypeScore * 8);
 
@@ -1392,7 +1398,7 @@ function scoreCandidateQuality(
   if (ACTION_LOG_ONLY_PATTERN.test(memory.summary) && !CAUSE_PATTERN.test(combined) && !RISK_PATTERN.test(combined)) {
     score -= 24;
   }
-  if (tokens.length < 8 || memory.summary.length < 24) {
+  if (tokens.length < minTokenCount || memory.summary.length < minSummaryLength) {
     score -= 22;
   }
   if (maxTypeScore < 2.5) {
@@ -1417,7 +1423,7 @@ function scoreCandidateQuality(
     return { qualityScore: score, rejectReason: "weak_type_signal" };
   }
 
-  if (tokens.length < 8 || memory.summary.length < 24) {
+  if (tokens.length < minTokenCount || memory.summary.length < minSummaryLength) {
     return { qualityScore: score, rejectReason: "low_information_density" };
   }
 
