@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 
-import { parseInitialScreen, resolveScreenHotkey } from "../src/tui/app.tsx";
+import {
+  App,
+  getGlobalShortcutHint,
+  getNextScreen,
+  getScreenLabel,
+  parseInitialScreen,
+  resolveScreenHotkey,
+} from "../src/tui/app.tsx";
 import { buildRoutingInput, parsePathsInput } from "../src/tui/screens/routing.tsx";
 import {
   buildPendingAction,
@@ -30,6 +37,36 @@ describe("tui app helpers", () => {
     expect(resolveScreenHotkey("5")).toBe("routing");
     expect(resolveScreenHotkey("6")).toBe("search");
     expect(resolveScreenHotkey("x")).toBeNull();
+  });
+
+  it("cycles across all screens and renders global shortcut hints", () => {
+    expect(getScreenLabel("dashboard")).toBe("Dashboard");
+    expect(getScreenLabel("search")).toBe("Search");
+    expect(getNextScreen("dashboard")).toBe("review");
+    expect(getNextScreen("routing")).toBe("search");
+    expect(getNextScreen("search")).toBe("dashboard");
+    expect(getGlobalShortcutHint("review")).toMatch(/\[1-6\] jump/);
+    expect(getGlobalShortcutHint("review")).toMatch(/\[a\] approve/);
+    expect(getGlobalShortcutHint("search")).toMatch(/Search:/);
+  });
+
+  it("renders app navigation without crashing", () => {
+    const stdin = Object.assign(new PassThrough(), {
+      isTTY: true,
+      setRawMode() {},
+    });
+    const stdout = new PassThrough();
+    const stderr = new PassThrough();
+    const app = render(
+      React.createElement(App, {
+        projectRoot: process.cwd(),
+        initialScreen: "search",
+      }),
+      { exitOnCtrlC: false, stdin, stdout, stderr },
+    );
+
+    app.unmount();
+    expect(true).toBe(true);
   });
 });
 
