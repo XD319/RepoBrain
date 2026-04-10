@@ -75,6 +75,7 @@ brain diff --since 2026-04-01T00:00:00Z --format json
 - `brain audit-memory [--json]`
 - `brain score`
 - `brain sweep [--dry-run|--auto]`
+- `brain gc`：`brain sweep --auto` 的别名，输出一行精简清理摘要
 - `brain lint-memory`
 - `brain normalize-memory`
 

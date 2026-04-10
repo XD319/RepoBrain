@@ -298,8 +298,25 @@ function buildInjectablePool(allRecords: StoredMemoryRecord[], includeWorking: b
       return false;
     }
 
+    if (isExpiredWorkingMemory(entry.memory, now)) {
+      return false;
+    }
+
     return isMemoryCurrentlyValid(entry.memory, now);
   });
+}
+
+function isExpiredWorkingMemory(memory: Memory, now: Date): boolean {
+  if (memory.type !== "working" || !memory.expires) {
+    return false;
+  }
+
+  const expiresAt = Date.parse(memory.expires);
+  if (Number.isNaN(expiresAt)) {
+    return false;
+  }
+
+  return expiresAt < now.getTime();
 }
 
 function toCachedMemorySummary(entry: DerivedMemoryIndexEntry): Memory {

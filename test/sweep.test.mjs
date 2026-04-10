@@ -1,4 +1,5 @@
 import { expect, it } from "vitest";
+import { spawn } from "node:child_process";
 import { access, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -6,6 +7,8 @@ import path from "node:path";
 import { loadConfig, loadStoredMemoryRecords, renderConfigWarnings, saveMemory, initBrain } from "../dist/store-api.js";
 import { buildInjection } from "../dist/inject.js";
 import { applySweepAuto, renderSweepDryRun, scanSweepCandidates } from "../dist/sweep.js";
+
+const repoRoot = process.cwd();
 
 await runTest("sweep config fields default safely and invalid values emit warnings", async () => {
   await withTempRepo(async (projectRoot) => {
@@ -291,6 +294,40 @@ await runTest("sweep auto stays compatible with inject by cleaning before contex
   });
 });
 
+await runTest("brain gc applies the same cleanup actions as brain sweep --auto", async () => {
+  const sweepRoot = await mkdtemp(path.join(os.tmpdir(), "repobrain-sweep-cli-"));
+  const gcRoot = await mkdtemp(path.join(os.tmpdir(), "repobrain-gc-cli-"));
+
+  try {
+    await initBrain(sweepRoot);
+    await initBrain(gcRoot);
+    await seedSweepCliFixture(sweepRoot);
+    await seedSweepCliFixture(gcRoot);
+
+    const sweepResult = await runCliProcess(["sweep", "--auto"], sweepRoot);
+    const gcResult = await runCliProcess(["gc"], gcRoot);
+
+    assert.equal(sweepResult.code, 0);
+    assert.equal(gcResult.code, 0);
+    assert.match(gcResult.stdout, /gc: removed 1 expired, downgraded 1 stale, archived 1 goals/);
+
+    const sweepRecords = await loadStoredMemoryRecords(sweepRoot);
+    const gcRecords = await loadStoredMemoryRecords(gcRoot);
+    assert.deepEqual(
+      summarizeMemoriesForComparison(sweepRecords),
+      summarizeMemoriesForComparison(gcRecords),
+      "expected gc to produce the same durable memory set as sweep --auto",
+    );
+
+    const sweepArchiveFiles = await readdir(path.join(sweepRoot, ".brain", "archive"));
+    const gcArchiveFiles = await readdir(path.join(gcRoot, ".brain", "archive"));
+    assert.equal(sweepArchiveFiles.length, gcArchiveFiles.length);
+  } finally {
+    await rm(sweepRoot, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+    await rm(gcRoot, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+  }
+});
+
 console.log("All sweep tests passed.");
 
 async function withTempRepo(callback) {
@@ -306,6 +343,97 @@ async function withTempRepo(callback) {
 
 function runTest(name, callback) {
   it(name, callback);
+}
+
+async function seedSweepCliFixture(projectRoot) {
+  await saveMemory(
+    {
+      type: "working",
+      title: "Expired CLI working memory",
+      summary: "This should be removed by auto cleanup.",
+      detail: "## WORKING\n\nExpired by date.",
+      tags: ["cli"],
+      importance: "medium",
+      date: "2026-01-01T09:00:00.000Z",
+      updated: "2026-01-01",
+      expires: "2026-01-02",
+      status: "active",
+    },
+    projectRoot,
+  );
+
+  await saveMemory(
+    {
+      type: "decision",
+      title: "Old CLI auth memory",
+      summary: "This should be downgraded by stale policy.",
+      detail: "## DECISION\n\nOld stale entry for downgrade checks.",
+      tags: ["auth"],
+      importance: "high",
+      date: "2026-01-03T09:00:00.000Z",
+      updated: "2026-01-03",
+      status: "active",
+    },
+    projectRoot,
+  );
+
+  await saveMemory(
+    {
+      type: "goal",
+      title: "CLI done rollout",
+      summary: "This should be archived in auto cleanup.",
+      detail: "## GOAL\n\nDone goal waiting for archive.",
+      tags: ["goal"],
+      importance: "high",
+      date: "2026-01-04T09:00:00.000Z",
+      updated: "2026-01-10",
+      status: "done",
+    },
+    projectRoot,
+  );
+}
+
+function summarizeMemoriesForComparison(records) {
+  return records
+    .map((entry) => ({
+      type: entry.memory.type,
+      title: entry.memory.title,
+      importance: entry.memory.importance,
+      status: entry.memory.status ?? "active",
+    }))
+    .sort((left, right) => left.title.localeCompare(right.title));
+}
+
+async function runCliProcess(args, cwd, stdinText = "") {
+  return new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, [path.join(repoRoot, "dist", "cli.js"), ...args], {
+      cwd,
+      stdio: ["pipe", "pipe", "pipe"],
+      env: process.env,
+    });
+
+    let stdout = "";
+    let stderr = "";
+
+    child.stdout.on("data", (chunk) => {
+      stdout += chunk.toString("utf8");
+    });
+
+    child.stderr.on("data", (chunk) => {
+      stderr += chunk.toString("utf8");
+    });
+
+    child.on("error", reject);
+    child.on("close", (code) => {
+      resolve({
+        code,
+        stdout,
+        stderr,
+      });
+    });
+
+    child.stdin.end(stdinText);
+  });
 }
 
 const assert = {

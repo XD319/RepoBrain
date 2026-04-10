@@ -81,6 +81,7 @@ brain diff --since 2026-04-01T00:00:00Z --format json
 - `brain audit-memory [--json]`
 - `brain score`
 - `brain sweep [--dry-run|--auto]`
+- `brain gc`: alias for `brain sweep --auto` with a compact cleanup summary line
 - `brain lint-memory`
 - `brain normalize-memory`
 

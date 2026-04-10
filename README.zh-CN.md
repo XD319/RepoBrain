@@ -134,7 +134,7 @@ RepoBrain 把记忆保存在当前仓库的本地目录中：
 | 审阅 candidate | `brain review`, `brain approve`, `brain dismiss`, `brain promote-candidates` | 保持 candidate-first 流程可审阅 |
 | 启动任务 | `brain inject`, `brain conversation-start`, `brain suggest-skills`, `brain route`, `brain start` | 生成上下文块和确定性的路由计划 |
 | 检索记忆 | `brain list`, `brain diff`, `brain search`, `brain timeline`, `brain explain-memory`, `brain explain-preference` | 查看仓库已经知道什么，以及自上次 inject 以来发生了什么变化 |
-| 维护质量 | `brain status`, `brain next`, `brain audit-memory`, `brain lint-memory`, `brain normalize-memory`, `brain score`, `brain sweep` | 长期维护记忆质量 |
+| 维护质量 | `brain status`, `brain next`, `brain audit-memory`, `brain lint-memory`, `brain normalize-memory`, `brain score`, `brain sweep`（`brain gc` 为自动 sweep 别名） | 长期维护记忆质量 |
 | 团队与适配器 | `brain share`, `brain mcp`, `brain reinforce`, `brain routing-feedback` | 分享记忆、接入适配器、闭环反馈 |
 
 完整命令参考见 [docs/cli-reference.zh-CN.md](./docs/cli-reference.zh-CN.md)。
