@@ -50,6 +50,7 @@ brain start --format json --task "fix refund bug"
 ## 记忆管理
 
 - `brain list [--type <type>] [--goals]`
+- `brain diff [--since <iso-date>] [--since-days <n>] [--format text|json]`：查看自上次 inject / context load 以来，或指定时间窗口内的 memory 变化
 - `brain search "<query>" [--type] [--tag] [--status] [--all] [--json]`
 - `brain stats`
 - `brain goal done <keyword>`
@@ -58,6 +59,14 @@ brain start --format json --task "fix refund bug"
 - `brain timeline [<file-or-id>] [--preferences]`
 - `brain explain-memory <id>`
 - `brain explain-preference <id>`
+
+示例：
+
+```bash
+brain diff
+brain diff --since-days 7
+brain diff --since 2026-04-01T00:00:00Z --format json
+```
 
 ## 健康检查与治理
 
