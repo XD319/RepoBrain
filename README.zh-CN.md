@@ -128,7 +128,7 @@ RepoBrain 把记忆保存在当前仓库的本地目录中：
 | 目标 | 命令 | 作用 |
 | --- | --- | --- |
 | 初始化仓库 | `brain setup`, `brain init` | 创建 `.brain/`、应用 workflow preset，并可写入 steering rules |
-| 采集知识 | `brain extract`, `brain extract-commit`, `brain capture` | 从 stdin、commit 上下文或会话总结中提取 durable memory |
+| 采集知识 | `brain extract`, `brain extract-commit`, `brain capture`, `brain import` | 从 stdin、commit 上下文、会话总结或现有规则文件中提取 durable memory |
 | 审阅 candidate | `brain review`, `brain approve`, `brain dismiss`, `brain promote-candidates` | 保持 candidate-first 流程可审阅 |
 | 启动任务 | `brain inject`, `brain conversation-start`, `brain suggest-skills`, `brain route`, `brain start` | 生成上下文块和确定性的路由计划 |
 | 检索记忆 | `brain list`, `brain search`, `brain timeline`, `brain explain-memory`, `brain explain-preference` | 查看仓库已经知道什么 |

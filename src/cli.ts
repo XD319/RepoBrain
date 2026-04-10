@@ -4,6 +4,7 @@ import { Command } from "commander";
 import { BrainInternalError, BrainUserError } from "./errors.js";
 
 import { register as registerInitSetup } from "./commands/init-setup.js";
+import { register as registerImport } from "./commands/import.js";
 import { register as registerExtract } from "./commands/extract.js";
 import { register as registerInject } from "./commands/inject.js";
 import { register as registerConversationStart } from "./commands/conversation-start.js";
@@ -27,6 +28,7 @@ program.option("--debug", "Print stack traces for CLI errors.");
 program.exitOverride();
 
 registerInitSetup(program);
+registerImport(program);
 registerExtract(program);
 registerInject(program);
 registerConversationStart(program);

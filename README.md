@@ -126,7 +126,7 @@ RepoBrain keeps memory local to the repository:
 | Goal | Command | What it gives you |
 | --- | --- | --- |
 | Initialize a repo | `brain setup`, `brain init` | Create `.brain/`, apply a workflow preset, and optionally write steering rules |
-| Capture knowledge | `brain extract`, `brain extract-commit`, `brain capture` | Turn stdin, commit context, or session summaries into durable memory |
+| Capture knowledge | `brain extract`, `brain extract-commit`, `brain capture`, `brain import` | Turn stdin, commit context, session summaries, or existing rule files into durable memory |
 | Review candidates | `brain review`, `brain approve`, `brain dismiss`, `brain promote-candidates` | Keep candidate-first workflows reviewable |
 | Start a task | `brain inject`, `brain conversation-start`, `brain suggest-skills`, `brain route`, `brain start` | Produce context blocks and deterministic routing plans |
 | Inspect memory | `brain list`, `brain search`, `brain timeline`, `brain explain-memory`, `brain explain-preference` | Explore what the repo already knows |
