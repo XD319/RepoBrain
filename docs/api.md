@@ -16,6 +16,7 @@ import {
   buildSkillShortlist,
   buildTaskRoutingBundle,
   extractMemories,
+  parseRuleFileToMemories,
   reviewCandidateMemory,
   reviewCandidateMemories,
 } from "repobrain";
@@ -53,6 +54,18 @@ import {
 ### Extraction
 
 - `extractMemories(conversationText: string, config: BrainConfig, projectRoot?: string): Promise<Memory[]>`
+- `parseRuleFileToMemories(content: string, filePath: string, options?: ImportOptions): Memory[]`
+
+Example:
+
+```ts
+const imported = parseRuleFileToMemories(ruleMarkdown, "AGENTS.md", {
+  defaultType: "convention",
+  defaultImportance: "medium",
+});
+```
+
+Use `parseRuleFileToMemories` when a repo already has durable guidance in Markdown rule files and you want to convert those sections into candidate memories before saving or reviewing them.
 
 ### Review
 

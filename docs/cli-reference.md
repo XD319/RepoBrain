@@ -15,6 +15,10 @@ Complete command reference moved from `README.md`.
 - `brain extract-commit`: extract from richer git commit context
 - `brain suggest-extract`: local heuristic check for whether extraction is worth doing
 - `brain capture`: suggest-extract + extract in one step, candidate-first by default
+- `brain import <files...>`: import existing rule files such as `AGENTS.md`, `CLAUDE.md`, `CONVENTIONS.md`, or `.cursorrules` into candidate memories
+- `brain import <files...> --dry-run`: preview parsed memories without writing files
+- `brain import <files...> --type <type>`: force imported memories to a specific type
+- `brain import <files...> --format json`: print machine-readable import summary
 
 Examples:
 
@@ -22,6 +26,8 @@ Examples:
 cat session-summary.txt | brain extract
 brain suggest-extract --task "fix refund bug" --path src/payments/handler.ts --json
 echo "gotcha: retry loop exits too early" | brain capture --task "fix refund bug" --path src/payments/handler.ts
+brain import AGENTS.md CONVENTIONS.md
+brain import AGENTS.md --dry-run --format json
 ```
 
 ## Context and Routing

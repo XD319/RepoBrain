@@ -87,3 +87,17 @@ brain start --format json --task "fix refund bug"
 
 - 可用 `brain --debug ...` 或 `REPOBRAIN_DEBUG=1` 查看内部堆栈。
 - 用户输入/用法错误默认保持简洁输出（`stderr`，退出码 `1`）。
+
+## 导入与迁移
+
+- `brain import <files...>`：将已有规则文件（如 `AGENTS.md`、`CLAUDE.md`、`CONVENTIONS.md`、`.cursorrules`）解析为 candidate memory
+- `brain import <files...> --dry-run`：只预览解析结果，不写入文件
+- `brain import <files...> --type <type>`：强制将导入结果写成指定 memory type
+- `brain import <files...> --format json`：输出机器可读的导入摘要
+
+示例：
+
+```bash
+brain import AGENTS.md CONVENTIONS.md
+brain import AGENTS.md --dry-run --format json
+```

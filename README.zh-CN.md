@@ -128,7 +128,7 @@ RepoBrain 把记忆保存在当前仓库的本地目录中：
 | 目标 | 命令 | 作用 |
 | --- | --- | --- |
 | 初始化仓库 | `brain setup`, `brain init` | 创建 `.brain/`、应用 workflow preset，并可写入 steering rules |
-| 采集知识 | `brain extract`, `brain extract-commit`, `brain capture`, `brain import` | 从 stdin、commit 上下文、会话总结或现有规则文件中提取 durable memory |
+| 采集知识 | `brain extract`, `brain extract-commit`, `brain capture`, `brain import` | 从 stdin、commit 上下文、会话总结或现有规则文件中提取 candidate-first durable memory |
 | 审阅 candidate | `brain review`, `brain approve`, `brain dismiss`, `brain promote-candidates` | 保持 candidate-first 流程可审阅 |
 | 启动任务 | `brain inject`, `brain conversation-start`, `brain suggest-skills`, `brain route`, `brain start` | 生成上下文块和确定性的路由计划 |
 | 检索记忆 | `brain list`, `brain search`, `brain timeline`, `brain explain-memory`, `brain explain-preference` | 查看仓库已经知道什么 |
@@ -184,3 +184,12 @@ const memories = parseRuleFileToMemories(ruleMarkdown, "AGENTS.md", {
 ```
 
 解析器会优先识别显式的 `decision:`、`gotcha:`、`convention:`、`pattern:`、`goal:` 前缀；如果没有前缀，再根据 heading 推断类型；同时会跳过目录、纯链接参考区和明显过短的 section。返回结果已经按 RepoBrain 的内存结构归一化，并统一带上 `source: "manual"` 和 `status: "candidate"`。
+
+## 导入现有规则
+
+如果仓库里已经有 `AGENTS.md`、`CLAUDE.md`、`CONVENTIONS.md` 或 `.cursorrules`，可以先用 `brain import` 快速迁移为 candidate memory，再继续走现有的 review / approve 流程。
+
+```bash
+brain import AGENTS.md CONVENTIONS.md
+brain import AGENTS.md --dry-run --format json
+```

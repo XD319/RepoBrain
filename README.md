@@ -54,6 +54,9 @@ In the default `recommended-semi-auto` mode, RepoBrain handles the repetitive ca
 # One-time setup: initialize .brain/ and install the default low-risk hook
 brain setup
 
+# If the repo already has AGENTS.md or similar guidance, migrate it into candidate memories first
+brain import AGENTS.md CONVENTIONS.md
+
 # Work normally; the default mode auto-detects extraction opportunities
 git commit -m "refactor request validation"
 
@@ -126,7 +129,7 @@ RepoBrain keeps memory local to the repository:
 | Goal | Command | What it gives you |
 | --- | --- | --- |
 | Initialize a repo | `brain setup`, `brain init` | Create `.brain/`, apply a workflow preset, and optionally write steering rules |
-| Capture knowledge | `brain extract`, `brain extract-commit`, `brain capture`, `brain import` | Turn stdin, commit context, session summaries, or existing rule files into durable memory |
+| Capture knowledge | `brain extract`, `brain extract-commit`, `brain capture`, `brain import` | Turn stdin, commit context, session summaries, or existing rule files into candidate-first durable memory |
 | Review candidates | `brain review`, `brain approve`, `brain dismiss`, `brain promote-candidates` | Keep candidate-first workflows reviewable |
 | Start a task | `brain inject`, `brain conversation-start`, `brain suggest-skills`, `brain route`, `brain start` | Produce context blocks and deterministic routing plans |
 | Inspect memory | `brain list`, `brain search`, `brain timeline`, `brain explain-memory`, `brain explain-preference` | Explore what the repo already knows |
