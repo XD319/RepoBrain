@@ -132,11 +132,25 @@ RepoBrain keeps memory local to the repository:
 | Capture knowledge | `brain extract`, `brain extract-commit`, `brain capture`, `brain import` | Turn stdin, commit context, session summaries, or existing rule files into candidate-first durable memory |
 | Review candidates | `brain review`, `brain approve`, `brain dismiss`, `brain promote-candidates` | Keep candidate-first workflows reviewable |
 | Start a task | `brain inject`, `brain conversation-start`, `brain suggest-skills`, `brain route`, `brain start` | Produce context blocks and deterministic routing plans |
-| Inspect memory | `brain list`, `brain search`, `brain timeline`, `brain explain-memory`, `brain explain-preference` | Explore what the repo already knows |
+| Inspect memory | `brain list`, `brain diff`, `brain search`, `brain timeline`, `brain explain-memory`, `brain explain-preference` | Explore what the repo already knows and what changed since the last inject |
 | Keep things healthy | `brain status`, `brain next`, `brain audit-memory`, `brain lint-memory`, `brain normalize-memory`, `brain score`, `brain sweep` | Maintain memory quality over time |
 | Team and adapters | `brain share`, `brain mcp`, `brain reinforce`, `brain routing-feedback` | Share memory, integrate adapters, and close the feedback loop |
 
 The complete command reference lives in [docs/cli-reference.md](./docs/cli-reference.md).
+
+### Inspect Recent Memory Changes
+
+Use `brain diff` when you want a quick read-only summary of what changed in `.brain/` since the last context load, or inside a specific time window.
+
+```bash
+brain diff
+brain diff --since-days 7
+brain diff --since 2026-04-01T00:00:00Z --format json
+```
+
+- Default behavior uses the last recorded `brain inject` / context-load timestamp from `.brain/activity.json`.
+- `--since-days <n>` shows recent changes without needing an exact timestamp.
+- `--format json` returns the same diff buckets as machine-readable JSON for scripts.
 
 ## Import Rule Files
 

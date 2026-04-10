@@ -3,6 +3,11 @@ import { extractMemories as extractMemoriesImpl } from "./extract.js";
 import { parseRuleFileToMemories as parseRuleFileToMemoriesImpl } from "./import.js";
 import { buildInjection as buildInjectionImpl } from "./inject.js";
 import { buildConversationStart as buildConversationStartImpl } from "./conversation-start.js";
+import {
+  buildMemoryDiff as buildMemoryDiffImpl,
+  renderMemoryDiff as renderMemoryDiffImpl,
+  renderMemoryDiffJson as renderMemoryDiffJsonImpl,
+} from "./memory-diff.js";
 import { reviewCandidateMemories as reviewCandidateMemoriesImpl } from "./reviewer.js";
 import { reviewCandidateMemory as reviewCandidateMemoryImpl } from "./reviewer.js";
 import { loadAllMemories as loadAllMemoriesImpl } from "./store/memory-store.js";
@@ -53,6 +58,21 @@ export const buildInjection = buildInjectionImpl;
  * reload compact context, or skip a redundant refresh.
  */
 export const buildConversationStart = buildConversationStartImpl;
+
+/**
+ * Summarize memory changes since the last inject or a caller-provided time window.
+ */
+export const buildMemoryDiff = buildMemoryDiffImpl;
+
+/**
+ * Render a human-readable markdown diff of memory-store changes.
+ */
+export const renderMemoryDiff = renderMemoryDiffImpl;
+
+/**
+ * Render a JSON diff of memory-store changes.
+ */
+export const renderMemoryDiffJson = renderMemoryDiffJsonImpl;
 
 /**
  * Build deterministic skill shortlist and invocation plan for a given task context.

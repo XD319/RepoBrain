@@ -131,11 +131,25 @@ RepoBrain 把记忆保存在当前仓库的本地目录中：
 | 采集知识 | `brain extract`, `brain extract-commit`, `brain capture`, `brain import` | 从 stdin、commit 上下文、会话总结或现有规则文件中提取 candidate-first durable memory |
 | 审阅 candidate | `brain review`, `brain approve`, `brain dismiss`, `brain promote-candidates` | 保持 candidate-first 流程可审阅 |
 | 启动任务 | `brain inject`, `brain conversation-start`, `brain suggest-skills`, `brain route`, `brain start` | 生成上下文块和确定性的路由计划 |
-| 检索记忆 | `brain list`, `brain search`, `brain timeline`, `brain explain-memory`, `brain explain-preference` | 查看仓库已经知道什么 |
+| 检索记忆 | `brain list`, `brain diff`, `brain search`, `brain timeline`, `brain explain-memory`, `brain explain-preference` | 查看仓库已经知道什么，以及自上次 inject 以来发生了什么变化 |
 | 维护质量 | `brain status`, `brain next`, `brain audit-memory`, `brain lint-memory`, `brain normalize-memory`, `brain score`, `brain sweep` | 长期维护记忆质量 |
 | 团队与适配器 | `brain share`, `brain mcp`, `brain reinforce`, `brain routing-feedback` | 分享记忆、接入适配器、闭环反馈 |
 
 完整命令参考见 [docs/cli-reference.zh-CN.md](./docs/cli-reference.zh-CN.md)。
+
+### 查看近期 memory 变化
+
+当你想快速了解 `.brain/` 自上次上下文注入以来，或者某个时间窗口内发生了哪些变化时，可以使用只读命令 `brain diff`。
+
+```bash
+brain diff
+brain diff --since-days 7
+brain diff --since 2026-04-01T00:00:00Z --format json
+```
+
+- 默认会读取 `.brain/activity.json` 里的最近一次 `brain inject` / context-load 时间作为起点。
+- `--since-days <n>` 适合快速查看最近 N 天的变化。
+- `--format json` 会输出机器可读的 diff 结果，便于脚本消费。
 
 ## 渐进式检索
 
