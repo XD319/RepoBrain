@@ -84,6 +84,8 @@ brain route --task "refactor request validation" --format json
 brain tui
 ```
 
+现在 TUI 也提供独立的 `Search` 屏幕，支持带防抖的关键词检索、按 type 过滤，以及展开结果详情。可在导航栏中按 `6` 进入。
+
 ## 选择 Workflow Preset
 
 RepoBrain 内置了三种 workflow preset，让团队可以在不改变核心 CLI 契约的前提下，选择合适的自动化强度。

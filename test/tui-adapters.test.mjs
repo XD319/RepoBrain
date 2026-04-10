@@ -4,6 +4,7 @@ import { createDashboardStatsViewModel } from "../src/tui/adapters/dashboard.ts"
 import { createActivePreferenceListViewModel } from "../src/tui/adapters/preferences.ts";
 import { createCandidateListViewModel } from "../src/tui/adapters/review.ts";
 import { createRoutingInspectorViewModel } from "../src/tui/adapters/routing.ts";
+import { searchRecordsForView } from "../src/tui/adapters/search.ts";
 
 describe("tui adapters", () => {
   it("builds dashboard stats view model", () => {
@@ -115,6 +116,65 @@ describe("tui adapters", () => {
     expect(model.task).toBe("fix payment timeout");
     expect(model.warnings).toEqual(["warn-1"]);
     expect(model.bundle).toBe(bundle);
+  });
+
+  it("builds search result view model with type filter and relevance order", () => {
+    const results = searchRecordsForView(
+      [
+        createRecord(
+          "patterns/2026-04-01-node-parser.md",
+          createMemory({
+            type: "pattern",
+            importance: "medium",
+            title: "Node parser pipeline",
+            summary: "Parser pipeline for streaming auth events",
+            detail: "Use the parser pipeline to normalize auth events before writes.",
+            tags: ["auth", "parser"],
+          }),
+        ),
+        createRecord(
+          "decisions/2026-04-02-auth-parser-title.md",
+          createMemory({
+            type: "decision",
+            importance: "high",
+            title: "Auth parser boundary",
+            summary: "Keep auth parsing at the boundary",
+            detail: "Boundary parser keeps auth payload normalization deterministic.",
+            tags: ["auth"],
+          }),
+        ),
+      ],
+      "auth parser",
+      { type: "all" },
+    );
+
+    expect(results).toHaveLength(2);
+    expect(results[0]).toMatchObject({
+      id: "2026-04-01-node-parser",
+      type: "pattern",
+      importance: "medium",
+    });
+    expect(results[0]?.snippet).toMatch(/title:|summary:|detail:/);
+    expect(results[1]?.relativePath).toBe("decisions/2026-04-02-auth-parser-title.md");
+
+    const filtered = searchRecordsForView(
+      [
+        createRecord(
+          "patterns/2026-04-01-node-parser.md",
+          createMemory({
+            type: "pattern",
+            title: "Node parser pipeline",
+            summary: "Parser pipeline",
+            detail: "Auth parser detail",
+            tags: ["auth", "parser"],
+          }),
+        ),
+      ],
+      "auth parser",
+      { type: "decision" },
+    );
+
+    expect(filtered).toEqual([]);
   });
 });
 

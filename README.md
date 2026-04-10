@@ -85,6 +85,8 @@ Optional interactive UI:
 brain tui
 ```
 
+The TUI now includes a dedicated `Search` screen for debounced keyword lookup with type filtering and result detail drill-down. Use `6` to open it from the navigation bar.
+
 ## Choose A Workflow Preset
 
 RepoBrain ships with three workflow presets so teams can choose how much automation they want without changing the core CLI contract.

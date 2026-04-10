@@ -4,19 +4,26 @@ import { parseInitialScreen, resolveScreenHotkey } from "../src/tui/app.tsx";
 import { buildRoutingInput, parsePathsInput } from "../src/tui/screens/routing.tsx";
 import { clampSelection, getSelectedCandidateId } from "../src/tui/screens/review.tsx";
 import { nextFilterValue } from "../src/tui/screens/memories.tsx";
+import { clampSearchSelection, hasSearchSelection, nextSearchTypeFilter } from "../src/tui/screens/search.tsx";
 import { filterMemoriesForBrowser } from "../src/tui/adapters/memories.ts";
 import { applyInputBuffer, parseCommaSeparatedValues } from "../src/tui/components/input-buffer.ts";
+import React from "react";
+import { render } from "ink";
+import { SearchScreen } from "../src/tui/screens/search.tsx";
+import { PassThrough } from "node:stream";
 
 describe("tui app helpers", () => {
   it("parses initial screen and validates values", () => {
     expect(parseInitialScreen(undefined)).toBe("dashboard");
     expect(parseInitialScreen("review")).toBe("review");
+    expect(parseInitialScreen("search")).toBe("search");
     expect(() => parseInitialScreen("unknown")).toThrow(/Unsupported screen/);
   });
 
   it("resolves screen hotkeys", () => {
     expect(resolveScreenHotkey("1")).toBe("dashboard");
     expect(resolveScreenHotkey("5")).toBe("routing");
+    expect(resolveScreenHotkey("6")).toBe("search");
     expect(resolveScreenHotkey("x")).toBeNull();
   });
 });
@@ -79,6 +86,37 @@ describe("tui memories helpers", () => {
     );
     expect(entries).toHaveLength(1);
     expect(entries[0]?.memory.type).toBe("pattern");
+  });
+});
+
+describe("tui search helpers", () => {
+  it("cycles type filters and clamps selection", () => {
+    expect(nextSearchTypeFilter("all")).toBe("decision");
+    expect(nextSearchTypeFilter("goal")).toBe("all");
+    expect(clampSearchSelection(0, 4)).toBe(0);
+    expect(clampSearchSelection(2, 4)).toBe(1);
+    expect(hasSearchSelection([], 0)).toBe(false);
+    expect(hasSearchSelection([{ id: "m-1" }], 0)).toBe(true);
+  });
+
+  it("renders search screen without crashing", () => {
+    const stdin = Object.assign(new PassThrough(), {
+      isTTY: true,
+      setRawMode() {},
+    });
+    const stdout = new PassThrough();
+    const stderr = new PassThrough();
+    const app = render(
+      React.createElement(SearchScreen, {
+        projectRoot: process.cwd(),
+        onMessage: () => {},
+        onError: () => {},
+      }),
+      { exitOnCtrlC: false, stdin, stdout, stderr },
+    );
+
+    app.unmount();
+    expect(true).toBe(true);
   });
 });
 
