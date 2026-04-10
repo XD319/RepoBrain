@@ -2,7 +2,12 @@ import { describe, expect, it } from "vitest";
 
 import { parseInitialScreen, resolveScreenHotkey } from "../src/tui/app.tsx";
 import { buildRoutingInput, parsePathsInput } from "../src/tui/screens/routing.tsx";
-import { clampSelection, getSelectedCandidateId } from "../src/tui/screens/review.tsx";
+import {
+  buildPendingAction,
+  clampSelection,
+  getSelectedCandidateId,
+  renderPendingActionSummary,
+} from "../src/tui/screens/review.tsx";
 import { nextFilterValue } from "../src/tui/screens/memories.tsx";
 import { clampSearchSelection, hasSearchSelection, nextSearchTypeFilter } from "../src/tui/screens/search.tsx";
 import { filterMemoriesForBrowser } from "../src/tui/adapters/memories.ts";
@@ -42,6 +47,26 @@ describe("tui review helpers", () => {
     expect(clampSelection(2, 50)).toBe(1);
     expect(getSelectedCandidateId(model, 1)).toBe("cand-b");
     expect(getSelectedCandidateId(model, 999)).toBe("cand-b");
+  });
+
+  it("builds review confirmation prompts", () => {
+    const model = {
+      totalCandidates: 2,
+      safeCandidates: 1,
+      candidates: [
+        { id: "cand-a", type: "pattern", importance: "high", title: "A" },
+        { id: "cand-b", type: "decision", importance: "medium", title: "B" },
+      ],
+    };
+    const approveAction = buildPendingAction("approve", model, 0);
+    const dismissAction = buildPendingAction("dismiss", model, 1);
+    const safeAction = buildPendingAction("safe-approve-all", model, 0);
+
+    expect(approveAction).toMatchObject({ kind: "approve", candidate: { id: "cand-a" } });
+    expect(dismissAction).toMatchObject({ kind: "dismiss", candidate: { id: "cand-b" } });
+    expect(safeAction).toMatchObject({ kind: "safe-approve-all", safeCandidates: 1, totalCandidates: 2 });
+    expect(renderPendingActionSummary(approveAction)).toMatch(/Confirm approve cand-a/);
+    expect(renderPendingActionSummary(safeAction)).toMatch(/Confirm safe approve for 1 candidate/);
   });
 });
 

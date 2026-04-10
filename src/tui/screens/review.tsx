@@ -4,8 +4,11 @@ import {
   approveCandidateAction,
   buildCandidateListViewModel,
   dismissCandidateAction,
+  type CandidateActionResultViewModel,
+  type CandidateListItemViewModel,
   type CandidateListViewModel,
 } from "../adapters/review.js";
+import { Section } from "../components/section.js";
 
 export interface ReviewScreenProps {
   projectRoot: string;
@@ -31,17 +34,93 @@ export function getSelectedCandidateId(
   return model.candidates[safeIndex]?.id;
 }
 
+export type ReviewPendingAction =
+  | {
+      kind: "approve";
+      candidate: CandidateListItemViewModel;
+    }
+  | {
+      kind: "dismiss";
+      candidate: CandidateListItemViewModel;
+    }
+  | {
+      kind: "safe-approve-all";
+      safeCandidates: number;
+      totalCandidates: number;
+    };
+
+export function getSelectedCandidate(
+  model: CandidateListViewModel | null,
+  selectedIndex: number,
+): CandidateListItemViewModel | undefined {
+  if (!model || model.candidates.length === 0) {
+    return undefined;
+  }
+  const safeIndex = clampSelection(model.candidates.length, selectedIndex);
+  return model.candidates[safeIndex];
+}
+
+export function buildPendingAction(
+  kind: ReviewPendingAction["kind"],
+  model: CandidateListViewModel | null,
+  selectedIndex: number,
+): ReviewPendingAction | null {
+  if (!model) {
+    return null;
+  }
+  if (kind === "safe-approve-all") {
+    if (model.safeCandidates <= 0) {
+      return null;
+    }
+    return {
+      kind,
+      safeCandidates: model.safeCandidates,
+      totalCandidates: model.totalCandidates,
+    };
+  }
+  const candidate = getSelectedCandidate(model, selectedIndex);
+  if (!candidate) {
+    return null;
+  }
+  return { kind, candidate };
+}
+
+export function renderPendingActionSummary(pendingAction: ReviewPendingAction | null): string {
+  if (!pendingAction) {
+    return "[a]pprove [d]ismiss [s]afe-approve-all [r]efresh";
+  }
+  if (pendingAction.kind === "safe-approve-all") {
+    return `Confirm safe approve for ${pendingAction.safeCandidates} candidate(s) out of ${pendingAction.totalCandidates}: [y]es Enter / [n]o Esc`;
+  }
+  return `Confirm ${pendingAction.kind} ${pendingAction.candidate.id} | ${pendingAction.candidate.type} | ${pendingAction.candidate.importance} | ${pendingAction.candidate.title}: [y]es Enter / [n]o Esc`;
+}
+
 export function ReviewScreen({ projectRoot, onMessage, onError }: ReviewScreenProps): React.JSX.Element {
   const [model, setModel] = useState<CandidateListViewModel | null>(null);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [pendingAction, setPendingAction] = useState<ReviewPendingAction | null>(null);
 
   const reload = useCallback(async () => {
     const next = await buildCandidateListViewModel(projectRoot);
     setModel(next);
     setSelectedIndex((current) => clampSelection(next.candidates.length, current));
+    setPendingAction(null);
   }, [projectRoot]);
+
+  const runConfirmedAction = useCallback(
+    async (action: ReviewPendingAction): Promise<CandidateActionResultViewModel> => {
+      switch (action.kind) {
+        case "approve":
+          return approveCandidateAction(projectRoot, action.candidate.id, { safe: false });
+        case "dismiss":
+          return dismissCandidateAction(projectRoot, action.candidate.id, {});
+        case "safe-approve-all":
+          return approveCandidateAction(projectRoot, undefined, { safe: true });
+      }
+    },
+    [projectRoot],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -56,7 +135,6 @@ export function ReviewScreen({ projectRoot, onMessage, onError }: ReviewScreenPr
       .catch((reason: unknown) => {
         if (!cancelled) {
           const message = reason instanceof Error ? reason.message : String(reason);
-          setError(message);
           onError(message);
           onMessage(`Review load failed: ${message}`);
         }
@@ -68,6 +146,40 @@ export function ReviewScreen({ projectRoot, onMessage, onError }: ReviewScreenPr
 
   useInput((input, key) => {
     if (busy) {
+      return;
+    }
+    if (pendingAction) {
+      if (input === "n" || key.escape) {
+        setPendingAction(null);
+        onMessage("Review action cancelled.");
+        return;
+      }
+      if (input === "y" || key.return) {
+        setBusy(true);
+        onError(null);
+        void runConfirmedAction(pendingAction)
+          .then(async (result) => {
+            if (pendingAction.kind === "safe-approve-all") {
+              const skipped = result.skippedManualReviewCount ?? 0;
+              onMessage(`Approved ${result.affectedCount} safe candidates, skipped ${skipped}.`);
+            } else {
+              onMessage(
+                `${pendingAction.kind === "approve" ? "Approved" : "Dismissed"} ${result.affectedCount} candidate.`,
+              );
+            }
+            await reload();
+          })
+          .catch((reason: unknown) => {
+            const message = reason instanceof Error ? reason.message : String(reason);
+            onError(message);
+            onMessage(`${pendingAction.kind} failed: ${message}`);
+          })
+          .finally(() => {
+            setBusy(false);
+            setPendingAction(null);
+          });
+        return;
+      }
       return;
     }
     if (input === "r") {
@@ -83,69 +195,34 @@ export function ReviewScreen({ projectRoot, onMessage, onError }: ReviewScreenPr
       return;
     }
     if (input === "a" || key.return) {
-      const selectedId = getSelectedCandidateId(model, selectedIndex);
-      if (!selectedId) {
+      const nextAction = buildPendingAction("approve", model, selectedIndex);
+      if (!nextAction || nextAction.kind !== "approve") {
         return;
       }
-      setBusy(true);
-      setError(null);
-      void approveCandidateAction(projectRoot, selectedId, { safe: false })
-        .then(async (result) => {
-          onMessage(`Approved ${result.affectedCount} candidate.`);
-          await reload();
-        })
-        .catch((reason: unknown) => {
-          const message = reason instanceof Error ? reason.message : String(reason);
-          setError(message);
-          onError(message);
-          onMessage(`Approve failed: ${message}`);
-        })
-        .finally(() => setBusy(false));
+      setPendingAction(nextAction);
+      onMessage(`Ready to approve ${nextAction.candidate.id}. Press y or Enter to confirm.`);
       return;
     }
     if (input === "d") {
-      const selectedId = getSelectedCandidateId(model, selectedIndex);
-      if (!selectedId) {
+      const nextAction = buildPendingAction("dismiss", model, selectedIndex);
+      if (!nextAction || nextAction.kind !== "dismiss") {
         return;
       }
-      setBusy(true);
-      setError(null);
-      void dismissCandidateAction(projectRoot, selectedId, {})
-        .then(async (result) => {
-          onMessage(`Dismissed ${result.affectedCount} candidate.`);
-          await reload();
-        })
-        .catch((reason: unknown) => {
-          const message = reason instanceof Error ? reason.message : String(reason);
-          setError(message);
-          onError(message);
-          onMessage(`Dismiss failed: ${message}`);
-        })
-        .finally(() => setBusy(false));
+      setPendingAction(nextAction);
+      onMessage(`Ready to dismiss ${nextAction.candidate.id}. Press y or Enter to confirm.`);
       return;
     }
     if (input === "s") {
-      setBusy(true);
-      setError(null);
-      void approveCandidateAction(projectRoot, undefined, { safe: true })
-        .then(async (result) => {
-          const skipped = result.skippedManualReviewCount ?? 0;
-          onMessage(`Approved ${result.affectedCount} safe candidates, skipped ${skipped}.`);
-          await reload();
-        })
-        .catch((reason: unknown) => {
-          const message = reason instanceof Error ? reason.message : String(reason);
-          setError(message);
-          onError(message);
-          onMessage(`Approve-safe failed: ${message}`);
-        })
-        .finally(() => setBusy(false));
+      const nextAction = buildPendingAction("safe-approve-all", model, selectedIndex);
+      if (!nextAction || nextAction.kind !== "safe-approve-all") {
+        onMessage("No safe candidates available to approve.");
+        return;
+      }
+      setPendingAction(nextAction);
+      onMessage(`Ready to safe-approve ${nextAction.safeCandidates} candidate(s). Press y or Enter to confirm.`);
     }
   });
 
-  if (error) {
-    return <Text color="red">Review error: {error}</Text>;
-  }
   if (!model) {
     return <Text>Loading review candidates...</Text>;
   }
@@ -165,6 +242,14 @@ export function ReviewScreen({ projectRoot, onMessage, onError }: ReviewScreenPr
           {index === selectedIndex ? ">" : " "} {entry.id} | {entry.type} | {entry.importance} | {entry.title}
         </Text>
       ))}
+      {pendingAction && (
+        <Section title="Confirm Action">
+          <Text>{renderPendingActionSummary(pendingAction)}</Text>
+        </Section>
+      )}
+      <Box marginTop={1}>
+        <Text color="gray">Status: {renderPendingActionSummary(pendingAction)}</Text>
+      </Box>
       {busy && <Text color="yellow">Working...</Text>}
     </Box>
   );
