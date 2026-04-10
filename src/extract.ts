@@ -119,9 +119,20 @@ const TYPE_SIGNAL_RULES: Record<MemoryType, SignalRule[]> = {
     },
     { pattern: /(?:决定|采用|改为|统一使用|选用|保留|切换到|标准化)/u, weight: 2.3, detail: "decision keyword (zh)" },
     {
+      pattern: /(?:最终选了|决定用|改成|统一改为|确认使用|弃用|不再用|换成)/u,
+      weight: 2.2,
+      detail: "decision keyword (zh conversational)",
+    },
+    {
       pattern: /\b(?:because|so that|to avoid|for consistency|for rollback|for safety)\b/iu,
       weight: 1.2,
       detail: "decision rationale",
+      kind: "cause",
+    },
+    {
+      pattern: /(?:权衡之后|考虑到|综合考虑|出于.*考虑)/u,
+      weight: 1.2,
+      detail: "decision rationale (zh conversational)",
       kind: "cause",
     },
   ],
@@ -137,6 +148,24 @@ const TYPE_SIGNAL_RULES: Record<MemoryType, SignalRule[]> = {
       pattern: /(?:不要|避免|否则|会导致|陷阱|注意|坑|报错|失败|死锁|回滚|半写入|数据丢失)/u,
       weight: 2.8,
       detail: "risk or gotcha keyword (zh)",
+      kind: "risk",
+    },
+    {
+      pattern: /(?:踩过的坑|这个坑|要注意|千万别|切记|之前栽过|遇到过|容易忘|容易出错)/u,
+      weight: 2.8,
+      detail: "risk or gotcha keyword (zh conversational)",
+      kind: "risk",
+    },
+    {
+      pattern: /(?:一定要|别忘了|小心|当心|不然会|如果不.*就会)/u,
+      weight: 2.8,
+      detail: "risk phrasing (zh conversational)",
+      kind: "risk",
+    },
+    {
+      pattern: /(?:兼容性问题|版本不兼容|环境差异|不同平台)/u,
+      weight: 2.8,
+      detail: "compatibility gotcha (zh)",
       kind: "risk",
     },
     {
@@ -159,6 +188,16 @@ const TYPE_SIGNAL_RULES: Record<MemoryType, SignalRule[]> = {
       detail: "convention keyword (zh)",
     },
     {
+      pattern: /(?:一律|统一用|格式要求|必须遵守|团队约定|代码规范|文件名规则)/u,
+      weight: 2.3,
+      detail: "convention keyword (zh conversational)",
+    },
+    {
+      pattern: /(?:提交规范|分支命名|PR 规则|review 规则)/u,
+      weight: 2.3,
+      detail: "collaboration convention keyword (zh)",
+    },
+    {
       pattern: /\b(?:prefer|recommended|should live in|belongs in)\b/iu,
       weight: 1.1,
       detail: "convention preference",
@@ -176,6 +215,16 @@ const TYPE_SIGNAL_RULES: Record<MemoryType, SignalRule[]> = {
       pattern: /(?:模式|流程|封装|抽成.*helper|通过.*处理|复用|共享解析器|统一走)/u,
       weight: 2.4,
       detail: "pattern keyword (zh)",
+    },
+    {
+      pattern: /(?:可以复用|抽象出来|统一走.*逻辑|用.*来处理|封装成|提炼出)/u,
+      weight: 2.3,
+      detail: "pattern keyword (zh conversational)",
+    },
+    {
+      pattern: /(?:通用方案|标准做法|推荐写法|最佳实践)/u,
+      weight: 2.3,
+      detail: "pattern phrasing (zh conversational)",
     },
     {
       pattern: /\b(?:use .* to|so callers|shared path|common path)\b/iu,
@@ -196,6 +245,11 @@ const TYPE_SIGNAL_RULES: Record<MemoryType, SignalRule[]> = {
       weight: 2.2,
       detail: "working-context keyword (zh)",
     },
+    {
+      pattern: /(?:先这样|临时方案|暂时先|后面再|TODO|待优化|先 workaround)/u,
+      weight: 2.2,
+      detail: "working-context keyword (zh conversational)",
+    },
   ],
   goal: [
     {
@@ -204,6 +258,11 @@ const TYPE_SIGNAL_RULES: Record<MemoryType, SignalRule[]> = {
       detail: "goal keyword",
     },
     { pattern: /(?:目标|迁移到|最终|长期|收敛到|规划|里程碑|终态)/u, weight: 2.4, detail: "goal keyword (zh)" },
+    {
+      pattern: /(?:计划|排期|下个版本|后续要|需要完成|准备做|打算)/u,
+      weight: 2.4,
+      detail: "goal keyword (zh conversational)",
+    },
     {
       pattern: /\b(?:finish|complete|move .* to|remove the legacy path)\b/iu,
       weight: 1.1,
@@ -225,6 +284,7 @@ const NOISE_PATTERN =
   /\b(?:console\.log|debug log|printf?\(|print\(|typo|format only|snapshot update|ran tests?|npm install|pnpm install|yarn install|bump version)\b|(?:打印日志|调试日志|修个 typo|只改格式|跑了测试)/iu;
 const ACTION_LOG_ONLY_PATTERN =
   /^\s*(?:[-*]\s*)?(?:fixed|updated|renamed|added|removed|changed|touched|ran|修复了|更新了|改了|新增了|删除了)/iu;
+const POLITE_NOISE_LINE_PATTERN = /^(?:好的|收到|嗯|谢谢|感谢|没问题|搞定了)\s*$/u;
 const COMMIT_SUBJECT_ONLY_PATTERN =
   /^(?:subject:\s*)?(?:feat|fix|refactor|chore|docs|test|build|ci|perf)(?:\(.+?\))?:/iu;
 const GENERIC_TITLE_PATTERN = /^(?:summary|notes|update|fixes|changes|修复记录|总结|说明)$/iu;
@@ -317,6 +377,10 @@ const TITLE_FILLER_PREFIXES = [
   /^it(?:'s| is) important to\s+/iu,
   /^always\s+/iu,
   /^please\s+/iu,
+  /^记住\s*/u,
+  /^注意\s*/u,
+  /^重要\s*/u,
+  /^关键是\s*/u,
   /^建议\s*/u,
   /^需要\s*/u,
   /^必须\s*/u,
@@ -624,7 +688,7 @@ function segmentIntoFragments(input: PreprocessedExtractionInput): ExtractionFra
       const sentences = block
         .split(SENTENCE_SPLIT_PATTERN)
         .map((sentence) => sentence.trim())
-        .filter((sentence) => sentence.length >= 28);
+        .filter((sentence) => sentence.length >= (hasCjkMajority(sentence) ? 12 : 28));
       if (sentences.length > 1) {
         for (let index = 0; index < sentences.length; index += 1) {
           const first = sentences[index];
@@ -724,7 +788,7 @@ function identifyCandidate(fragment: ExtractionFragment): LocalCandidateDraft | 
     }
   }
 
-  if (NOISE_PATTERN.test(text)) {
+  if (NOISE_PATTERN.test(text) || POLITE_NOISE_LINE_PATTERN.test(text)) {
     extractionEvidence.push({ kind: "noise", detail: "debug or procedural noise", weight: -2.0 });
   }
 
@@ -1164,7 +1228,7 @@ function rankSentence(value: string): number {
   if (COMMIT_SUBJECT_ONLY_PATTERN.test(value)) {
     score -= 10;
   }
-  if (NOISE_PATTERN.test(value)) {
+  if (NOISE_PATTERN.test(value) || POLITE_NOISE_LINE_PATTERN.test(value)) {
     score -= 12;
   }
 
@@ -1319,7 +1383,7 @@ function scoreCandidateQuality(
     score += 6;
   }
 
-  if (NOISE_PATTERN.test(combined)) {
+  if (NOISE_PATTERN.test(combined) || combined.split(/\n/u).some((line) => POLITE_NOISE_LINE_PATTERN.test(line.trim()))) {
     score -= 30;
   }
   if (TEMPORARY_PATTERN.test(combined) && candidate.chosenType !== "working" && candidate.chosenType !== "goal") {
@@ -1337,7 +1401,11 @@ function scoreCandidateQuality(
 
   score = clamp(score, 0, 100);
 
-  if (NOISE_PATTERN.test(combined) || (TEMPORARY_PATTERN.test(combined) && candidate.chosenType !== "working")) {
+  if (
+    NOISE_PATTERN.test(combined) ||
+    combined.split(/\n/u).some((line) => POLITE_NOISE_LINE_PATTERN.test(line.trim())) ||
+    (TEMPORARY_PATTERN.test(combined) && candidate.chosenType !== "working")
+  ) {
     return { qualityScore: score, rejectReason: "temporary_debug_noise" };
   }
 
@@ -1571,6 +1639,16 @@ function detectMemoryLanguage(value: string, fallback: string = "en"): string {
   }
 
   return "en";
+}
+
+function hasCjkMajority(text: string): boolean {
+  const nonWhitespaceChars = text.match(/[^\s]/gu) ?? [];
+  if (nonWhitespaceChars.length === 0) {
+    return false;
+  }
+
+  const cjkChars = text.match(/[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]/gu) ?? [];
+  return cjkChars.length / nonWhitespaceChars.length > 0.3;
 }
 
 function asNonEmptyString(value: unknown): string | null {
