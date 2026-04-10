@@ -209,3 +209,13 @@ const memories = parseRuleFileToMemories(ruleMarkdown, "AGENTS.md", {
 brain import AGENTS.md CONVENTIONS.md
 brain import AGENTS.md --dry-run --format json
 ```
+
+### MCP Server Tools
+
+`brain mcp` 会通过 stdio MCP 暴露同一套 RepoBrain 仓库记忆能力，供 Agent host 直接调用。
+
+- 检索和路由：`brain_get_context`、`brain_search`、`brain_suggest_skills`、`brain_route`、`brain_conversation_start`
+- 写入与审阅：`brain_add_memory`、`brain_capture`、`brain_review`、`brain_approve`
+- 查看与维护：`brain_list`、`brain_status`、`brain_sweep`
+
+`brain_sweep` 在 MCP 中仅提供 dry-run 预览，只返回 cleanup candidates，不会修改文件。`brain_conversation_start` 与 CLI 保持一致，会按智能刷新契约返回 `start`、`inject` 或 `skip`。

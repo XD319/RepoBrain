@@ -140,6 +140,16 @@ RepoBrain keeps memory local to the repository:
 
 The complete command reference lives in [docs/cli-reference.md](./docs/cli-reference.md).
 
+### MCP Server Tools
+
+`brain mcp` exposes the same repo memory workflow over stdio MCP for agent hosts.
+
+- Retrieval and routing: `brain_get_context`, `brain_search`, `brain_suggest_skills`, `brain_route`, `brain_conversation_start`
+- Capture and review: `brain_add_memory`, `brain_capture`, `brain_review`, `brain_approve`
+- Inspection and maintenance: `brain_list`, `brain_status`, `brain_sweep`
+
+`brain_sweep` is dry-run only in MCP and returns cleanup candidates without changing files. `brain_conversation_start` mirrors the CLI smart refresh contract and can return `start`, `inject`, or `skip`.
+
 ### Inspect Recent Memory Changes
 
 Use `brain diff` when you want a quick read-only summary of what changed in `.brain/` since the last context load, or inside a specific time window.

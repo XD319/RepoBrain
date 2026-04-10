@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
 import os from "node:os";
 import path from "node:path";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { expect, it } from "vitest";
 
 import { initBrain, saveMemory, loadStoredMemoryRecords } from "../dist/store-api.js";
@@ -67,16 +67,44 @@ await runTest("mcp server exposes and serves the expanded toolset", async () => 
       for (const name of [
         "brain_get_context",
         "brain_add_memory",
+        "brain_search",
         "brain_suggest_skills",
         "brain_route",
         "brain_capture",
+        "brain_sweep",
         "brain_review",
         "brain_approve",
         "brain_list",
+        "brain_conversation_start",
         "brain_status",
       ]) {
         assert.ok(toolNames.includes(name), `Expected tool ${name} in tools/list`);
       }
+
+      const search = await client.callTool("brain_search", {
+        query: "playwright browser",
+        type: "decision",
+      });
+      assert.equal(search.structuredContent.count, 1);
+      assert.equal(search.structuredContent.results[0].title, "Route browser testing through Playwright");
+
+      const conversationStart = await client.callTool("brain_conversation_start", {
+        task: "debug flaky browser tests",
+        paths: ["tests/e2e/login.spec.ts"],
+        refreshMode: "smart",
+      });
+      assert.equal(conversationStart.structuredContent.action, "start");
+      assert.ok(typeof conversationStart.structuredContent.context_markdown === "string");
+
+      const conversationSkip = await client.callTool("brain_conversation_start", {
+        task: "debug flaky browser tests",
+        paths: ["tests/e2e/login.spec.ts"],
+        refreshMode: "smart",
+      });
+      assert.equal(conversationSkip.structuredContent.action, "skip");
+      assert.ok(!("context_markdown" in conversationSkip.structuredContent));
+      assert.ok(typeof conversationSkip.structuredContent.reason === "string");
+      assert.ok(conversationSkip.structuredContent.decision_trace);
 
       const shortlist = await client.callTool("brain_suggest_skills", {
         task: "debug flaky browser tests",
@@ -103,6 +131,55 @@ await runTest("mcp server exposes and serves the expanded toolset", async () => 
 
       const list = await client.callTool("brain_list", { type: "decision" });
       assert.ok(list.structuredContent.count >= 1);
+
+      await saveMemory(
+        {
+          type: "working",
+          title: "Temporary request cleanup checklist",
+          summary: "Working memory that should expire in sweep preview.",
+          detail: "## WORKING\n\nTemporary checklist.",
+          tags: ["cleanup"],
+          importance: "medium",
+          date: "2026-01-01T09:00:00.000Z",
+          score: 50,
+          hit_count: 0,
+          last_used: null,
+          created_at: "2026-01-01",
+          updated: "2026-01-01",
+          stale: false,
+          status: "active",
+          source: "manual",
+          expires: "2026-01-02",
+        },
+        projectRoot,
+      );
+      await saveMemory(
+        {
+          type: "goal",
+          title: "Finish legacy migration",
+          summary: "A completed goal old enough to archive.",
+          detail: "## GOAL\n\nFinished migration.",
+          tags: ["migration"],
+          importance: "medium",
+          date: "2026-01-15T09:00:00.000Z",
+          score: 60,
+          hit_count: 0,
+          last_used: null,
+          created_at: "2026-01-15",
+          updated: "2026-01-15",
+          stale: false,
+          status: "done",
+          source: "manual",
+        },
+        projectRoot,
+      );
+      const indexBeforeSweep = await readFile(path.join(projectRoot, ".brain", "index.md"), "utf8");
+      const sweep = await client.callTool("brain_sweep", {});
+      assert.equal(sweep.structuredContent.dry_run, true);
+      assert.ok(sweep.structuredContent.expired_working.length >= 1);
+      assert.ok(sweep.structuredContent.archive_goals.length >= 1);
+      const indexAfterSweep = await readFile(path.join(projectRoot, ".brain", "index.md"), "utf8");
+      assert.equal(indexAfterSweep, indexBeforeSweep);
 
       const status = await client.callTool("brain_status", {});
       assert.ok(typeof status.structuredContent.total_memories === "number");
