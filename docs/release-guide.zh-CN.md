@@ -68,6 +68,7 @@ RepoBrain 现在会在 CI 中自动选择发布路径：
 - 在 GitHub Actions 中始终优先走 npm Trusted Publishing
 - `NPM_TOKEN` 默认只用于本地维护者发布
 - 只有在你显式设置 `REPOBRAIN_PUBLISH_STRATEGY=token` 时，CI 才会强制走 token fallback
+- 推送 `v*` tag 之后，同一个发布 workflow 还会自动创建或更新对应的 GitHub Release，并生成 release notes
 
 这样即使仓库里还保留着旧的 `NPM_TOKEN` secret，CI 默认也不会再误走 token 发布路径。
 
@@ -81,10 +82,17 @@ npm 侧一次性配置：
 仓库侧需要保持：
 
 - `.github/workflows/publish.yml` 里保留 `permissions.id-token: write`
+- `.github/workflows/publish.yml` 里保留 `permissions.contents: write`，这样 CI 才能创建 GitHub Release
 - 发布 workflow 所用的 npm 版本保持在 `>=11.5.1`（RepoBrain 当前通过在发布 workflow 中使用 Node `24` 来满足这一点）
 - 发布命令统一走 `npm run release:publish`
 - 让脚本在 GitHub Actions 里默认执行 `npm publish --provenance`
 - 只有在你有意测试 CI token fallback 时，才显式设置 `REPOBRAIN_PUBLISH_STRATEGY=token`
+
+GitHub Release 行为：
+
+- 现在推送 `v*` tag 会在同一个 workflow 里同时完成 npm 发布和 GitHub Release
+- 某个 tag 第一次发布时，workflow 会使用 `gh release create --generate-notes` 自动生成 release notes
+- 如果对应 Release 已存在，workflow 会保留现有正文，并仅把它更新为 latest release
 
 可选的仓库级 fallback：
 

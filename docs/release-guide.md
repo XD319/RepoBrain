@@ -68,6 +68,7 @@ RepoBrain now auto-selects a publish path in CI:
 - always prefer npm Trusted Publishing inside GitHub Actions
 - use `NPM_TOKEN` automatically only for local maintainer publishing
 - force the token fallback in CI only when you explicitly set `REPOBRAIN_PUBLISH_STRATEGY=token`
+- after a `v*` tag is pushed, the publish workflow also creates or updates the matching GitHub Release with generated notes
 
 That keeps the default CI path aligned with Trusted Publishing even if an old `NPM_TOKEN` repository secret still exists.
 
@@ -81,10 +82,17 @@ One-time npm setup:
 Repo expectations:
 
 - keep `permissions.id-token: write` in `.github/workflows/publish.yml`
+- keep `permissions.contents: write` in `.github/workflows/publish.yml` so GitHub Releases can be created from CI
 - keep the publish workflow on npm `>=11.5.1` (RepoBrain currently does this by running the publish workflow on Node `24`)
 - publish through `npm run release:publish`
 - let the script choose `npm publish --provenance` by default in GitHub Actions
 - only force plain `npm publish` in CI when you intentionally set `REPOBRAIN_PUBLISH_STRATEGY=token`
+
+GitHub Release behavior:
+
+- pushing `v*` now handles both npm publish and the matching GitHub Release in one workflow
+- the workflow uses `gh release create --generate-notes` the first time a tag is published
+- if the Release already exists, the workflow keeps the existing body and simply marks it as the latest release
 
 Optional repository fallback:
 
