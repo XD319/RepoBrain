@@ -12,15 +12,15 @@ tags:
 importance: "medium"
 score: 60
 hit_count: 1
-last_used: "2026-04-09"
-created_at: "2026-04-09T00:00:00.000Z"
-created: "2026-04-09"
-updated: "2026-04-09"
+last_used: "2026-04-11"
+created_at: "2026-04-11T00:00:00.000Z"
+created: "2026-04-11"
+updated: "2026-04-11"
 stale: false
 supersedes: null
 superseded_by: null
 version: 1
-date: "2026-04-09T09:27:27.771Z"
+date: "2026-04-11T08:14:55.651Z"
 source: "session"
 status: "active"
 related: []
@@ -35,8 +35,8 @@ suppressed_skills: []
 skill_trigger_paths: []
 skill_trigger_tasks: []
 area: "infra"
-valid_from: "2026-04-09"
-observed_at: "2026-04-09T00:00:00.000Z"
+valid_from: "2026-04-11"
+observed_at: "2026-04-11T00:00:00.000Z"
 invocation_mode: "optional"
 risk_level: "low"
 ---

@@ -4,11 +4,13 @@ import { Command } from "commander";
 import { BrainInternalError, BrainUserError } from "./errors.js";
 
 import { register as registerInitSetup } from "./commands/init-setup.js";
+import { register as registerImport } from "./commands/import.js";
 import { register as registerExtract } from "./commands/extract.js";
 import { register as registerInject } from "./commands/inject.js";
 import { register as registerConversationStart } from "./commands/conversation-start.js";
 import { register as registerReviewApprove } from "./commands/review-approve.js";
 import { register as registerListStats } from "./commands/list-stats.js";
+import { register as registerDiff } from "./commands/diff.js";
 import { register as registerGoal } from "./commands/goal.js";
 import { register as registerSweepScore } from "./commands/sweep-score.js";
 import { register as registerPreference } from "./commands/preference.js";
@@ -27,11 +29,13 @@ program.option("--debug", "Print stack traces for CLI errors.");
 program.exitOverride();
 
 registerInitSetup(program);
+registerImport(program);
 registerExtract(program);
 registerInject(program);
 registerConversationStart(program);
 registerReviewApprove(program);
 registerListStats(program);
+registerDiff(program);
 registerGoal(program);
 registerSweepScore(program);
 registerPreference(program);

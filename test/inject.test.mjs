@@ -472,6 +472,34 @@ await runTest("inject skips working memories unless --include-working is set", a
   });
 });
 
+await runTest("inject silently skips expired working memories during injection", async () => {
+  await withTempRepo(async (projectRoot) => {
+    const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+
+    await saveMemory(
+      {
+        type: "working",
+        title: "Expired temporary working note",
+        summary: "This should not appear in injection output.",
+        detail: "## WORKING\n\nExpired working memory should be skipped automatically.",
+        tags: ["working", "expired"],
+        importance: "high",
+        date: "2026-04-01T09:00:00.000Z",
+        status: "active",
+        expires: yesterday,
+      },
+      projectRoot,
+    );
+
+    const injection = await buildInjection(projectRoot, DEFAULT_BRAIN_CONFIG, {
+      includeWorking: true,
+    });
+
+    assert.doesNotMatch(injection, /Expired temporary working note/);
+    assert.match(injection, /\[RepoBrain\] injected 0\/0 eligible memories\./);
+  });
+});
+
 await runTest("inject always includes active goals even when the token budget is tiny", async () => {
   await withTempRepo(async (projectRoot) => {
     await saveMemory(

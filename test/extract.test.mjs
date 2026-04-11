@@ -1,4 +1,4 @@
-import { expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import { buildExtractionPrompt, extractMemories } from "../dist/extract.js";
 
@@ -148,6 +148,72 @@ try {
 
     assert.equal(memories.length, 1);
     assert.equal(memories[0]?.type, "decision");
+  });
+
+  describe("中文 extraction 质量", () => {
+    runTest("口语化决策应被捕获", async () => {
+      const memories = await extractMemories("最终选了 pnpm 管理依赖，因为 npm 的 hoist 会导致幽灵依赖", {
+        ...config,
+        language: "zh-CN",
+      });
+
+      assert.ok(memories.length >= 1);
+      assert.ok(memories.some((entry) => entry.type === "decision"));
+    });
+
+    runTest("口语化踩坑应被捕获", async () => {
+      const memories = await extractMemories(
+        "这个坑踩过了，tsconfig 的 paths 必须和 package.json 的 exports 对齐，不然运行时解析会失败",
+        { ...config, language: "zh-CN" },
+      );
+
+      assert.ok(memories.length >= 1);
+      assert.ok(memories.some((entry) => entry.type === "gotcha"));
+    });
+
+    runTest("短中文约定应被捕获", async () => {
+      const memories = await extractMemories("团队约定：一律用 kebab-case 命名组件文件", {
+        ...config,
+        language: "zh-CN",
+      });
+
+      assert.ok(memories.length >= 1);
+    });
+
+    runTest("纯确认词不应生成 memory", async () => {
+      const memories = await extractMemories("好的，收到，谢谢", { ...config, language: "zh-CN" });
+
+      assert.equal(memories.length, 0);
+    });
+
+    runTest("混合中英文技术讨论应被捕获", async () => {
+      const memories = await extractMemories("决定用 Vitest 替换 Jest，因为 ESM 支持更好，avoid the transform hassle", {
+        ...config,
+        language: "zh-CN",
+      });
+
+      assert.ok(memories.length >= 1);
+    });
+
+    runTest("中文模式描述应被捕获", async () => {
+      const memories = await extractMemories(
+        "统一走 zod schema validation，可以复用 parse 结果，不用每个 handler 单独写校验",
+        { ...config, language: "zh-CN" },
+      );
+
+      assert.ok(memories.length >= 1);
+      assert.ok(memories.some((entry) => entry.type === "pattern" || entry.type === "convention"));
+    });
+
+    runTest("中文 working 上下文应被捕获", async () => {
+      const memories = await extractMemories("先这样 workaround，后面再优化成正式方案", {
+        ...config,
+        language: "zh-CN",
+      });
+
+      assert.ok(memories.length >= 1);
+      assert.ok(memories.some((entry) => entry.type === "working"));
+    });
   });
 
   console.log("All extract tests passed.");

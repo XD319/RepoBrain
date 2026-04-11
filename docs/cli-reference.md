@@ -15,6 +15,10 @@ Complete command reference moved from `README.md`.
 - `brain extract-commit`: extract from richer git commit context
 - `brain suggest-extract`: local heuristic check for whether extraction is worth doing
 - `brain capture`: suggest-extract + extract in one step, candidate-first by default
+- `brain import <files...>`: import existing rule files such as `AGENTS.md`, `CLAUDE.md`, `CONVENTIONS.md`, or `.cursorrules` into candidate memories
+- `brain import <files...> --dry-run`: preview parsed memories without writing files
+- `brain import <files...> --type <type>`: force imported memories to a specific type
+- `brain import <files...> --format json`: print machine-readable import summary
 
 Examples:
 
@@ -22,6 +26,8 @@ Examples:
 cat session-summary.txt | brain extract
 brain suggest-extract --task "fix refund bug" --path src/payments/handler.ts --json
 echo "gotcha: retry loop exits too early" | brain capture --task "fix refund bug" --path src/payments/handler.ts
+brain import AGENTS.md CONVENTIONS.md
+brain import AGENTS.md --dry-run --format json
 ```
 
 ## Context and Routing
@@ -50,6 +56,7 @@ brain start --format json --task "fix refund bug"
 ## Memory Management
 
 - `brain list [--type <type>] [--goals]`
+- `brain diff [--since <iso-date>] [--since-days <n>] [--format text|json]`: inspect memory changes since the last inject/context load or a caller-selected time window
 - `brain search "<query>" [--type] [--tag] [--status] [--all] [--json]`
 - `brain stats`
 - `brain goal done <keyword>`
@@ -59,6 +66,14 @@ brain start --format json --task "fix refund bug"
 - `brain explain-memory <id>`
 - `brain explain-preference <id>`
 
+Examples:
+
+```bash
+brain diff
+brain diff --since-days 7
+brain diff --since 2026-04-01T00:00:00Z --format json
+```
+
 ## Hygiene and Diagnostics
 
 - `brain status`
@@ -66,6 +81,7 @@ brain start --format json --task "fix refund bug"
 - `brain audit-memory [--json]`
 - `brain score`
 - `brain sweep [--dry-run|--auto]`
+- `brain gc`: alias for `brain sweep --auto` with a compact cleanup summary line
 - `brain lint-memory`
 - `brain normalize-memory`
 

@@ -1,7 +1,13 @@
 import { loadConfig as loadConfigImpl } from "./config.js";
 import { extractMemories as extractMemoriesImpl } from "./extract.js";
+import { parseRuleFileToMemories as parseRuleFileToMemoriesImpl } from "./import.js";
 import { buildInjection as buildInjectionImpl } from "./inject.js";
 import { buildConversationStart as buildConversationStartImpl } from "./conversation-start.js";
+import {
+  buildMemoryDiff as buildMemoryDiffImpl,
+  renderMemoryDiff as renderMemoryDiffImpl,
+  renderMemoryDiffJson as renderMemoryDiffJsonImpl,
+} from "./memory-diff.js";
 import { reviewCandidateMemories as reviewCandidateMemoriesImpl } from "./reviewer.js";
 import { reviewCandidateMemory as reviewCandidateMemoryImpl } from "./reviewer.js";
 import { loadAllMemories as loadAllMemoriesImpl } from "./store/memory-store.js";
@@ -54,6 +60,21 @@ export const buildInjection = buildInjectionImpl;
 export const buildConversationStart = buildConversationStartImpl;
 
 /**
+ * Summarize memory changes since the last inject or a caller-provided time window.
+ */
+export const buildMemoryDiff = buildMemoryDiffImpl;
+
+/**
+ * Render a human-readable markdown diff of memory-store changes.
+ */
+export const renderMemoryDiff = renderMemoryDiffImpl;
+
+/**
+ * Render a JSON diff of memory-store changes.
+ */
+export const renderMemoryDiffJson = renderMemoryDiffJsonImpl;
+
+/**
  * Build deterministic skill shortlist and invocation plan for a given task context.
  */
 export const buildSkillShortlist = buildSkillShortlistImpl;
@@ -67,6 +88,11 @@ export const buildTaskRoutingBundle = buildTaskRoutingBundleImpl;
  * Extract candidate durable memories from conversation/session text.
  */
 export const extractMemories = extractMemoriesImpl;
+
+/**
+ * Parse rule-oriented Markdown files such as AGENTS.md or .cursorrules into candidate memories.
+ */
+export const parseRuleFileToMemories = parseRuleFileToMemoriesImpl;
 
 /**
  * Review a single candidate memory against existing stored memories.

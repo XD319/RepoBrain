@@ -5,13 +5,16 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 
 import { loadConfig } from "../config.js";
+import { buildConversationStart } from "../conversation-start.js";
 import { evaluateExtractWorthiness } from "../extract-suggestion.js";
 import { extractMemories } from "../extract.js";
 import { buildInjection } from "../inject.js";
 import { loadSchemaValidatedMemoryRecords } from "../memory-schema.js";
 import { reviewCandidateMemory, reviewCandidateMemories } from "../reviewer.js";
+import { renderSearchResultsJson, searchMemories } from "../search.js";
 import { getSteeringRulesStatus } from "../steering-rules.js";
 import { buildSkillShortlist, resolveSuggestedSkillPaths } from "../suggest-skills.js";
+import { scanSweepCandidates } from "../sweep.js";
 import { buildTaskRoutingBundle } from "../task-routing.js";
 import {
   approveCandidateMemory,
@@ -141,6 +144,46 @@ const TOOLS: ToolDefinition[] = [
     },
   },
   {
+    name: "brain_search",
+    title: "Search Memories",
+    description: "Search memories by keywords with optional filters.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        query: {
+          type: "string",
+          minLength: 1,
+          description: "Keywords to search with AND semantics.",
+        },
+        type: {
+          type: "string",
+          enum: ["decision", "gotcha", "convention", "pattern", "working", "goal"],
+          description: "Optional memory type filter.",
+        },
+        tag: {
+          type: "string",
+          description: "Optional exact tag filter.",
+        },
+        status: {
+          type: "string",
+          enum: ["active", "candidate", "done", "stale", "superseded"],
+          description: "Optional memory status filter.",
+        },
+        all: {
+          type: "boolean",
+          description: "Include memories of all statuses.",
+        },
+      },
+      required: ["query"],
+    },
+    annotations: {
+      title: "Search Memories",
+      readOnlyHint: true,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
+  },
+  {
     name: "brain_suggest_skills",
     title: "Suggest Skills",
     description: "Build deterministic invocation plan from task and optional paths.",
@@ -240,6 +283,20 @@ const TOOLS: ToolDefinition[] = [
     },
   },
   {
+    name: "brain_sweep",
+    title: "Sweep Preview",
+    description: "Preview cleanup candidates (dry-run only, no writes).",
+    inputSchema: {
+      type: "object",
+    },
+    annotations: {
+      title: "Sweep Preview",
+      readOnlyHint: true,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
+  },
+  {
     name: "brain_review",
     title: "Review Candidates",
     description: "List candidate memories waiting for manual review.",
@@ -298,6 +355,49 @@ const TOOLS: ToolDefinition[] = [
     },
     annotations: {
       title: "List Memories",
+      readOnlyHint: true,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
+  },
+  {
+    name: "brain_conversation_start",
+    title: "Conversation Start",
+    description: "Smart refresh decision for a new conversation in the same session.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        task: {
+          type: "string",
+          description: "Optional current task description.",
+        },
+        paths: {
+          type: "array",
+          items: {
+            type: "string",
+          },
+          description: "Optional target paths for task-aware refresh decisions.",
+        },
+        modules: {
+          type: "array",
+          items: {
+            type: "string",
+          },
+          description: "Optional module or subsystem keywords for task-aware refresh decisions.",
+        },
+        force: {
+          type: "boolean",
+          description: "Force a refresh instead of allowing a redundant skip.",
+        },
+        refreshMode: {
+          type: "string",
+          enum: ["always", "task-change", "smart"],
+          description: 'Refresh mode: "always", "task-change", or "smart".',
+        },
+      },
+    },
+    annotations: {
+      title: "Conversation Start",
       readOnlyHint: true,
       idempotentHint: true,
       openWorldHint: false,
@@ -391,18 +491,24 @@ async function callTool(params: Record<string, unknown>, projectRoot: string): P
       return handleGetContext(args, projectRoot);
     case "brain_add_memory":
       return handleAddMemory(args, projectRoot);
+    case "brain_search":
+      return handleSearch(args, projectRoot);
     case "brain_suggest_skills":
       return handleSuggestSkills(args, projectRoot);
     case "brain_route":
       return handleRoute(args, projectRoot);
     case "brain_capture":
       return handleCapture(args, projectRoot);
+    case "brain_sweep":
+      return handleSweep(projectRoot);
     case "brain_review":
       return handleReview(projectRoot);
     case "brain_approve":
       return handleApprove(args, projectRoot);
     case "brain_list":
       return handleList(args, projectRoot);
+    case "brain_conversation_start":
+      return handleConversationStart(args, projectRoot);
     case "brain_status":
       return handleStatus(projectRoot);
     default:
@@ -485,6 +591,41 @@ async function handleAddMemory(args: Record<string, unknown>, projectRoot: strin
   };
 }
 
+async function handleSearch(args: Record<string, unknown>, projectRoot: string): Promise<Record<string, unknown>> {
+  const query = asRequiredString(args.query, "query");
+  const type = asEnum(args.type, ["decision", "gotcha", "convention", "pattern", "working", "goal"]);
+  if (args.type !== undefined && !type) {
+    throw new Error('Tool argument "type" must be one of: decision, gotcha, convention, pattern, working, goal.');
+  }
+  const status = asEnum(args.status, ["active", "candidate", "done", "stale", "superseded"]);
+  if (args.status !== undefined && !status) {
+    throw new Error('Tool argument "status" must be one of: active, candidate, done, stale, superseded.');
+  }
+
+  const tag = asOptionalString(args.tag, "tag");
+  const all = asOptionalBoolean(args.all, "all");
+  const records = await loadStoredMemoryRecords(projectRoot);
+  const results = searchMemories(records, query, {
+    ...(type ? { type } : {}),
+    ...(tag ? { tag } : {}),
+    ...(status ? { status } : {}),
+    ...(all !== undefined ? { all } : {}),
+  });
+
+  return {
+    content: [
+      {
+        type: "text",
+        text: results.length === 0 ? "No matching memories found." : `Found ${results.length} matching memories.`,
+      },
+    ],
+    structuredContent: {
+      count: results.length,
+      results: renderSearchResultsJson(results),
+    },
+  };
+}
+
 async function handleSuggestSkills(
   args: Record<string, unknown>,
   projectRoot: string,
@@ -532,6 +673,56 @@ async function handleRoute(args: Record<string, unknown>, projectRoot: string): 
       },
     ],
     structuredContent: bundle,
+  };
+}
+
+async function handleSweep(projectRoot: string): Promise<Record<string, unknown>> {
+  const config = await loadConfig(projectRoot);
+  const result = await scanSweepCandidates(projectRoot, config);
+
+  return {
+    content: [
+      {
+        type: "text",
+        text:
+          `Sweep preview: ${result.expiredWorking.length} expired working, ` +
+          `${result.staleMemories.length} stale, ${result.duplicatePairs.length} duplicate pairs, ` +
+          `${result.archiveGoals.length} archive-ready goals.`,
+      },
+    ],
+    structuredContent: {
+      dry_run: true,
+      expired_working: result.expiredWorking.map((entry) => ({
+        relative_path: entry.record.relativePath.replace(/\\/g, "/"),
+        title: entry.record.memory.title,
+        expires: entry.expires,
+      })),
+      stale_memories: result.staleMemories.map((entry) => ({
+        relative_path: entry.record.relativePath.replace(/\\/g, "/"),
+        title: entry.record.memory.title,
+        importance: entry.record.memory.importance,
+        days_since_updated: entry.daysSinceUpdated,
+        stale_days: entry.staleDays,
+        next_importance: entry.nextImportance,
+      })),
+      duplicate_pairs: result.duplicatePairs.map((entry) => ({
+        left: {
+          relative_path: entry.left.relativePath.replace(/\\/g, "/"),
+          title: entry.left.memory.title,
+        },
+        right: {
+          relative_path: entry.right.relativePath.replace(/\\/g, "/"),
+          title: entry.right.memory.title,
+        },
+        similarity: entry.similarity,
+      })),
+      archive_goals: result.archiveGoals.map((entry) => ({
+        relative_path: entry.record.relativePath.replace(/\\/g, "/"),
+        title: entry.record.memory.title,
+        updated: entry.updated,
+        days_since_updated: entry.daysSinceUpdated,
+      })),
+    },
   };
 }
 
@@ -617,6 +808,48 @@ async function handleCapture(args: Record<string, unknown>, projectRoot: string)
         target_memory_ids: entry.review.target_memory_ids,
       })),
     },
+  };
+}
+
+async function handleConversationStart(
+  args: Record<string, unknown>,
+  projectRoot: string,
+): Promise<Record<string, unknown>> {
+  const task = asOptionalString(args.task, "task");
+  const paths = asOptionalStringArray(args.paths, "paths");
+  const modules = asOptionalStringArray(args.modules, "modules");
+  const force = asOptionalBoolean(args.force, "force") ?? false;
+  const refreshMode = asEnum(args.refreshMode, ["always", "task-change", "smart"]);
+  if (args.refreshMode !== undefined && !refreshMode) {
+    throw new Error('Tool argument "refreshMode" must be one of: always, task-change, smart.');
+  }
+
+  const config = await loadConfig(projectRoot);
+  const result = await buildConversationStart(projectRoot, config, {
+    ...(task ? { task } : {}),
+    paths,
+    modules,
+    forceRefresh: force,
+    ...(refreshMode ? { refreshMode } : {}),
+  });
+
+  return {
+    content: [
+      {
+        type: "text",
+        text: `Conversation start action=${result.action}: ${result.reason}`,
+      },
+    ],
+    structuredContent:
+      result.action === "skip"
+        ? {
+            contract_version: result.contract_version,
+            action: result.action,
+            reason: result.reason,
+            refresh_mode: result.refresh_mode,
+            decision_trace: result.decision_trace,
+          }
+        : result,
   };
 }
 

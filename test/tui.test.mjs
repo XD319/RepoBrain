@@ -1,23 +1,72 @@
 import { describe, expect, it } from "vitest";
 
-import { parseInitialScreen, resolveScreenHotkey } from "../src/tui/app.tsx";
+import {
+  App,
+  getGlobalShortcutHint,
+  getNextScreen,
+  getScreenLabel,
+  parseInitialScreen,
+  resolveScreenHotkey,
+} from "../src/tui/app.tsx";
 import { buildRoutingInput, parsePathsInput } from "../src/tui/screens/routing.tsx";
-import { clampSelection, getSelectedCandidateId } from "../src/tui/screens/review.tsx";
+import {
+  buildPendingAction,
+  clampSelection,
+  getSelectedCandidateId,
+  renderPendingActionSummary,
+} from "../src/tui/screens/review.tsx";
 import { nextFilterValue } from "../src/tui/screens/memories.tsx";
+import { clampSearchSelection, hasSearchSelection, nextSearchTypeFilter } from "../src/tui/screens/search.tsx";
 import { filterMemoriesForBrowser } from "../src/tui/adapters/memories.ts";
 import { applyInputBuffer, parseCommaSeparatedValues } from "../src/tui/components/input-buffer.ts";
+import React from "react";
+import { render } from "ink";
+import { SearchScreen } from "../src/tui/screens/search.tsx";
+import { PassThrough } from "node:stream";
 
 describe("tui app helpers", () => {
   it("parses initial screen and validates values", () => {
     expect(parseInitialScreen(undefined)).toBe("dashboard");
     expect(parseInitialScreen("review")).toBe("review");
+    expect(parseInitialScreen("search")).toBe("search");
     expect(() => parseInitialScreen("unknown")).toThrow(/Unsupported screen/);
   });
 
   it("resolves screen hotkeys", () => {
     expect(resolveScreenHotkey("1")).toBe("dashboard");
     expect(resolveScreenHotkey("5")).toBe("routing");
+    expect(resolveScreenHotkey("6")).toBe("search");
     expect(resolveScreenHotkey("x")).toBeNull();
+  });
+
+  it("cycles across all screens and renders global shortcut hints", () => {
+    expect(getScreenLabel("dashboard")).toBe("Dashboard");
+    expect(getScreenLabel("search")).toBe("Search");
+    expect(getNextScreen("dashboard")).toBe("review");
+    expect(getNextScreen("routing")).toBe("search");
+    expect(getNextScreen("search")).toBe("dashboard");
+    expect(getGlobalShortcutHint("review")).toMatch(/\[1-6\] jump/);
+    expect(getGlobalShortcutHint("review")).toMatch(/\[a\] approve/);
+    expect(getGlobalShortcutHint("search")).toMatch(/Search:/);
+  });
+
+  it("renders app navigation without crashing", () => {
+    const stdin = Object.assign(new PassThrough(), {
+      isTTY: true,
+      setRawMode() {},
+    });
+    const stdout = new PassThrough();
+    const stderr = new PassThrough();
+    const app = render(
+      React.createElement(App, {
+        projectRoot: process.cwd(),
+        initialScreen: "search",
+      }),
+      { exitOnCtrlC: false, stdin, stdout, stderr },
+    );
+
+    app.unmount();
+    expect(true).toBe(true);
   });
 });
 
@@ -35,6 +84,26 @@ describe("tui review helpers", () => {
     expect(clampSelection(2, 50)).toBe(1);
     expect(getSelectedCandidateId(model, 1)).toBe("cand-b");
     expect(getSelectedCandidateId(model, 999)).toBe("cand-b");
+  });
+
+  it("builds review confirmation prompts", () => {
+    const model = {
+      totalCandidates: 2,
+      safeCandidates: 1,
+      candidates: [
+        { id: "cand-a", type: "pattern", importance: "high", title: "A" },
+        { id: "cand-b", type: "decision", importance: "medium", title: "B" },
+      ],
+    };
+    const approveAction = buildPendingAction("approve", model, 0);
+    const dismissAction = buildPendingAction("dismiss", model, 1);
+    const safeAction = buildPendingAction("safe-approve-all", model, 0);
+
+    expect(approveAction).toMatchObject({ kind: "approve", candidate: { id: "cand-a" } });
+    expect(dismissAction).toMatchObject({ kind: "dismiss", candidate: { id: "cand-b" } });
+    expect(safeAction).toMatchObject({ kind: "safe-approve-all", safeCandidates: 1, totalCandidates: 2 });
+    expect(renderPendingActionSummary(approveAction)).toMatch(/Confirm approve cand-a/);
+    expect(renderPendingActionSummary(safeAction)).toMatch(/Confirm safe approve for 1 candidate/);
   });
 });
 
@@ -79,6 +148,37 @@ describe("tui memories helpers", () => {
     );
     expect(entries).toHaveLength(1);
     expect(entries[0]?.memory.type).toBe("pattern");
+  });
+});
+
+describe("tui search helpers", () => {
+  it("cycles type filters and clamps selection", () => {
+    expect(nextSearchTypeFilter("all")).toBe("decision");
+    expect(nextSearchTypeFilter("goal")).toBe("all");
+    expect(clampSearchSelection(0, 4)).toBe(0);
+    expect(clampSearchSelection(2, 4)).toBe(1);
+    expect(hasSearchSelection([], 0)).toBe(false);
+    expect(hasSearchSelection([{ id: "m-1" }], 0)).toBe(true);
+  });
+
+  it("renders search screen without crashing", () => {
+    const stdin = Object.assign(new PassThrough(), {
+      isTTY: true,
+      setRawMode() {},
+    });
+    const stdout = new PassThrough();
+    const stderr = new PassThrough();
+    const app = render(
+      React.createElement(SearchScreen, {
+        projectRoot: process.cwd(),
+        onMessage: () => {},
+        onError: () => {},
+      }),
+      { exitOnCtrlC: false, stdin, stdout, stderr },
+    );
+
+    app.unmount();
+    expect(true).toBe(true);
   });
 });
 

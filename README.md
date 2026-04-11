@@ -54,6 +54,9 @@ In the default `recommended-semi-auto` mode, RepoBrain handles the repetitive ca
 # One-time setup: initialize .brain/ and install the default low-risk hook
 brain setup
 
+# If the repo already has AGENTS.md or similar guidance, migrate it into candidate memories first
+brain import AGENTS.md CONVENTIONS.md
+
 # Work normally; the default mode auto-detects extraction opportunities
 git commit -m "refactor request validation"
 
@@ -81,6 +84,8 @@ Optional interactive UI:
 ```bash
 brain tui
 ```
+
+The TUI now includes a dedicated `Search` screen for debounced keyword lookup with type filtering and result detail drill-down. Use `6` to open it from the navigation bar.
 
 ## Choose A Workflow Preset
 
@@ -126,14 +131,53 @@ RepoBrain keeps memory local to the repository:
 | Goal | Command | What it gives you |
 | --- | --- | --- |
 | Initialize a repo | `brain setup`, `brain init` | Create `.brain/`, apply a workflow preset, and optionally write steering rules |
-| Capture knowledge | `brain extract`, `brain extract-commit`, `brain capture` | Turn stdin, commit context, or session summaries into durable memory |
+| Capture knowledge | `brain extract`, `brain extract-commit`, `brain capture`, `brain import` | Turn stdin, commit context, session summaries, or existing rule files into candidate-first durable memory |
 | Review candidates | `brain review`, `brain approve`, `brain dismiss`, `brain promote-candidates` | Keep candidate-first workflows reviewable |
 | Start a task | `brain inject`, `brain conversation-start`, `brain suggest-skills`, `brain route`, `brain start` | Produce context blocks and deterministic routing plans |
-| Inspect memory | `brain list`, `brain search`, `brain timeline`, `brain explain-memory`, `brain explain-preference` | Explore what the repo already knows |
-| Keep things healthy | `brain status`, `brain next`, `brain audit-memory`, `brain lint-memory`, `brain normalize-memory`, `brain score`, `brain sweep` | Maintain memory quality over time |
+| Inspect memory | `brain list`, `brain diff`, `brain search`, `brain timeline`, `brain explain-memory`, `brain explain-preference` | Explore what the repo already knows and what changed since the last inject |
+| Keep things healthy | `brain status`, `brain next`, `brain audit-memory`, `brain lint-memory`, `brain normalize-memory`, `brain score`, `brain sweep` (`brain gc` alias for auto sweep) | Maintain memory quality over time |
 | Team and adapters | `brain share`, `brain mcp`, `brain reinforce`, `brain routing-feedback` | Share memory, integrate adapters, and close the feedback loop |
 
 The complete command reference lives in [docs/cli-reference.md](./docs/cli-reference.md).
+
+### MCP Server Tools
+
+`brain mcp` exposes the same repo memory workflow over stdio MCP for agent hosts.
+
+- Retrieval and routing: `brain_get_context`, `brain_search`, `brain_suggest_skills`, `brain_route`, `brain_conversation_start`
+- Capture and review: `brain_add_memory`, `brain_capture`, `brain_review`, `brain_approve`
+- Inspection and maintenance: `brain_list`, `brain_status`, `brain_sweep`
+
+`brain_sweep` is dry-run only in MCP and returns cleanup candidates without changing files. `brain_conversation_start` mirrors the CLI smart refresh contract and can return `start`, `inject`, or `skip`.
+
+### Inspect Recent Memory Changes
+
+Use `brain diff` when you want a quick read-only summary of what changed in `.brain/` since the last context load, or inside a specific time window.
+
+```bash
+brain diff
+brain diff --since-days 7
+brain diff --since 2026-04-01T00:00:00Z --format json
+```
+
+- Default behavior uses the last recorded `brain inject` / context-load timestamp from `.brain/activity.json`.
+- `--since-days <n>` shows recent changes without needing an exact timestamp.
+- `--format json` returns the same diff buckets as machine-readable JSON for scripts.
+
+## Import Rule Files
+
+RepoBrain now exposes a core parser for rule-oriented Markdown files such as `AGENTS.md`, `CLAUDE.md`, `CONVENTIONS.md`, and `.cursorrules`. It turns heading sections into candidate memories while preserving the existing candidate-first review flow.
+
+```ts
+import { parseRuleFileToMemories } from "repobrain";
+
+const memories = parseRuleFileToMemories(ruleMarkdown, "AGENTS.md", {
+  defaultType: "convention",
+  defaultImportance: "medium",
+});
+```
+
+The parser prefers explicit `decision:`, `gotcha:`, `convention:`, `pattern:`, and `goal:` prefixes, falls back to heading-based inference, skips weak sections such as table-of-contents blocks or link-only references, and returns normalized memories with `source: "manual"` plus `status: "candidate"`.
 
 ## Progressive Retrieval
 

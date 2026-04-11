@@ -84,6 +84,8 @@ brain route --task "refactor request validation" --format json
 brain tui
 ```
 
+现在 TUI 也提供独立的 `Search` 屏幕，支持带防抖的关键词检索、按 type 过滤，以及展开结果详情。可在导航栏中按 `6` 进入。
+
 ## 选择 Workflow Preset
 
 RepoBrain 内置了三种 workflow preset，让团队可以在不改变核心 CLI 契约的前提下，选择合适的自动化强度。
@@ -128,14 +130,28 @@ RepoBrain 把记忆保存在当前仓库的本地目录中：
 | 目标 | 命令 | 作用 |
 | --- | --- | --- |
 | 初始化仓库 | `brain setup`, `brain init` | 创建 `.brain/`、应用 workflow preset，并可写入 steering rules |
-| 采集知识 | `brain extract`, `brain extract-commit`, `brain capture` | 从 stdin、commit 上下文或会话总结中提取 durable memory |
+| 采集知识 | `brain extract`, `brain extract-commit`, `brain capture`, `brain import` | 从 stdin、commit 上下文、会话总结或现有规则文件中提取 candidate-first durable memory |
 | 审阅 candidate | `brain review`, `brain approve`, `brain dismiss`, `brain promote-candidates` | 保持 candidate-first 流程可审阅 |
 | 启动任务 | `brain inject`, `brain conversation-start`, `brain suggest-skills`, `brain route`, `brain start` | 生成上下文块和确定性的路由计划 |
-| 检索记忆 | `brain list`, `brain search`, `brain timeline`, `brain explain-memory`, `brain explain-preference` | 查看仓库已经知道什么 |
-| 维护质量 | `brain status`, `brain next`, `brain audit-memory`, `brain lint-memory`, `brain normalize-memory`, `brain score`, `brain sweep` | 长期维护记忆质量 |
+| 检索记忆 | `brain list`, `brain diff`, `brain search`, `brain timeline`, `brain explain-memory`, `brain explain-preference` | 查看仓库已经知道什么，以及自上次 inject 以来发生了什么变化 |
+| 维护质量 | `brain status`, `brain next`, `brain audit-memory`, `brain lint-memory`, `brain normalize-memory`, `brain score`, `brain sweep`（`brain gc` 为自动 sweep 别名） | 长期维护记忆质量 |
 | 团队与适配器 | `brain share`, `brain mcp`, `brain reinforce`, `brain routing-feedback` | 分享记忆、接入适配器、闭环反馈 |
 
 完整命令参考见 [docs/cli-reference.zh-CN.md](./docs/cli-reference.zh-CN.md)。
+
+### 查看近期 memory 变化
+
+当你想快速了解 `.brain/` 自上次上下文注入以来，或者某个时间窗口内发生了哪些变化时，可以使用只读命令 `brain diff`。
+
+```bash
+brain diff
+brain diff --since-days 7
+brain diff --since 2026-04-01T00:00:00Z --format json
+```
+
+- 默认会读取 `.brain/activity.json` 里的最近一次 `brain inject` / context-load 时间作为起点。
+- `--since-days <n>` 适合快速查看最近 N 天的变化。
+- `--format json` 会输出机器可读的 diff 结果，便于脚本消费。
 
 ## 渐进式检索
 
@@ -169,3 +185,37 @@ brain inject --layer full --ids "2026-04-01-refund-boundary-090000000"
 | 各 Agent 适配说明 | [integrations/claude/README.md](./integrations/claude/README.md), [integrations/codex/README.md](./integrations/codex/README.md), [integrations/cursor/README.md](./integrations/cursor/README.md), [integrations/copilot/README.md](./integrations/copilot/README.md) |
 
 如需查看 extended integrations、adapter contract 和各 Agent 的接入细节，请继续阅读 `/docs` 与 `/integrations` 目录。
+
+## 导入规则文件
+
+RepoBrain 现在提供了一个面向规则类 Markdown 文件的核心解析器，可用于 `AGENTS.md`、`CLAUDE.md`、`CONVENTIONS.md` 和 `.cursorrules` 这类已有规则文档。它会把每个 heading section 转成 candidate memory，同时保持现有的 candidate-first 审核流程不变。
+
+```ts
+import { parseRuleFileToMemories } from "repobrain";
+
+const memories = parseRuleFileToMemories(ruleMarkdown, "AGENTS.md", {
+  defaultType: "convention",
+  defaultImportance: "medium",
+});
+```
+
+解析器会优先识别显式的 `decision:`、`gotcha:`、`convention:`、`pattern:`、`goal:` 前缀；如果没有前缀，再根据 heading 推断类型；同时会跳过目录、纯链接参考区和明显过短的 section。返回结果已经按 RepoBrain 的内存结构归一化，并统一带上 `source: "manual"` 和 `status: "candidate"`。
+
+## 导入现有规则
+
+如果仓库里已经有 `AGENTS.md`、`CLAUDE.md`、`CONVENTIONS.md` 或 `.cursorrules`，可以先用 `brain import` 快速迁移为 candidate memory，再继续走现有的 review / approve 流程。
+
+```bash
+brain import AGENTS.md CONVENTIONS.md
+brain import AGENTS.md --dry-run --format json
+```
+
+### MCP Server Tools
+
+`brain mcp` 会通过 stdio MCP 暴露同一套 RepoBrain 仓库记忆能力，供 Agent host 直接调用。
+
+- 检索和路由：`brain_get_context`、`brain_search`、`brain_suggest_skills`、`brain_route`、`brain_conversation_start`
+- 写入与审阅：`brain_add_memory`、`brain_capture`、`brain_review`、`brain_approve`
+- 查看与维护：`brain_list`、`brain_status`、`brain_sweep`
+
+`brain_sweep` 在 MCP 中仅提供 dry-run 预览，只返回 cleanup candidates，不会修改文件。`brain_conversation_start` 与 CLI 保持一致，会按智能刷新契约返回 `start`、`inject` 或 `skip`。

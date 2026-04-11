@@ -3,6 +3,7 @@ import { rm } from "node:fs/promises";
 import path from "node:path";
 import { stdout as output } from "node:process";
 import { loadConfig, renderConfigWarnings } from "../config.js";
+import { applySweepAuto } from "../sweep.js";
 import { renderSweepDryRun, scanSweepCandidates } from "../sweep.js";
 import { initBrain, loadStoredMemoryRecords, updateIndex, updateStoredMemoryStatus } from "../store.js";
 import * as helpers from "./helpers.js";
@@ -37,6 +38,21 @@ export function register(program: Command): void {
       }
 
       await helpers.runSweepInteractive(projectRoot, config);
+    });
+
+  program
+    .command("gc")
+    .description("Run the same cleanup flow as `brain sweep --auto` with a compact summary.")
+    .action(async () => {
+      const projectRoot = await helpers.resolveProjectRoot();
+      await initBrain(projectRoot);
+      const config = await loadConfig(projectRoot);
+      renderConfigWarnings(config).forEach((warning) => process.stderr.write(`[repobrain] ${warning}\n`));
+
+      const result = await applySweepAuto(projectRoot, config);
+      output.write(
+        `gc: removed ${result.scan.expiredWorking.length} expired, downgraded ${result.scan.staleMemories.length} stale, archived ${result.scan.archiveGoals.length} goals\n`,
+      );
     });
 
   program;

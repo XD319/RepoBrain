@@ -1,6 +1,15 @@
-import { expect, it } from "vitest";
+import { afterAll, beforeAll, expect, it, vi } from "vitest";
 
 import { computeInjectPriority } from "../dist/store-api.js";
+
+beforeAll(() => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date("2026-04-09T08:00:00.000Z"));
+});
+
+afterAll(() => {
+  vi.useRealTimers();
+});
 
 await runTest("computeInjectPriority falls back to the freshest valid timestamp when last_used is null", async () => {
   const priority = computeInjectPriority({

@@ -84,9 +84,11 @@ export async function dismissCandidateAction(
   const matches = helpers.resolveCandidateRecords(records, memoryId, options.all);
 
   for (const entry of matches) {
-    await updateStoredMemoryStatus(entry, "stale");
+    await updateStoredMemoryStatus(entry, "superseded");
   }
-  await updateIndex(projectRoot);
+  if (matches.length > 0) {
+    await updateIndex(projectRoot);
+  }
 
   return {
     affectedCount: matches.length,
