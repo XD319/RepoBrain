@@ -1389,7 +1389,10 @@ function scoreCandidateQuality(
     score += 6;
   }
 
-  if (NOISE_PATTERN.test(combined) || combined.split(/\n/u).some((line) => POLITE_NOISE_LINE_PATTERN.test(line.trim()))) {
+  if (
+    NOISE_PATTERN.test(combined) ||
+    combined.split(/\n/u).some((line) => POLITE_NOISE_LINE_PATTERN.test(line.trim()))
+  ) {
     score -= 30;
   }
   if (TEMPORARY_PATTERN.test(combined) && candidate.chosenType !== "working" && candidate.chosenType !== "goal") {

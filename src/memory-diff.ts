@@ -63,8 +63,7 @@ export async function buildMemoryDiff(
 }
 
 export function renderMemoryDiff(result: MemoryDiffResult): string {
-  const totalChanges =
-    result.added.length + result.modified.length + result.expired.length + result.promoted.length;
+  const totalChanges = result.added.length + result.modified.length + result.expired.length + result.promoted.length;
   const lines = [
     "# Memory Diff",
     "",

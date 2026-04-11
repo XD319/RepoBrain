@@ -13,7 +13,11 @@ vi.mock("../src/store.ts", async (importOriginal) => {
 
 import { createDashboardStatsViewModel } from "../src/tui/adapters/dashboard.ts";
 import { createActivePreferenceListViewModel } from "../src/tui/adapters/preferences.ts";
-import { approveCandidateAction, createCandidateListViewModel, dismissCandidateAction } from "../src/tui/adapters/review.ts";
+import {
+  approveCandidateAction,
+  createCandidateListViewModel,
+  dismissCandidateAction,
+} from "../src/tui/adapters/review.ts";
 import { createRoutingInspectorViewModel } from "../src/tui/adapters/routing.ts";
 import { searchRecordsForView } from "../src/tui/adapters/search.ts";
 import * as store from "../src/store.ts";

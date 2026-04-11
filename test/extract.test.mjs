@@ -152,10 +152,10 @@ try {
 
   describe("中文 extraction 质量", () => {
     runTest("口语化决策应被捕获", async () => {
-      const memories = await extractMemories(
-        "最终选了 pnpm 管理依赖，因为 npm 的 hoist 会导致幽灵依赖",
-        { ...config, language: "zh-CN" },
-      );
+      const memories = await extractMemories("最终选了 pnpm 管理依赖，因为 npm 的 hoist 会导致幽灵依赖", {
+        ...config,
+        language: "zh-CN",
+      });
 
       assert.ok(memories.length >= 1);
       assert.ok(memories.some((entry) => entry.type === "decision"));
@@ -187,10 +187,10 @@ try {
     });
 
     runTest("混合中英文技术讨论应被捕获", async () => {
-      const memories = await extractMemories(
-        "决定用 Vitest 替换 Jest，因为 ESM 支持更好，avoid the transform hassle",
-        { ...config, language: "zh-CN" },
-      );
+      const memories = await extractMemories("决定用 Vitest 替换 Jest，因为 ESM 支持更好，avoid the transform hassle", {
+        ...config,
+        language: "zh-CN",
+      });
 
       assert.ok(memories.length >= 1);
     });

@@ -15,7 +15,15 @@ export interface SearchScreenProps {
   onError: (message: string | null) => void;
 }
 
-const TYPE_FILTERS: SearchScreenFilters["type"][] = ["all", "decision", "gotcha", "convention", "pattern", "working", "goal"];
+const TYPE_FILTERS: SearchScreenFilters["type"][] = [
+  "all",
+  "decision",
+  "gotcha",
+  "convention",
+  "pattern",
+  "working",
+  "goal",
+];
 const MAX_VISIBLE_RESULTS = 12;
 const SEARCH_DEBOUNCE_MS = 250;
 
@@ -162,7 +170,9 @@ export function SearchScreen({ projectRoot, onMessage, onError }: SearchScreenPr
       </Section>
       <Section title="Results">
         <Text>
-          {busy ? "Searching..." : `Showing ${Math.min(results.length, MAX_VISIBLE_RESULTS)} / ${results.length} results`}
+          {busy
+            ? "Searching..."
+            : `Showing ${Math.min(results.length, MAX_VISIBLE_RESULTS)} / ${results.length} results`}
         </Text>
         {results.length === 0 && !busy && <Text>No results yet. Type a keyword to search all memory types.</Text>}
         {results.slice(0, MAX_VISIBLE_RESULTS).map((entry, index) => (

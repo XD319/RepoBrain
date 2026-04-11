@@ -70,8 +70,11 @@ async function importRuleFiles(
 
   for (const file of files) {
     const content = await readRuleFile(file);
-    const parsedMemories = parseRuleFileToMemories(content, file, forcedType ? { defaultType: forcedType } : undefined)
-      .map((memory) => applyForcedType(memory, forcedType));
+    const parsedMemories = parseRuleFileToMemories(
+      content,
+      file,
+      forcedType ? { defaultType: forcedType } : undefined,
+    ).map((memory) => applyForcedType(memory, forcedType));
 
     parsed += parsedMemories.length;
 
