@@ -3,6 +3,6 @@
 .brain/config.yaml
 .brain/decisions/2026-04-03-release-changes-should-start-with-checklist-and--090000000.md
 .brain/errors.log
-.brain/gotchas/2026-04-11-normalize-cli-env-booleans-in-src-config-ts-befo-081455651.md
+.brain/gotchas/2026-04-11-normalize-cli-env-booleans-in-src-config-ts-befo-085251442.md
 .brain/index.md
 .brain/memory-index.json

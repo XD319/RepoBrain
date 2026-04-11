@@ -1,11 +1,11 @@
 {
   "version": 1,
-  "generated_at": "2026-04-11T08:14:55.731Z",
+  "generated_at": "2026-04-11T08:52:51.527Z",
   "entry_count": 1,
   "entries": [
     {
-      "id": "2026-04-11-normalize-cli-env-booleans-in-src-config-ts-befo-081455651",
-      "relativePath": "gotchas/2026-04-11-normalize-cli-env-booleans-in-src-config-ts-befo-081455651.md",
+      "id": "2026-04-11-normalize-cli-env-booleans-in-src-config-ts-befo-085251442",
+      "relativePath": "gotchas/2026-04-11-normalize-cli-env-booleans-in-src-config-ts-befo-085251442.md",
       "title": "Normalize CLI env booleans in src/config.ts before Commander validation",
       "summary": "In this TypeScript CLI repo, src/config.ts reads env defaults before src/cli.ts hands control to Commander.",
       "tags": [
@@ -26,7 +26,7 @@
       ],
       "token_size": 56,
       "updated_at": "2026-04-11",
-      "date": "2026-04-11T08:14:55.651Z",
+      "date": "2026-04-11T08:52:51.442Z",
       "type": "gotcha",
       "status": "active",
       "stale": false,
@@ -35,7 +35,7 @@
       "valid_from": "2026-04-11",
       "valid_until": null,
       "expires": null,
-      "source_mtime_ms": 1775895295711.8916
+      "source_mtime_ms": 1775897571507.027
     }
   ]
 }

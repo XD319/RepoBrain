@@ -44,7 +44,7 @@ Saved 1 memory as candidates.
 
 ```text
 Candidate memories: 1
-- 2026-04-11-normalize-cli-env-booleans-in-src-config-ts-befo-081455651 | gotcha | medium | Normalize CLI env booleans in src/config.ts before Commander validation
+- 2026-04-11-normalize-cli-env-booleans-in-src-config-ts-befo-085251442 | gotcha | medium | Normalize CLI env booleans in src/config.ts before Commander validation
 ```
 
 ### 4. `brain approve <candidate-id> --safe`
@@ -72,7 +72,7 @@ Selection mode: task-aware (task="tighten config parsing for npm release smoke v
   Why now: Module Overlap: cli; Path Scope Match: src/** -> src/config.ts, src/cli.ts
 
 ---
-Source: .brain/ (2 durable records, last updated: 2026-04-11T08:14:55.651Z)
+Source: .brain/ (2 durable records, last updated: 2026-04-11T08:52:51.442Z)
 [RepoBrain] injected 2/2 eligible memories.
 Requirements:
 - Understand these memories before choosing an implementation plan
@@ -454,7 +454,7 @@ Routing evidence:
 .brain/config.yaml
 .brain/decisions/2026-04-03-release-changes-should-start-with-checklist-and--090000000.md
 .brain/errors.log
-.brain/gotchas/2026-04-11-normalize-cli-env-booleans-in-src-config-ts-befo-081455651.md
+.brain/gotchas/2026-04-11-normalize-cli-env-booleans-in-src-config-ts-befo-085251442.md
 .brain/index.md
 .brain/memory-index.json
 ```
